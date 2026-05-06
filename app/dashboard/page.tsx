@@ -8,13 +8,11 @@ import {
   Plus,
   ReceiptText,
   Search,
-  Settings2,
   ShoppingBag,
   Store,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { LogoutButton } from "../components/logout-button";
 import { getCommerceSessionFromCookies } from "../lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -99,13 +97,6 @@ const quickActions = [
   },
 ];
 
-const navItems = [
-  { label: "Inicio", icon: Store, active: true },
-  { label: "Pedidos", icon: ReceiptText },
-  { label: "Catálogo", icon: Package },
-  { label: "Ajustes", icon: Settings2 },
-];
-
 function merchantStatus(isOpen?: boolean | null) {
   if (isOpen === true) {
     return { label: "Abierto", className: "success" };
@@ -128,48 +119,6 @@ export default async function DashboardPage() {
   const status = merchantStatus(session.merchant.isOpen);
 
   return (
-    <div className="dashboard-shell">
-      <aside className="sidebar" aria-label="Navegación principal">
-        <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">
-            <Store size={26} />
-          </div>
-          <div>
-            <p className="eyebrow">Y4Pido</p>
-            <strong>Comercio</strong>
-          </div>
-        </div>
-        <nav className="sidebar-nav">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <a
-                className={item.active ? "nav-item active" : "nav-item"}
-                href="#"
-                key={item.label}
-              >
-                <Icon size={18} />
-                {item.label}
-              </a>
-            );
-          })}
-        </nav>
-      </aside>
-
-      <div>
-        <header className="mobile-app-bar">
-          <div className="brand-lockup">
-            <div className="brand-mark" aria-hidden="true">
-              <Store size={22} />
-            </div>
-            <div>
-              <p className="eyebrow">Y4Pido</p>
-              <strong>Comercio</strong>
-            </div>
-          </div>
-          <LogoutButton compact />
-        </header>
-
         <main className="dashboard-main">
           <div className="dashboard-topbar">
             <div>
@@ -186,7 +135,6 @@ export default async function DashboardPage() {
               <button className="icon-button" type="button" title="Notificaciones">
                 <Bell size={18} />
               </button>
-              <LogoutButton />
             </div>
           </div>
 
@@ -351,23 +299,5 @@ export default async function DashboardPage() {
             </aside>
           </div>
         </main>
-
-        <nav className="mobile-bottom-nav" aria-label="Navegación móvil">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <a
-                className={item.active ? "nav-item active" : "nav-item"}
-                href="#"
-                key={item.label}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </a>
-            );
-          })}
-        </nav>
-      </div>
-    </div>
   );
 }

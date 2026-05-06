@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { DashboardShell } from "../components/dashboard-shell";
 import { getCommerceSessionFromCookies } from "../lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -15,5 +16,12 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  return children;
+  return (
+    <DashboardShell
+      merchantName={session.merchant.name}
+      userEmail={session.user.email}
+    >
+      {children}
+    </DashboardShell>
+  );
 }
