@@ -20,10 +20,11 @@
   --radius-md: 16px;
   --radius-lg: 24px;
   --shadow-floating: 0 16px 40px rgba(21, 21, 21, 0.08);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #0f0f10;
     --background-alt: #151517;
     --surface: #151517;
@@ -38,7 +39,48 @@
     --tertiary-container: #4f2619;
     --error-container: #4f1111;
     --shadow-floating: 0 18px 46px rgba(0, 0, 0, 0.32);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="light"] {
+  --background: #fcfcfc;
+  --background-alt: #f7f7f8;
+  --surface: #ffffff;
+  --surface-secondary: #f4f4f5;
+  --text: #151515;
+  --text-secondary: #5f5f63;
+  --border-soft: #ececef;
+  --border-medium: #d7d7db;
+  --primary: #e53935;
+  --on-primary: #ffffff;
+  --primary-container: #ffdad6;
+  --on-primary-container: #410002;
+  --secondary: #ff6f61;
+  --tertiary: #ff8a65;
+  --tertiary-container: #ffdccf;
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --shadow-floating: 0 16px 40px rgba(21, 21, 21, 0.08);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #0f0f10;
+  --background-alt: #151517;
+  --surface: #151517;
+  --surface-secondary: #242428;
+  --text: #f2f2f3;
+  --text-secondary: #c6c6cc;
+  --border-soft: #2d2d31;
+  --border-medium: #44444a;
+  --primary: #ff6b5f;
+  --primary-container: #51201b;
+  --on-primary-container: #ffdad6;
+  --tertiary-container: #4f2619;
+  --error-container: #4f1111;
+  --shadow-floating: 0 18px 46px rgba(0, 0, 0, 0.32);
+  color-scheme: dark;
 }
 
 *,
@@ -222,6 +264,13 @@ a {
   padding: 24px;
 }
 
+.login-panel-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .login-form {
   display: grid;
   gap: 16px;
@@ -345,6 +394,46 @@ a {
   height: 44px;
   background: var(--surface-secondary);
   color: var(--text-secondary);
+}
+
+.theme-toggle {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.theme-toggle-option {
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle .theme-when-light {
+  display: inline-flex;
+}
+
+.theme-toggle .theme-when-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle .theme-when-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle .theme-when-dark {
+  display: inline-flex;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .theme-when-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .theme-toggle .theme-when-dark {
+    display: inline-flex;
+  }
+}
+
+.sidebar-footer .button-secondary {
+  width: 100%;
 }
 
 .error-box {
@@ -593,14 +682,23 @@ a {
 }
 
 @media (prefers-color-scheme: dark) {
-  .pill.success {
+  :root:not([data-theme="light"]) .pill.success {
     background: #12371d;
     color: #a7e8b4;
   }
 
-  .pill.done {
+  :root:not([data-theme="light"]) .pill.done {
     color: #ffd8cc;
   }
+}
+
+:root[data-theme="dark"] .pill.success {
+  background: #12371d;
+  color: #a7e8b4;
+}
+
+:root[data-theme="dark"] .pill.done {
+  color: #ffd8cc;
 }
 
 .orders-list,

@@ -12,13 +12,33 @@ export const viewport: Viewport = {
   themeColor: "#FCFCFC",
 };
 
+const themeScript = `
+(function () {
+  try {
+    var storageKey = "y4pido-theme";
+    var storedTheme = window.localStorage.getItem(storageKey);
+    var theme = storedTheme === "dark" || storedTheme === "light"
+      ? storedTheme
+      : window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch (_) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es-PY">
+    <html lang="es-PY" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

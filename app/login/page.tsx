@@ -8,6 +8,7 @@ import {
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "../components/login-form";
+import { ThemeToggle } from "../components/theme-toggle";
 import { getCommerceSessionFromCookies } from "../lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -71,14 +72,17 @@ export default async function LoginPage() {
         </section>
 
         <section className="login-panel" aria-label="Inicio de sesión">
-          <div className="brand-lockup">
-            <div className="brand-mark" aria-hidden="true">
-              <Store size={26} />
+          <div className="login-panel-header">
+            <div className="brand-lockup">
+              <div className="brand-mark" aria-hidden="true">
+                <Store size={26} />
+              </div>
+              <div>
+                <p className="eyebrow">Comercio</p>
+                <h2 className="section-title">Iniciar sesión</h2>
+              </div>
             </div>
-            <div>
-              <p className="eyebrow">Comercio</p>
-              <h2 className="section-title">Iniciar sesión</h2>
-            </div>
+            <ThemeToggle compact />
           </div>
           <p className="login-copy">
             Entrá con tu cuenta Y4Pido. Vamos a validar rol, permisos y comercio

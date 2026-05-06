@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { LogoutButton } from "./logout-button";
+import { ThemeToggle } from "./theme-toggle";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -121,6 +122,7 @@ export function DashboardShell({
             <strong>{merchantName}</strong>
             <span>{userEmail}</span>
           </div>
+          <ThemeToggle />
           <LogoutButton />
         </div>
       </aside>
@@ -138,6 +140,7 @@ export function DashboardShell({
             <Menu size={20} />
           </button>
           <BrandLockup />
+          <ThemeToggle compact />
         </header>
 
         {children}
@@ -175,6 +178,7 @@ export function DashboardShell({
                 <strong>{merchantName}</strong>
                 <span>{userEmail}</span>
               </div>
+              <ThemeToggle />
               <LogoutButton />
             </div>
           </aside>
