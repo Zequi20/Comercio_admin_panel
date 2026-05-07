@@ -34,19 +34,70 @@ export type ProductPayload = {
   metadata?: Record<string, unknown> | null;
 };
 
+export type OrderStatus =
+  | "PLACED"
+  | "CONFIRMED"
+  | "ASSIGNED"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "CANCELED";
+
+export type OrderFulfillmentType = "DELIVERY" | "PICKUP";
+
+export type EntityReference = {
+  id: number | string;
+  email?: string | null;
+  nickname?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  contactEmail?: string | null;
+};
+
+export type CourierReference = {
+  id: number | string;
+  name?: string | null;
+  user?: EntityReference | null;
+};
+
+export type OrderItem = {
+  productId: number | string;
+  sku?: string | null;
+  name?: string | null;
+  quantity: number | string;
+  unitPrice?: number | string | null;
+};
+
 export type Order = {
   id: number | string;
   version?: number;
-  status?: string;
+  status?: OrderStatus;
   merchantId?: number | string;
-  merchant?: { id?: number | string; name?: string | null };
-  customer?: { id?: number | string; email?: string | null; nickname?: string | null };
-  fulfillmentType?: "DELIVERY" | "PICKUP";
+  merchant?: EntityReference;
+  customer?: EntityReference;
+  courier?: CourierReference | null;
+  fulfillmentType?: OrderFulfillmentType;
   address?: string | null;
   notes?: string | null;
   total?: number | string;
   currency?: string;
-  items?: Array<Record<string, unknown>>;
+  items?: OrderItem[];
+  createdAt?: string;
+  updatedAt?: string;
+  history?: Array<Record<string, unknown>>;
+};
+
+export type OrderItemPayload = {
+  productId: number;
+  quantity: number;
+};
+
+export type OrderPayload = {
+  merchantId: number | string;
+  fulfillmentType?: OrderFulfillmentType;
+  address?: string;
+  currency?: string;
+  notes?: string;
+  items: OrderItemPayload[];
 };
 
 function buildQuery(query: Record<string, string | number | boolean | undefined>) {
@@ -209,6 +260,30 @@ export async function deleteProductForMerchant({
   );
 }
 
+export async function createOrderForMerchant({
+  accessToken,
+  payload,
+  idempotencyKey,
+}: {
+  accessToken: string;
+  payload: OrderPayload;
+  idempotencyKey?: string;
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken, idempotencyKey),
+      body: JSON.stringify({
+        ...payload,
+        fulfillmentType: payload.fulfillmentType ?? "DELIVERY",
+        currency: payload.currency ?? "PYG",
+      }),
+    },
+    "No se pudo crear el pedido."
+  );
+}
+
 export async function listOrdersForMerchant({
   accessToken,
   status,
@@ -250,6 +325,26 @@ export async function getOrderForMerchant({
   );
 }
 
+export async function updateOrderItemsForMerchant({
+  accessToken,
+  orderId,
+  payload,
+}: {
+  accessToken: string;
+  orderId: number | string;
+  payload: { items: OrderItemPayload[]; expectedVersion: number };
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders/${orderId}/items`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudieron actualizar los ítems del pedido."
+  );
+}
+
 export async function updateOrderStatusForMerchant({
   accessToken,
   orderId,
@@ -267,5 +362,19 @@ export async function updateOrderStatusForMerchant({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el estado del pedido."
+  );
+}
+
+export async function deleteOrderForMerchant({
+  accessToken,
+  orderId,
+}: {
+  accessToken: string;
+  orderId: number | string;
+}) {
+  await requestJson<unknown>(
+    `${serviceUrls.orders}/orders/${orderId}`,
+    { method: "DELETE", headers: authHeaders(accessToken) },
+    "No se pudo eliminar el pedido."
   );
 }

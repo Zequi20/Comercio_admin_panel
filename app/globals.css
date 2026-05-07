@@ -373,6 +373,10 @@ a {
 }
 
 .suggestion-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
   min-height: 30px;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
@@ -794,6 +798,10 @@ a {
   margin-bottom: 16px;
 }
 
+.orders-filters {
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.42fr) auto;
+}
+
 .catalog-filters .button-tonal {
   align-self: end;
 }
@@ -808,6 +816,10 @@ a {
   width: 100%;
   min-width: 940px;
   border-collapse: collapse;
+}
+
+.orders-data-table {
+  min-width: 1080px;
 }
 
 .data-table th,
@@ -899,6 +911,70 @@ a {
 
 .metadata-viewer-toggle:hover {
   border-color: var(--primary);
+}
+
+.order-items-viewer,
+.order-item-field-list {
+  display: grid;
+  gap: 8px;
+}
+
+.order-items-viewer {
+  max-width: 280px;
+}
+
+.order-item-chip {
+  display: inline-grid;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--background-alt);
+  padding: 6px 8px;
+}
+
+.order-item-chip strong,
+.order-item-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-item-chip strong {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.order-item-chip span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.muted-chip {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.order-item-field-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(96px, 0.28fr) 44px;
+  gap: 10px;
+  align-items: center;
+}
+
+.order-item-product-control,
+.order-item-quantity-control {
+  min-width: 0;
+}
+
+.order-item-remove {
+  width: 44px;
+  height: 44px;
 }
 
 .danger-button {
@@ -1344,6 +1420,10 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .orders-filters {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.5fr);
+  }
+
   .catalog-filters .button-tonal {
     grid-column: 1 / -1;
   }
@@ -1420,8 +1500,13 @@ a {
     grid-template-columns: 1fr 44px;
   }
 
+  .order-item-field-row {
+    grid-template-columns: 1fr 44px;
+  }
+
   .metadata-key-pill,
-  .metadata-key-control {
+  .metadata-key-control,
+  .order-item-product-control {
     grid-column: 1 / -1;
   }
 
