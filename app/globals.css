@@ -914,6 +914,7 @@ a {
 }
 
 .order-items-viewer,
+.order-current-items,
 .order-item-field-list {
   display: grid;
   gap: 8px;
@@ -958,6 +959,36 @@ a {
   width: fit-content;
   color: var(--text-secondary);
   font-weight: 700;
+}
+
+.order-current-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  padding: 12px;
+}
+
+.order-current-item span {
+  min-width: 0;
+}
+
+.order-current-item span span {
+  display: block;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-current-item strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .order-item-field-row {

@@ -302,7 +302,7 @@ function itemFieldsToPayload(fields: OrderItemField[]):
     const productId = field.productId.trim();
     const quantity = field.quantity.trim();
 
-    if (!productId && !quantity) {
+    if (!productId && (!quantity || quantity === "1")) {
       continue;
     }
 
@@ -365,6 +365,10 @@ function orderToForm(order: CommerceOrder): OrderForm {
     status: order.status ?? "PLACED",
     items: [createItemField()],
   };
+}
+
+function itemDisplayName(item: OrderItem) {
+  return item.name ?? item.sku ?? `Producto #${item.productId}`;
 }
 
 export function OrdersManager() {
@@ -508,12 +512,44 @@ export function OrdersManager() {
     setIsFormOpen(true);
   }
 
-  function openEditForm(order: CommerceOrder) {
-    setEditingOrder(order);
-    setForm(orderToForm(order));
+  async function openEditForm(order: CommerceOrder) {
+    setPendingOrderId(String(order.id));
     setError(null);
     setSuccess(null);
-    setIsFormOpen(true);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(String(order.id))}`,
+        {
+          credentials: "include",
+        }
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(payload, "No se pudo cargar el detalle del pedido.")
+        );
+      }
+
+      const orderDetail = isOrder(payload) ? payload : order;
+
+      setEditingOrder(orderDetail);
+      setForm(orderToForm(orderDetail));
+      setIsFormOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar el detalle del pedido."
+      );
+    } finally {
+      setPendingOrderId(null);
+    }
+  }
+
+  function openEditFormFromRow(order: CommerceOrder) {
+    void openEditForm(order);
   }
 
   function closeFormModal() {
@@ -951,7 +987,7 @@ export function OrdersManager() {
                           <button
                             className="icon-button"
                             disabled={isPending}
-                            onClick={() => openEditForm(order)}
+                            onClick={() => openEditFormFromRow(order)}
                             title="Actualizar"
                             type="button"
                           >
@@ -1028,26 +1064,58 @@ export function OrdersManager() {
 
             <form className="catalog-form" onSubmit={handleSubmit}>
               {editingOrder ? (
-                <div className="field-group">
-                  <label className="field-label" htmlFor="order-status">
-                    Estado
-                  </label>
-                  <select
-                    className="field-control"
-                    disabled={isSubmitting}
-                    id="order-status"
-                    value={form.status}
-                    onChange={(event) =>
-                      updateForm("status", event.target.value as OrderStatus)
-                    }
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div className="field-group">
+                    <label className="field-label" htmlFor="order-status">
+                      Estado
+                    </label>
+                    <select
+                      className="field-control"
+                      disabled={isSubmitting}
+                      id="order-status"
+                      value={form.status}
+                      onChange={(event) =>
+                        updateForm("status", event.target.value as OrderStatus)
+                      }
+                    >
+                      {statusOptions.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field-group">
+                    <span className="field-label">Ítems actuales</span>
+                    {editingOrder.items?.length ? (
+                      <div className="order-current-items">
+                        {editingOrder.items.map((item) => (
+                          <div
+                            className="order-current-item"
+                            key={`${editingOrder.id}-${item.productId}`}
+                          >
+                            <span>
+                              <strong>{itemDisplayName(item)}</strong>
+                              <span>
+                                {item.sku ? `${item.sku} · ` : ""}
+                                {formatPrice(
+                                  item.unitPrice ?? 0,
+                                  editingOrder.currency ?? "PYG"
+                                )}
+                              </span>
+                            </span>
+                            <strong>x{item.quantity}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="metadata-empty-state">
+                        Sin productos en esta orden.
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="form-grid">
