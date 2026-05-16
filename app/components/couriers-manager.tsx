@@ -44,6 +44,7 @@ type CourierForm = {
   name: string;
   area: string;
   vehicle: string;
+  licensePlate: string;
   phone: string;
 };
 
@@ -58,6 +59,7 @@ const emptyForm: CourierForm = {
   name: "",
   area: "",
   vehicle: "",
+  licensePlate: "",
   phone: "",
 };
 
@@ -165,6 +167,14 @@ function courierPhone(courier: Courier) {
   return metadataText(courier.metadata, "phone") || courier.user?.phone || "";
 }
 
+function courierLicensePlate(courier: Courier) {
+  return (
+    metadataText(courier.metadata, "licensePlate") ||
+    metadataText(courier.metadata, "license_plate") ||
+    metadataText(courier.metadata, "plate")
+  );
+}
+
 function courierMatchesQuery(courier: Courier, query: string) {
   const normalized = query.trim().toLowerCase();
 
@@ -182,6 +192,7 @@ function courierMatchesQuery(courier: Courier, query: string) {
     courier.user?.phone,
     metadataText(courier.metadata, "area"),
     metadataText(courier.metadata, "vehicle"),
+    courierLicensePlate(courier),
     metadataText(courier.metadata, "phone"),
   ]
     .filter(Boolean)
@@ -198,6 +209,7 @@ function courierToForm(courier: Courier): CourierForm {
     name: courier.name ?? "",
     area: metadataText(courier.metadata, "area"),
     vehicle: metadataText(courier.metadata, "vehicle"),
+    licensePlate: courierLicensePlate(courier),
     phone: courierPhone(courier),
   };
 }
@@ -211,6 +223,10 @@ function formMetadata(form: CourierForm) {
 
   if (form.vehicle.trim()) {
     metadata.vehicle = form.vehicle.trim();
+  }
+
+  if (form.licensePlate.trim()) {
+    metadata.licensePlate = form.licensePlate.trim();
   }
 
   if (form.phone.trim()) {
@@ -597,6 +613,7 @@ export function CouriersManager() {
                 <th>Estado</th>
                 <th>Zona</th>
                 <th>Vehículo</th>
+                <th>Matrícula</th>
                 <th>Contacto</th>
                 <th>Actualizado</th>
                 <th>Acciones</th>
@@ -606,7 +623,7 @@ export function CouriersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -616,6 +633,7 @@ export function CouriersManager() {
                   const isPending = pendingCourierId === String(courier.id);
                   const area = metadataText(courier.metadata, "area");
                   const vehicle = metadataText(courier.metadata, "vehicle");
+                  const licensePlate = courierLicensePlate(courier);
                   const phone = courierPhone(courier);
 
                   return (
@@ -645,6 +663,7 @@ export function CouriersManager() {
                       </td>
                       <td>{area || "Sin zona"}</td>
                       <td>{vehicle || "Sin vehículo"}</td>
+                      <td>{licensePlate || "Sin matrícula"}</td>
                       <td>{phone || "Sin teléfono"}</td>
                       <td>{formatDate(courier.updatedAt)}</td>
                       <td>
@@ -674,7 +693,7 @@ export function CouriersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="empty-table-state">
                       <Truck aria-hidden="true" size={26} />
                       <strong>Sin repartidores registrados</strong>
@@ -799,6 +818,23 @@ export function CouriersManager() {
                 </div>
 
                 <div className="field-group">
+                  <label className="field-label" htmlFor="courier-phone">
+                    Teléfono operativo
+                  </label>
+                  <input
+                    className="field-control"
+                    disabled={isSubmitting}
+                    id="courier-phone"
+                    inputMode="tel"
+                    placeholder="+595..."
+                    value={form.phone}
+                    onChange={(event) => updateForm("phone", event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="field-group">
                   <label className="field-label" htmlFor="courier-vehicle">
                     Vehículo
                   </label>
@@ -811,21 +847,22 @@ export function CouriersManager() {
                     onChange={(event) => updateForm("vehicle", event.target.value)}
                   />
                 </div>
-              </div>
 
-              <div className="field-group">
-                <label className="field-label" htmlFor="courier-phone">
-                  Teléfono operativo
-                </label>
-                <input
-                  className="field-control"
-                  disabled={isSubmitting}
-                  id="courier-phone"
-                  inputMode="tel"
-                  placeholder="+595..."
-                  value={form.phone}
-                  onChange={(event) => updateForm("phone", event.target.value)}
-                />
+                <div className="field-group">
+                  <label className="field-label" htmlFor="courier-license-plate">
+                    Matrícula
+                  </label>
+                  <input
+                    className="field-control"
+                    disabled={isSubmitting}
+                    id="courier-license-plate"
+                    placeholder="ABC 123"
+                    value={form.licensePlate}
+                    onChange={(event) =>
+                      updateForm("licensePlate", event.target.value)
+                    }
+                  />
+                </div>
               </div>
 
               {editingCourier ? (

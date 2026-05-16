@@ -387,6 +387,9 @@ function courierOptionLabel(courier: Courier) {
   const details = [
     courier.user?.email,
     metadataText(courier.metadata, "vehicle"),
+    metadataText(courier.metadata, "licensePlate") ||
+      metadataText(courier.metadata, "license_plate") ||
+      metadataText(courier.metadata, "plate"),
     metadataText(courier.metadata, "area"),
   ].filter(Boolean);
 
