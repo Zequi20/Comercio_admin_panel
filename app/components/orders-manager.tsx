@@ -1262,6 +1262,7 @@ export function OrdersManager() {
               <tr>
                 <th>Orden</th>
                 <th>Cliente</th>
+                <th>Descripción</th>
                 <th>Tipo</th>
                 <th>Estado</th>
                 <th>Repartidor</th>
@@ -1275,7 +1276,7 @@ export function OrdersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -1301,6 +1302,15 @@ export function OrdersManager() {
                         <span className="table-muted">
                           {customerDetail(order)}
                         </span>
+                      </td>
+                      <td>
+                        {order.notes ? (
+                          <span className="table-muted order-description-cell">
+                            {order.notes}
+                          </span>
+                        ) : (
+                          <span className="table-muted">Sin descripción</span>
+                        )}
                       </td>
                       <td>
                         <span className="pill">
@@ -1386,7 +1396,7 @@ export function OrdersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div className="empty-table-state">
                       <ReceiptText aria-hidden="true" size={26} />
                       <strong>Sin órdenes registradas</strong>

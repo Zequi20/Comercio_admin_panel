@@ -862,7 +862,7 @@ a {
 }
 
 .orders-data-table {
-  min-width: 1200px;
+  min-width: 1320px;
 }
 
 .couriers-data-table {
@@ -916,6 +916,10 @@ a {
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.order-description-cell {
+  max-width: 260px;
 }
 
 .table-actions .icon-button {
