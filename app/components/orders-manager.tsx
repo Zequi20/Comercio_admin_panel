@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Truck,
   Trash2,
   X,
 } from "lucide-react";
@@ -29,6 +30,14 @@ type EntityReference = {
   email?: string | null;
   nickname?: string | null;
   name?: string | null;
+  phone?: string | null;
+  contactEmail?: string | null;
+};
+
+type CourierReference = {
+  id?: number | string;
+  name?: string | null;
+  user?: EntityReference | null;
 };
 
 type OrderItem = {
@@ -44,7 +53,7 @@ type CommerceOrder = {
   version?: number;
   status?: OrderStatus;
   customer?: EntityReference;
-  courier?: { id?: number | string; name?: string | null } | null;
+  courier?: CourierReference | null;
   fulfillmentType?: FulfillmentType;
   address?: string | null;
   notes?: string | null;
@@ -64,12 +73,24 @@ type CatalogProduct = {
   available: boolean;
 };
 
+type Courier = {
+  id: number | string;
+  name?: string | null;
+  user?: EntityReference | null;
+  isActive: boolean;
+  metadata?: Record<string, unknown> | null;
+};
+
 type ListOrdersResponse = {
   data?: CommerceOrder[];
 };
 
 type ListProductsResponse = {
   data?: CatalogProduct[];
+};
+
+type ListCouriersResponse = {
+  data?: Courier[];
 };
 
 type OrderItemField = {
@@ -201,6 +222,29 @@ function readProducts(payload: unknown): CatalogProduct[] {
   return [];
 }
 
+function isCourier(value: unknown): value is Courier {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return "id" in value && "isActive" in value;
+}
+
+function readCouriers(payload: unknown): Courier[] {
+  if (Array.isArray(payload)) {
+    return payload.filter(isCourier);
+  }
+
+  if (payload && typeof payload === "object") {
+    const data = (payload as ListCouriersResponse).data;
+    if (Array.isArray(data)) {
+      return data.filter(isCourier);
+    }
+  }
+
+  return [];
+}
+
 function buildOrdersUrl(filters: OrderFilters) {
   const params = new URLSearchParams({ limit: "100" });
 
@@ -290,6 +334,99 @@ function productOptionLabel(product: CatalogProduct) {
   return `${product.name}${sku} · ${formatPrice(product.price, product.currency)}`;
 }
 
+function metadataText(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function courierDisplayName(courier?: CourierReference | Courier | null) {
+  if (!courier) {
+    return "Sin repartidor";
+  }
+
+  return (
+    courier.name ??
+    courier.user?.name ??
+    courier.user?.nickname ??
+    courier.user?.email ??
+    `Repartidor #${courier.id ?? "-"}`
+  );
+}
+
+function courierDetail(courier?: CourierReference | Courier | null) {
+  const user = courier?.user;
+
+  if (user?.phone) {
+    return user.phone;
+  }
+
+  if (user?.email) {
+    return user.email;
+  }
+
+  return courier?.id ? `ID ${courier.id}` : "Sin referencia";
+}
+
+function courierOptionLabel(courier: Courier) {
+  const details = [
+    courier.user?.email,
+    metadataText(courier.metadata, "vehicle"),
+    metadataText(courier.metadata, "area"),
+  ].filter(Boolean);
+
+  return `${courierDisplayName(courier)}${
+    details.length ? ` · ${details.join(" · ")}` : ""
+  }`;
+}
+
+function statusOptionsForOrder(order: CommerceOrder | null) {
+  if (!order || order.status === "ASSIGNED") {
+    return statusOptions;
+  }
+
+  return statusOptions.filter((status) => status.value !== "ASSIGNED");
+}
+
+function canAssignDelivery(order: CommerceOrder) {
+  return (
+    order.fulfillmentType !== "PICKUP" &&
+    order.status === "CONFIRMED" &&
+    !order.courier?.id
+  );
+}
+
+function assignmentActionTitle(order: CommerceOrder) {
+  if (order.fulfillmentType === "PICKUP") {
+    return "No requiere delivery";
+  }
+
+  if (order.courier?.id) {
+    return "Delivery asignado";
+  }
+
+  if (order.status !== "CONFIRMED") {
+    return "Disponible al confirmar";
+  }
+
+  return "Asignar delivery";
+}
+
 function itemFieldsToPayload(fields: OrderItemField[]):
   | {
       ok: true;
@@ -341,6 +478,9 @@ function orderMatchesQuery(order: CommerceOrder, query: string) {
     order.id,
     customerName(order),
     order.customer?.email,
+    courierDisplayName(order.courier),
+    order.courier?.user?.email,
+    order.courier?.user?.phone,
     order.address,
     order.notes,
     ...(order.items ?? []).flatMap((item) => [
@@ -371,18 +511,65 @@ function itemDisplayName(item: OrderItem) {
   return item.name ?? item.sku ?? `Producto #${item.productId}`;
 }
 
+function itemCountLabel(count: number) {
+  return `${count} ${count === 1 ? "ítem" : "ítems"}`;
+}
+
+function itemUnitPriceLabel(item: OrderItem, currency: string) {
+  if (
+    item.unitPrice === null ||
+    item.unitPrice === undefined ||
+    item.unitPrice === ""
+  ) {
+    return "Sin precio";
+  }
+
+  return formatPrice(item.unitPrice, currency);
+}
+
+function itemLineTotal(item: OrderItem, currency: string) {
+  if (
+    item.unitPrice === null ||
+    item.unitPrice === undefined ||
+    item.unitPrice === ""
+  ) {
+    return null;
+  }
+
+  const quantity = Number(item.quantity);
+  const unitPrice = Number(item.unitPrice);
+
+  if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) {
+    return null;
+  }
+
+  return formatPrice(quantity * unitPrice, currency);
+}
+
 export function OrdersManager() {
   const [orders, setOrders] = useState<CommerceOrder[]>([]);
   const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
   const [form, setForm] = useState<OrderForm>(() => createEmptyForm());
   const [filters, setFilters] = useState<OrderFilters>(initialFilters);
   const [editingOrder, setEditingOrder] = useState<CommerceOrder | null>(null);
+  const [viewingItemsOrder, setViewingItemsOrder] =
+    useState<CommerceOrder | null>(null);
+  const [assigningOrder, setAssigningOrder] = useState<CommerceOrder | null>(
+    null
+  );
+  const [selectedCourierId, setSelectedCourierId] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [couriersError, setCouriersError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const hasOpenModal =
+    isFormOpen || viewingItemsOrder !== null || assigningOrder !== null;
 
   const visibleOrders = useMemo(
     () => orders.filter((order) => orderMatchesQuery(order, filters.q)),
@@ -397,6 +584,19 @@ export function OrdersManager() {
     [orders]
   );
 
+  const activeCouriers = useMemo(
+    () => couriers.filter((courier) => courier.isActive),
+    [couriers]
+  );
+
+  const selectedCourier = useMemo(
+    () =>
+      activeCouriers.find(
+        (courier) => String(courier.id) === selectedCourierId
+      ) ?? null,
+    [activeCouriers, selectedCourierId]
+  );
+
   async function loadProducts() {
     try {
       const response = await fetch("/api/products?limit=100&available=true", {
@@ -409,6 +609,34 @@ export function OrdersManager() {
       }
     } catch {
       setProducts([]);
+    }
+  }
+
+  async function loadCouriers() {
+    try {
+      const response = await fetch("/api/couriers?limit=100", {
+        credentials: "include",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(
+            payload,
+            "No se pudo cargar la lista de repartidores."
+          )
+        );
+      }
+
+      setCouriers(readCouriers(payload));
+      setCouriersError(null);
+    } catch (err) {
+      setCouriers([]);
+      setCouriersError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar la lista de repartidores."
+      );
     }
   }
 
@@ -465,7 +693,7 @@ export function OrdersManager() {
           setOrders(readOrders(ordersPayload));
         }
 
-        await loadProducts();
+        await Promise.all([loadProducts(), loadCouriers()]);
       } catch (err) {
         if (!ignore) {
           setError(
@@ -489,12 +717,12 @@ export function OrdersManager() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("modal-open", isFormOpen);
+    document.body.classList.toggle("modal-open", hasOpenModal);
 
     return () => {
       document.body.classList.remove("modal-open");
     };
-  }, [isFormOpen]);
+  }, [hasOpenModal]);
 
   function updateForm<K extends keyof OrderForm>(key: K, value: OrderForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -509,6 +737,8 @@ export function OrdersManager() {
     resetForm();
     setError(null);
     setSuccess(null);
+    setViewingItemsOrder(null);
+    setAssigningOrder(null);
     setIsFormOpen(true);
   }
 
@@ -536,6 +766,8 @@ export function OrdersManager() {
 
       setEditingOrder(orderDetail);
       setForm(orderToForm(orderDetail));
+      setViewingItemsOrder(null);
+      setAssigningOrder(null);
       setIsFormOpen(true);
     } catch (err) {
       setError(
@@ -557,6 +789,38 @@ export function OrdersManager() {
     resetForm();
     setError(null);
     setIsFormOpen(false);
+  }
+
+  function openItemsModal(order: CommerceOrder) {
+    setViewingItemsOrder(order);
+    setAssigningOrder(null);
+  }
+
+  function closeItemsModal() {
+    setViewingItemsOrder(null);
+  }
+
+  function openAssignModal(order: CommerceOrder) {
+    setAssigningOrder(order);
+    setViewingItemsOrder(null);
+    setIsFormOpen(false);
+    setError(null);
+    setSuccess(null);
+    setAssignmentError(couriersError);
+    setSelectedCourierId(
+      activeCouriers.length === 1 ? String(activeCouriers[0].id) : ""
+    );
+
+    if (!couriers.length) {
+      void loadCouriers();
+    }
+  }
+
+  function closeAssignModal() {
+    if (isAssigning) return;
+    setAssigningOrder(null);
+    setSelectedCourierId("");
+    setAssignmentError(null);
   }
 
   function addItemField() {
@@ -720,6 +984,83 @@ export function OrdersManager() {
     }
   }
 
+  async function handleAssignSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!assigningOrder) return;
+
+    setAssignmentError(null);
+    setSuccess(null);
+
+    if (!canAssignDelivery(assigningOrder)) {
+      setAssignmentError("El pedido debe estar confirmado y sin repartidor.");
+      return;
+    }
+
+    if (!activeCouriers.length) {
+      setAssignmentError("No hay repartidores activos para asignar.");
+      return;
+    }
+
+    const courierId = Number(selectedCourierId);
+    const selectedIsActive = activeCouriers.some(
+      (courier) => String(courier.id) === selectedCourierId
+    );
+
+    if (!Number.isInteger(courierId) || courierId <= 0 || !selectedIsActive) {
+      setAssignmentError("Seleccioná un repartidor válido.");
+      return;
+    }
+
+    const expectedVersion = readVersion(assigningOrder);
+
+    if (expectedVersion === null) {
+      setAssignmentError("No se pudo leer la versión actual del pedido.");
+      return;
+    }
+
+    setIsAssigning(true);
+    setPendingOrderId(String(assigningOrder.id));
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(String(assigningOrder.id))}/assign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            courierId,
+            expectedVersion,
+          }),
+        }
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(payload, "No se pudo asignar el repartidor.")
+        );
+      }
+
+      const assignedCourierName = selectedCourier
+        ? courierDisplayName(selectedCourier)
+        : `Repartidor #${courierId}`;
+
+      setAssigningOrder(null);
+      setSelectedCourierId("");
+      setSuccess(`Delivery asignado a ${assignedCourierName}.`);
+      await loadOrders();
+    } catch (err) {
+      setAssignmentError(
+        err instanceof Error ? err.message : "No se pudo asignar el repartidor."
+      );
+    } finally {
+      setIsAssigning(false);
+      setPendingOrderId(null);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -798,6 +1139,14 @@ export function OrdersManager() {
         setIsFormOpen(false);
       }
 
+      if (viewingItemsOrder?.id === order.id) {
+        setViewingItemsOrder(null);
+      }
+
+      if (assigningOrder?.id === order.id) {
+        setAssigningOrder(null);
+      }
+
       setSuccess("Orden eliminada correctamente.");
       await loadOrders();
     } catch (err) {
@@ -831,7 +1180,10 @@ export function OrdersManager() {
             <button
               className="icon-button"
               disabled={isLoading}
-              onClick={() => void loadOrders()}
+              onClick={() => {
+                void loadOrders();
+                void loadCouriers();
+              }}
               title="Actualizar tabla"
               type="button"
             >
@@ -840,14 +1192,14 @@ export function OrdersManager() {
           </div>
         </div>
 
-        {!isFormOpen && error ? (
+        {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
             <CircleAlert aria-hidden="true" size={18} />
             <span>{error}</span>
           </div>
         ) : null}
 
-        {!isFormOpen && success ? (
+        {!hasOpenModal && success ? (
           <div className="success-box catalog-status-message" role="status">
             <CircleCheck aria-hidden="true" size={18} />
             <span>{success}</span>
@@ -909,6 +1261,7 @@ export function OrdersManager() {
                 <th>Cliente</th>
                 <th>Tipo</th>
                 <th>Estado</th>
+                <th>Repartidor</th>
                 <th>Total</th>
                 <th>Ítems</th>
                 <th>Actualizado</th>
@@ -919,7 +1272,7 @@ export function OrdersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -930,6 +1283,7 @@ export function OrdersManager() {
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
                   const items = order.items ?? [];
+                  const canAssign = canAssignDelivery(order);
 
                   return (
                     <tr key={order.id}>
@@ -958,25 +1312,36 @@ export function OrdersManager() {
                           {config.label}
                         </span>
                       </td>
+                      <td>
+                        {order.courier?.id ? (
+                          <>
+                            <strong>{courierDisplayName(order.courier)}</strong>
+                            <span className="table-muted">
+                              {courierDetail(order.courier)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="table-muted">
+                            {order.fulfillmentType === "PICKUP"
+                              ? "No aplica"
+                              : "Sin asignar"}
+                          </span>
+                        )}
+                      </td>
                       <td>{formatPrice(order.total, order.currency ?? "PYG")}</td>
                       <td>
                         {items.length ? (
-                          <div className="order-items-viewer">
-                            {items.slice(0, 2).map((item) => (
-                              <span
-                                className="order-item-chip"
-                                key={`${order.id}-${item.productId}`}
-                              >
-                                <strong>{item.name ?? item.productId}</strong>
-                                <span>x{item.quantity}</span>
-                              </span>
-                            ))}
-                            {items.length > 2 ? (
-                              <span className="order-item-chip muted-chip">
-                                +{items.length - 2}
-                              </span>
-                            ) : null}
-                          </div>
+                          <button
+                            aria-label={`Ver ${itemCountLabel(
+                              items.length
+                            )} de la orden ${orderCode(order)}`}
+                            className="order-items-trigger"
+                            onClick={() => openItemsModal(order)}
+                            type="button"
+                          >
+                            <ReceiptText aria-hidden="true" size={15} />
+                            <span>{itemCountLabel(items.length)}</span>
+                          </button>
                         ) : (
                           <span className="table-muted">Sin ítems</span>
                         )}
@@ -984,6 +1349,15 @@ export function OrdersManager() {
                       <td>{formatDate(order.updatedAt)}</td>
                       <td>
                         <div className="table-actions">
+                          <button
+                            className="icon-button"
+                            disabled={isPending || !canAssign}
+                            onClick={() => openAssignModal(order)}
+                            title={assignmentActionTitle(order)}
+                            type="button"
+                          >
+                            <Truck size={17} />
+                          </button>
                           <button
                             className="icon-button"
                             disabled={isPending}
@@ -1009,7 +1383,7 @@ export function OrdersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="empty-table-state">
                       <ReceiptText aria-hidden="true" size={26} />
                       <strong>Sin órdenes registradas</strong>
@@ -1078,7 +1452,7 @@ export function OrdersManager() {
                         updateForm("status", event.target.value as OrderStatus)
                       }
                     >
-                      {statusOptions.map((status) => (
+                      {statusOptionsForOrder(editingOrder).map((status) => (
                         <option key={status.value} value={status.value}>
                           {status.label}
                         </option>
@@ -1317,6 +1691,211 @@ export function OrdersManager() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      ) : null}
+
+      {assigningOrder ? (
+        <div className="catalog-modal-layer" role="presentation">
+          <button
+            aria-label="Cerrar asignación de delivery"
+            className="catalog-modal-backdrop"
+            disabled={isAssigning}
+            onClick={closeAssignModal}
+            type="button"
+          />
+          <section
+            aria-label={`Asignar delivery a la orden ${orderCode(
+              assigningOrder
+            )}`}
+            aria-modal="true"
+            className="card card-lg catalog-modal order-assign-modal"
+            role="dialog"
+          >
+            <div className="card-header">
+              <div>
+                <h2 className="card-title">
+                  Asignar delivery {orderCode(assigningOrder)}
+                </h2>
+                <p className="muted">
+                  {customerName(assigningOrder)} ·{" "}
+                  {formatPrice(
+                    assigningOrder.total,
+                    assigningOrder.currency ?? "PYG"
+                  )}
+                </p>
+              </div>
+              <button
+                className="icon-button"
+                disabled={isAssigning}
+                onClick={closeAssignModal}
+                title="Cerrar asignación"
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form className="catalog-form" onSubmit={handleAssignSubmit}>
+              <div className="order-assignment-summary">
+                <div>
+                  <span>Estado</span>
+                  <strong>
+                    {statusConfig[assigningOrder.status ?? "PLACED"].label}
+                  </strong>
+                </div>
+                <div>
+                  <span>Dirección</span>
+                  <strong>{assigningOrder.address ?? "Sin dirección"}</strong>
+                </div>
+                <div>
+                  <span>Ítems</span>
+                  <strong>{itemCountLabel(assigningOrder.items?.length ?? 0)}</strong>
+                </div>
+              </div>
+
+              <div className="field-group">
+                <label className="field-label" htmlFor="order-courier">
+                  Repartidor
+                </label>
+                <select
+                  className="field-control"
+                  disabled={isAssigning || !activeCouriers.length}
+                  id="order-courier"
+                  value={selectedCourierId}
+                  onChange={(event) => {
+                    setSelectedCourierId(event.target.value);
+                    setAssignmentError(null);
+                  }}
+                >
+                  <option value="">
+                    {activeCouriers.length
+                      ? "Seleccionar repartidor"
+                      : "Sin repartidores activos"}
+                  </option>
+                  {activeCouriers.map((courier) => (
+                    <option key={courier.id} value={courier.id}>
+                      {courierOptionLabel(courier)}
+                    </option>
+                  ))}
+                </select>
+                {selectedCourier ? (
+                  <span className="assignment-courier-hint">
+                    {courierDetail(selectedCourier)}
+                  </span>
+                ) : null}
+              </div>
+
+              {assignmentError || (couriersError && !activeCouriers.length) ? (
+                <div className="error-box" role="alert">
+                  <CircleAlert aria-hidden="true" size={18} />
+                  <span>{assignmentError ?? couriersError}</span>
+                </div>
+              ) : null}
+
+              <div className="form-actions">
+                <button
+                  className="button-primary"
+                  disabled={isAssigning || !activeCouriers.length}
+                  type="submit"
+                >
+                  {isAssigning ? (
+                    <>
+                      <span aria-hidden="true" className="spinner" />
+                      Asignando
+                    </>
+                  ) : (
+                    <>
+                      <Truck size={17} />
+                      Asignar
+                    </>
+                  )}
+                </button>
+                <button
+                  className="button-secondary"
+                  disabled={isAssigning}
+                  onClick={closeAssignModal}
+                  type="button"
+                >
+                  <X size={17} />
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {viewingItemsOrder ? (
+        <div className="catalog-modal-layer" role="presentation">
+          <button
+            aria-label="Cerrar detalle de ítems"
+            className="catalog-modal-backdrop"
+            onClick={closeItemsModal}
+            type="button"
+          />
+          <section
+            aria-label={`Ítems de la orden ${orderCode(viewingItemsOrder)}`}
+            aria-modal="true"
+            className="card card-lg catalog-modal order-items-modal"
+            role="dialog"
+          >
+            <div className="card-header">
+              <div>
+                <h2 className="card-title">
+                  Ítems de {orderCode(viewingItemsOrder)}
+                </h2>
+                <p className="muted">
+                  {customerName(viewingItemsOrder)} ·{" "}
+                  {formatPrice(
+                    viewingItemsOrder.total,
+                    viewingItemsOrder.currency ?? "PYG"
+                  )}
+                </p>
+              </div>
+              <button
+                className="icon-button"
+                onClick={closeItemsModal}
+                title="Cerrar detalle"
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {viewingItemsOrder.items?.length ? (
+              <div className="order-items-modal-list">
+                {viewingItemsOrder.items.map((item, index) => {
+                  const currency = viewingItemsOrder.currency ?? "PYG";
+                  const lineTotal = itemLineTotal(item, currency);
+
+                  return (
+                    <article
+                      className="order-items-modal-item"
+                      key={`${viewingItemsOrder.id}-${item.productId}-${index}`}
+                    >
+                      <div>
+                        <strong>{itemDisplayName(item)}</strong>
+                        <span>
+                          {item.sku
+                            ? `SKU ${item.sku}`
+                            : `Producto #${item.productId}`}
+                        </span>
+                      </div>
+                      <div className="order-items-modal-numbers">
+                        <span>x{item.quantity}</span>
+                        <strong>{itemUnitPriceLabel(item, currency)}</strong>
+                        {lineTotal ? <small>{lineTotal}</small> : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="metadata-empty-state">
+                Sin productos en esta orden.
+              </div>
+            )}
           </section>
         </div>
       ) : null}

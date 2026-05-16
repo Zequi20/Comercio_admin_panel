@@ -7,6 +7,7 @@ import type {
 
 const commerceManagementPermissions = new Set([
   "orders:manage",
+  "orders:assign",
   "orders:update-items",
   "orders:update-status",
   "products:create",

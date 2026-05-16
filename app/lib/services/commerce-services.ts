@@ -59,6 +59,33 @@ export type CourierReference = {
   user?: EntityReference | null;
 };
 
+export type Courier = {
+  id: number | string;
+  name?: string | null;
+  user?: EntityReference | null;
+  isActive: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CourierPayload = {
+  userId?: number;
+  name?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type CourierUserPayload = {
+  email: string;
+  password: string;
+  nickname?: string | null;
+  phone?: string | null;
+};
+
+export type CourierUserCreateResponse = {
+  user?: EntityReference;
+};
+
 export type OrderItem = {
   productId: number | string;
   sku?: string | null;
@@ -98,6 +125,11 @@ export type OrderPayload = {
   currency?: string;
   notes?: string;
   items: OrderItemPayload[];
+};
+
+export type OrderAssignmentPayload = {
+  courierId: number;
+  expectedVersion: number;
 };
 
 function buildQuery(query: Record<string, string | number | boolean | undefined>) {
@@ -260,6 +292,113 @@ export async function deleteProductForMerchant({
   );
 }
 
+export async function listCouriersForMerchant({
+  accessToken,
+  limit = 100,
+}: {
+  accessToken: string;
+  limit?: number;
+}) {
+  const url = `${serviceUrls.auth}/couriers${buildQuery({
+    limit,
+    expand: "user",
+  })}`;
+
+  return requestJson<ListResponse<Courier>>(
+    url,
+    { method: "GET", headers: authHeaders(accessToken) },
+    "No se pudo cargar la lista de repartidores."
+  );
+}
+
+export async function createCourierUser({
+  payload,
+}: {
+  payload: CourierUserPayload;
+}) {
+  return requestJson<CourierUserCreateResponse>(
+    `${serviceUrls.auth}/auth/register`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...payload,
+        role: "COURIER",
+      }),
+    },
+    "No se pudo crear el usuario repartidor."
+  );
+}
+
+export async function createCourierForMerchant({
+  accessToken,
+  payload,
+}: {
+  accessToken: string;
+  payload: CourierPayload & { userId: number };
+}) {
+  return requestJson<Courier>(
+    `${serviceUrls.auth}/couriers`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo crear el repartidor."
+  );
+}
+
+export async function getCourierForMerchant({
+  accessToken,
+  courierId,
+}: {
+  accessToken: string;
+  courierId: number | string;
+}) {
+  const url = `${serviceUrls.auth}/couriers/${courierId}${buildQuery({
+    expand: "user",
+  })}`;
+
+  return requestJson<Courier>(
+    url,
+    { method: "GET", headers: authHeaders(accessToken) },
+    "No se pudo cargar el repartidor."
+  );
+}
+
+export async function updateCourierForMerchant({
+  accessToken,
+  courierId,
+  payload,
+}: {
+  accessToken: string;
+  courierId: number | string;
+  payload: Omit<CourierPayload, "userId">;
+}) {
+  return requestJson<Courier>(
+    `${serviceUrls.auth}/couriers/${courierId}`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo actualizar el repartidor."
+  );
+}
+
+export async function deleteCourierForMerchant({
+  accessToken,
+  courierId,
+}: {
+  accessToken: string;
+  courierId: number | string;
+}) {
+  await requestJson<unknown>(
+    `${serviceUrls.auth}/couriers/${courierId}`,
+    { method: "DELETE", headers: authHeaders(accessToken) },
+    "No se pudo eliminar el repartidor."
+  );
+}
+
 export async function createOrderForMerchant({
   accessToken,
   payload,
@@ -362,6 +501,26 @@ export async function updateOrderStatusForMerchant({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el estado del pedido."
+  );
+}
+
+export async function assignOrderCourierForMerchant({
+  accessToken,
+  orderId,
+  payload,
+}: {
+  accessToken: string;
+  orderId: number | string;
+  payload: OrderAssignmentPayload;
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders/${orderId}/assign`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo asignar el repartidor."
   );
 }
 

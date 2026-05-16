@@ -128,3 +128,24 @@ export function orderStatusPayloadFromClient(value: unknown):
       : {}),
   };
 }
+
+export function orderAssignmentPayloadFromClient(value: unknown):
+  | {
+      courierId?: number;
+      expectedVersion?: number;
+    }
+  | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const courierId = readPositiveInteger(record.courierId);
+
+  return {
+    ...(courierId ? { courierId } : {}),
+    ...(typeof record.expectedVersion === "number"
+      ? { expectedVersion: record.expectedVersion }
+      : {}),
+  };
+}
