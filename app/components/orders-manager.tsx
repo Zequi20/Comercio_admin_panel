@@ -564,6 +564,8 @@ export function OrdersManager() {
   const [selectedCourierId, setSelectedCourierId] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFormLoading, setIsFormLoading] = useState(false);
+  const [isCouriersLoading, setIsCouriersLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
@@ -616,6 +618,8 @@ export function OrdersManager() {
   }
 
   async function loadCouriers() {
+    setIsCouriersLoading(true);
+
     try {
       const response = await fetch("/api/couriers?limit=100", {
         credentials: "include",
@@ -640,6 +644,8 @@ export function OrdersManager() {
           ? err.message
           : "No se pudo cargar la lista de repartidores."
       );
+    } finally {
+      setIsCouriersLoading(false);
     }
   }
 
@@ -738,6 +744,7 @@ export function OrdersManager() {
 
   function openCreateForm() {
     resetForm();
+    setIsFormLoading(false);
     setError(null);
     setSuccess(null);
     setViewingItemsOrder(null);
@@ -747,6 +754,12 @@ export function OrdersManager() {
 
   async function openEditForm(order: CommerceOrder) {
     setPendingOrderId(String(order.id));
+    setEditingOrder(order);
+    setForm(orderToForm(order));
+    setViewingItemsOrder(null);
+    setAssigningOrder(null);
+    setIsFormLoading(true);
+    setIsFormOpen(true);
     setError(null);
     setSuccess(null);
 
@@ -769,16 +782,16 @@ export function OrdersManager() {
 
       setEditingOrder(orderDetail);
       setForm(orderToForm(orderDetail));
-      setViewingItemsOrder(null);
-      setAssigningOrder(null);
-      setIsFormOpen(true);
     } catch (err) {
+      setIsFormOpen(false);
+      resetForm();
       setError(
         err instanceof Error
           ? err.message
           : "No se pudo cargar el detalle del pedido."
       );
     } finally {
+      setIsFormLoading(false);
       setPendingOrderId(null);
     }
   }
@@ -788,8 +801,9 @@ export function OrdersManager() {
   }
 
   function closeFormModal() {
-    if (isSubmitting) return;
+    if (isSubmitting || isFormLoading) return;
     resetForm();
+    setIsFormLoading(false);
     setError(null);
     setIsFormOpen(false);
   }
@@ -1263,6 +1277,7 @@ export function OrdersManager() {
                 <th>Orden</th>
                 <th>Cliente</th>
                 <th>Descripción</th>
+                <th>Dirección</th>
                 <th>Tipo</th>
                 <th>Estado</th>
                 <th>Repartidor</th>
@@ -1276,7 +1291,7 @@ export function OrdersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={10}>
+                    <td colSpan={11}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -1313,12 +1328,22 @@ export function OrdersManager() {
                         )}
                       </td>
                       <td>
+                        {order.address ? (
+                          <span className="table-muted order-address-cell">
+                            {order.address}
+                          </span>
+                        ) : (
+                          <span className="table-muted">
+                            {order.fulfillmentType === "PICKUP"
+                              ? "Retiro en local"
+                              : "Sin dirección"}
+                          </span>
+                        )}
+                      </td>
+                      <td>
                         <span className="pill">
                           {fulfillmentLabel(order.fulfillmentType)}
                         </span>
-                        {order.address ? (
-                          <span className="table-muted">{order.address}</span>
-                        ) : null}
                       </td>
                       <td>
                         <span className={`pill ${config.pillClass}`}>
@@ -1396,7 +1421,7 @@ export function OrdersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <div className="empty-table-state">
                       <ReceiptText aria-hidden="true" size={26} />
                       <strong>Sin órdenes registradas</strong>
@@ -1415,7 +1440,7 @@ export function OrdersManager() {
           <button
             aria-label="Cerrar formulario"
             className="catalog-modal-backdrop"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isFormLoading}
             onClick={closeFormModal}
             type="button"
           />
@@ -1440,7 +1465,7 @@ export function OrdersManager() {
               </div>
               <button
                 className="icon-button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isFormLoading}
                 onClick={closeFormModal}
                 title="Cerrar formulario"
                 type="button"
@@ -1449,7 +1474,18 @@ export function OrdersManager() {
               </button>
             </div>
 
-            <form className="catalog-form" onSubmit={handleSubmit}>
+            {isFormLoading ? (
+              <div
+                aria-live="polite"
+                className="modal-loading-state"
+                role="status"
+              >
+                <span aria-hidden="true" className="spinner" />
+                <strong>Cargando formulario</strong>
+                <span>Obteniendo el detalle actualizado del pedido.</span>
+              </div>
+            ) : (
+              <form className="catalog-form" onSubmit={handleSubmit}>
               {editingOrder ? (
                 <>
                   <div className="field-group">
@@ -1703,7 +1739,8 @@ export function OrdersManager() {
                   Cancelar
                 </button>
               </div>
-            </form>
+              </form>
+            )}
           </section>
         </div>
       ) : null}
@@ -1767,13 +1804,26 @@ export function OrdersManager() {
                 </div>
               </div>
 
+              {isCouriersLoading ? (
+                <div
+                  aria-live="polite"
+                  className="modal-inline-loading"
+                  role="status"
+                >
+                  <span aria-hidden="true" className="spinner" />
+                  <span>Cargando repartidores disponibles.</span>
+                </div>
+              ) : null}
+
               <div className="field-group">
                 <label className="field-label" htmlFor="order-courier">
                   Repartidor
                 </label>
                 <select
                   className="field-control"
-                  disabled={isAssigning || !activeCouriers.length}
+                  disabled={
+                    isAssigning || isCouriersLoading || !activeCouriers.length
+                  }
                   id="order-courier"
                   value={selectedCourierId}
                   onChange={(event) => {
@@ -1782,7 +1832,9 @@ export function OrdersManager() {
                   }}
                 >
                   <option value="">
-                    {activeCouriers.length
+                    {isCouriersLoading
+                      ? "Cargando repartidores"
+                      : activeCouriers.length
                       ? "Seleccionar repartidor"
                       : "Sin repartidores activos"}
                   </option>
@@ -1799,7 +1851,8 @@ export function OrdersManager() {
                 ) : null}
               </div>
 
-              {assignmentError || (couriersError && !activeCouriers.length) ? (
+              {!isCouriersLoading &&
+              (assignmentError || (couriersError && !activeCouriers.length)) ? (
                 <div className="error-box" role="alert">
                   <CircleAlert aria-hidden="true" size={18} />
                   <span>{assignmentError ?? couriersError}</span>
@@ -1809,7 +1862,9 @@ export function OrdersManager() {
               <div className="form-actions">
                 <button
                   className="button-primary"
-                  disabled={isAssigning || !activeCouriers.length}
+                  disabled={
+                    isAssigning || isCouriersLoading || !activeCouriers.length
+                  }
                   type="submit"
                 >
                   {isAssigning ? (

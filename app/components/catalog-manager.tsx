@@ -4,6 +4,7 @@ import {
   CircleAlert,
   CircleCheck,
   Edit3,
+  Package,
   PackagePlus,
   RefreshCw,
   Save,
@@ -221,10 +222,61 @@ function metadataEntries(metadata?: Record<string, unknown> | null) {
   });
 }
 
+function metadataImageUrl(metadata?: Record<string, unknown> | null) {
+  const value = metadata?.imageUrl;
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("data:image/")
+  ) {
+    return trimmed;
+  }
+
+  return null;
+}
+
 function formatMetadataValue(value: unknown) {
   const text = stringifyMetadataValue(value);
 
   return text.length > 34 ? `${text.slice(0, 31)}...` : text;
+}
+
+function CatalogThumbnail({ product }: { product: CatalogProduct }) {
+  const imageUrl = metadataImageUrl(product.metadata);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+
+  if (imageUrl && failedImageUrl !== imageUrl) {
+    return (
+      <span className="catalog-thumbnail">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          src={imageUrl}
+          onError={() => setFailedImageUrl(imageUrl)}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className="catalog-thumbnail catalog-thumbnail-fallback">
+      <Package aria-hidden="true" size={18} />
+    </span>
+  );
 }
 
 function createMetadataField({
@@ -797,9 +849,10 @@ export function CatalogManager() {
         </form>
 
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table catalog-data-table">
             <thead>
               <tr>
+                <th>Imagen</th>
                 <th>Nombre</th>
                 <th>Tipo</th>
                 <th>SKU</th>
@@ -813,7 +866,7 @@ export function CatalogManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -833,6 +886,9 @@ export function CatalogManager() {
 
                   return (
                     <tr key={product.id}>
+                      <td>
+                        <CatalogThumbnail product={product} />
+                      </td>
                       <td>
                         <strong>{product.name}</strong>
                         {product.description ? (
@@ -917,7 +973,7 @@ export function CatalogManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="empty-table-state">
                       <PackagePlus aria-hidden="true" size={26} />
                       <strong>Sin ítems en el catálogo</strong>

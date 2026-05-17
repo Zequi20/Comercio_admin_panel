@@ -861,8 +861,12 @@ a {
   border-spacing: 0;
 }
 
+.catalog-data-table {
+  min-width: 1040px;
+}
+
 .orders-data-table {
-  min-width: 1320px;
+  min-width: 1460px;
 }
 
 .couriers-data-table {
@@ -922,6 +926,10 @@ a {
   max-width: 260px;
 }
 
+.order-address-cell {
+  max-width: 260px;
+}
+
 .table-actions .icon-button {
   width: 32px;
   height: 32px;
@@ -975,6 +983,30 @@ a {
 
 .metadata-viewer-toggle:hover {
   border-color: var(--primary);
+}
+
+.catalog-thumbnail {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+}
+
+.catalog-thumbnail img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.catalog-thumbnail-fallback {
+  background: var(--primary-container);
+  color: var(--primary);
 }
 
 .order-current-items,
@@ -1227,6 +1259,41 @@ a {
   overflow: auto;
   box-shadow: var(--shadow-floating);
   animation: modal-in 150ms ease-out;
+}
+
+.modal-loading-state {
+  display: grid;
+  min-height: 220px;
+  gap: 8px;
+  place-items: center;
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  padding: 24px;
+  text-align: center;
+}
+
+.modal-loading-state strong {
+  color: var(--text);
+}
+
+.modal-loading-state .spinner,
+.modal-inline-loading .spinner {
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
+  border-top-color: var(--primary);
+}
+
+.modal-inline-loading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  padding: 9px 10px;
+  font-size: 12px;
 }
 
 @keyframes modal-in {
