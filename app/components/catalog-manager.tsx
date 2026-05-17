@@ -80,9 +80,9 @@ const initialFilters: CatalogFilters = {
 };
 
 const metadataSuggestions = [
-  { key: "imageUrl", inputType: "url" },
-  { key: "category", inputType: "text" },
-  { key: "serviceMode", inputType: "select" },
+  { key: "imageUrl", label: "Imagen", inputType: "url" },
+  { key: "category", label: "Categoría", inputType: "text" },
+  { key: "serviceMode", label: "Modo de servicio", inputType: "select" },
 ] as const;
 
 const serviceModeOptions = [
@@ -195,6 +195,10 @@ function metadataConfigForKey(key: string) {
   return metadataSuggestions.find((suggestion) => suggestion.key === key);
 }
 
+function metadataLabelForKey(key: string) {
+  return metadataConfigForKey(key)?.label ?? key;
+}
+
 function stringifyMetadataValue(value: unknown) {
   if (value === null || value === undefined) {
     return "";
@@ -288,26 +292,26 @@ function CatalogMetadataModal({
   return (
     <div className="catalog-modal-layer" role="presentation">
       <button
-        aria-label="Cerrar metadata"
+        aria-label="Cerrar detalles técnicos"
         className="catalog-modal-backdrop"
         onClick={onClose}
         type="button"
       />
       <section
-        aria-label={`Metadata de ${product.name}`}
+        aria-label={`Detalles técnicos de ${product.name}`}
         aria-modal="true"
         className="card card-lg catalog-modal metadata-modal"
         role="dialog"
       >
         <div className="card-header">
           <div>
-            <h2 className="card-title">Metadata de {product.name}</h2>
+            <h2 className="card-title">Detalles técnicos de {product.name}</h2>
             <p className="muted">{metadataCountLabel(metadata.length)}</p>
           </div>
           <button
             className="icon-button"
             onClick={onClose}
-            title="Cerrar metadata"
+            title="Cerrar detalles técnicos"
             type="button"
           >
             <X size={18} />
@@ -318,7 +322,9 @@ function CatalogMetadataModal({
           <div className="metadata-modal-list">
             {metadata.map(([key, value]) => (
               <article className="metadata-modal-item" key={key}>
-                <strong className="metadata-modal-key">{key}</strong>
+                <strong className="metadata-modal-key">
+                  {metadataLabelForKey(key)}
+                </strong>
                 <span className="metadata-modal-value">
                   {stringifyMetadataValue(value) || "-"}
                 </span>
@@ -327,7 +333,7 @@ function CatalogMetadataModal({
           </div>
         ) : (
           <div className="metadata-empty-state">
-            Este ítem no tiene metadata cargada.
+            Este ítem no tiene detalles técnicos cargados.
           </div>
         )}
       </section>
@@ -388,14 +394,14 @@ function metadataFieldsToObject(fields: MetadataField[]):
     if (!key) {
       return {
         ok: false,
-        message: "Ingresá la clave del campo de metadata.",
+        message: "Ingresá el nombre del campo técnico.",
       };
     }
 
     if (usedKeys.has(key)) {
       return {
         ok: false,
-        message: `La metadata ya tiene un campo "${key}".`,
+        message: `Ya existe un campo técnico llamado "${key}".`,
       };
     }
 
@@ -417,6 +423,7 @@ export function CatalogManager() {
     null
   );
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
@@ -518,6 +525,7 @@ export function CatalogManager() {
   function resetForm() {
     setEditingProduct(null);
     setForm(emptyForm);
+    setIsAdvancedOpen(false);
   }
 
   function openCreateForm() {
@@ -532,6 +540,7 @@ export function CatalogManager() {
     setViewingMetadataProduct(null);
     setEditingProduct(product);
     setForm(productToForm(product));
+    setIsAdvancedOpen(metadataEntries(product.metadata).length > 0);
     setError(null);
     setSuccess(null);
     setIsFormOpen(true);
@@ -547,6 +556,7 @@ export function CatalogManager() {
   function addMetadataSuggestion(
     suggestion: (typeof metadataSuggestions)[number]
   ) {
+    setIsAdvancedOpen(true);
     setForm((current) => {
       if (
         current.metadata.some((field) => field.key.trim() === suggestion.key)
@@ -568,6 +578,7 @@ export function CatalogManager() {
   }
 
   function addCustomMetadataField() {
+    setIsAdvancedOpen(true);
     setForm((current) => ({
       ...current,
       metadata: [...current.metadata, createMetadataField({})],
@@ -912,7 +923,7 @@ export function CatalogManager() {
                 <th>SKU</th>
                 <th>Precio</th>
                 <th>Estado</th>
-                <th>Metadata</th>
+                <th>Detalles</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -969,7 +980,7 @@ export function CatalogManager() {
                           <button
                             aria-label={`Ver ${metadataCountLabel(
                               metadata.length
-                            )} de metadata de ${product.name}`}
+                            )} técnicos de ${product.name}`}
                             className="metadata-trigger"
                             onClick={() => openMetadataModal(product)}
                             type="button"
@@ -978,7 +989,7 @@ export function CatalogManager() {
                             <span>{metadataCountLabel(metadata.length)}</span>
                           </button>
                         ) : (
-                          <span className="table-muted">Sin metadata</span>
+                          <span className="table-muted">Sin detalles</span>
                         )}
                       </td>
                       <td>
@@ -1175,113 +1186,144 @@ export function CatalogManager() {
                 />
               </label>
 
-              <div className="field-group">
-                <div className="field-label-row">
-                  <span className="field-label">Metadata</span>
-                  <div
-                    className="metadata-suggestions"
-                    aria-label="Sugerencias de metadata"
-                  >
-                    {metadataSuggestions.map((suggestion) => (
-                      <button
-                        className="suggestion-chip"
-                        disabled={isSubmitting}
-                        key={suggestion.key}
-                        onClick={() => addMetadataSuggestion(suggestion)}
-                        type="button"
-                      >
-                        {suggestion.key}
-                      </button>
-                    ))}
-                    <button
-                      className="suggestion-chip custom-chip"
-                      disabled={isSubmitting}
-                      onClick={addCustomMetadataField}
-                      type="button"
+              <details
+                className="advanced-section"
+                open={isAdvancedOpen}
+                onToggle={(event) =>
+                  setIsAdvancedOpen(event.currentTarget.open)
+                }
+              >
+                <summary>
+                  <span>
+                    <strong>Configuración avanzada</strong>
+                    <span>
+                      Imagen externa, categoría y campos técnicos del ítem.
+                    </span>
+                  </span>
+                  <span className="pill">
+                    {form.metadata.length
+                      ? metadataCountLabel(form.metadata.length)
+                      : "Opcional"}
+                  </span>
+                </summary>
+
+                <div className="advanced-section-content">
+                  <div className="field-label-row">
+                    <span className="field-label">Campos técnicos</span>
+                    <div
+                      className="metadata-suggestions"
+                      aria-label="Sugerencias de campos técnicos"
                     >
-                      Campo custom
-                    </button>
-                  </div>
-                </div>
-                {form.metadata.length ? (
-                  <div className="metadata-field-list">
-                    {form.metadata.map((field) => (
-                      <div className="metadata-field-row" key={field.id}>
-                        {field.lockedKey ? (
-                          <span className="metadata-key-pill">{field.key}</span>
-                        ) : (
-                          <input
-                            aria-label="Clave metadata"
-                            className="field-control metadata-key-control"
-                            disabled={isSubmitting}
-                            placeholder="campoCustom"
-                            value={field.key}
-                            onChange={(event) =>
-                              updateMetadataField(field.id, {
-                                key: event.target.value,
-                              })
-                            }
-                          />
-                        )}
-
-                        {field.inputType === "select" ? (
-                          <select
-                            aria-label={`Valor de ${field.key || "metadata"}`}
-                            className="field-control metadata-value-control"
-                            disabled={isSubmitting}
-                            value={field.value}
-                            onChange={(event) =>
-                              updateMetadataField(field.id, {
-                                value: event.target.value,
-                              })
-                            }
-                          >
-                            {field.value &&
-                            !serviceModeOptions.some(
-                              (option) => option.value === field.value
-                            ) ? (
-                              <option value={field.value}>{field.value}</option>
-                            ) : null}
-                            {serviceModeOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            aria-label={`Valor de ${field.key || "metadata"}`}
-                            className="field-control metadata-value-control"
-                            disabled={isSubmitting}
-                            placeholder="Valor"
-                            type={field.inputType === "url" ? "url" : "text"}
-                            value={field.value}
-                            onChange={(event) =>
-                              updateMetadataField(field.id, {
-                                value: event.target.value,
-                              })
-                            }
-                          />
-                        )}
-
+                      {metadataSuggestions.map((suggestion) => (
                         <button
-                          aria-label={`Eliminar ${field.key || "metadata"}`}
-                          className="icon-button danger-button metadata-remove"
+                          className="suggestion-chip"
                           disabled={isSubmitting}
-                          onClick={() => removeMetadataField(field.id)}
+                          key={suggestion.key}
+                          onClick={() => addMetadataSuggestion(suggestion)}
                           type="button"
                         >
-                          <X size={17} />
+                          {suggestion.label}
                         </button>
-                      </div>
-                    ))}
+                      ))}
+                      <button
+                        className="suggestion-chip custom-chip"
+                        disabled={isSubmitting}
+                        onClick={addCustomMetadataField}
+                        type="button"
+                      >
+                        Campo personalizado
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <div className="metadata-empty-state">
-                    Seleccioná una sugerencia o agregá un campo custom.
-                  </div>
-                )}
-              </div>
+                  {form.metadata.length ? (
+                    <div className="metadata-field-list">
+                      {form.metadata.map((field) => (
+                        <div className="metadata-field-row" key={field.id}>
+                          {field.lockedKey ? (
+                            <span className="metadata-key-pill">
+                              {metadataLabelForKey(field.key)}
+                            </span>
+                          ) : (
+                            <input
+                              aria-label="Clave del campo técnico"
+                              className="field-control metadata-key-control"
+                              disabled={isSubmitting}
+                              placeholder="campoCustom"
+                              value={field.key}
+                              onChange={(event) =>
+                                updateMetadataField(field.id, {
+                                  key: event.target.value,
+                                })
+                              }
+                            />
+                          )}
+
+                          {field.inputType === "select" ? (
+                            <select
+                              aria-label={`Valor de ${
+                                metadataLabelForKey(field.key) || "campo técnico"
+                              }`}
+                              className="field-control metadata-value-control"
+                              disabled={isSubmitting}
+                              value={field.value}
+                              onChange={(event) =>
+                                updateMetadataField(field.id, {
+                                  value: event.target.value,
+                                })
+                              }
+                            >
+                              {field.value &&
+                              !serviceModeOptions.some(
+                                (option) => option.value === field.value
+                              ) ? (
+                                <option value={field.value}>{field.value}</option>
+                              ) : null}
+                              {serviceModeOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              aria-label={`Valor de ${
+                                metadataLabelForKey(field.key) || "campo técnico"
+                              }`}
+                              className="field-control metadata-value-control"
+                              disabled={isSubmitting}
+                              placeholder="Valor"
+                              type={field.inputType === "url" ? "url" : "text"}
+                              value={field.value}
+                              onChange={(event) =>
+                                updateMetadataField(field.id, {
+                                  value: event.target.value,
+                                })
+                              }
+                            />
+                          )}
+
+                          <button
+                            aria-label={`Eliminar ${
+                              metadataLabelForKey(field.key) || "campo técnico"
+                            }`}
+                            className="icon-button danger-button metadata-remove"
+                            disabled={isSubmitting}
+                            onClick={() => removeMetadataField(field.id)}
+                            type="button"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="metadata-empty-state">
+                      Agregá estos campos solo si necesitás datos extra para el
+                      catálogo.
+                    </div>
+                  )}
+                </div>
+              </details>
 
               {error ? (
                 <div className="error-box" role="alert">

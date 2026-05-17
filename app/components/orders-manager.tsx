@@ -138,9 +138,9 @@ const statusConfig: Record<
   { label: string; pillClass: string }
 > = {
   PLACED: { label: "Pendiente", pillClass: "pending" },
-  CONFIRMED: { label: "Confirmado", pillClass: "hot" },
-  ASSIGNED: { label: "Asignado", pillClass: "hot" },
-  PICKED_UP: { label: "Retirado", pillClass: "done" },
+  CONFIRMED: { label: "Confirmado", pillClass: "confirmed" },
+  ASSIGNED: { label: "Asignado", pillClass: "assigned" },
+  PICKED_UP: { label: "Retirado", pillClass: "picked-up" },
   DELIVERED: { label: "Entregado", pillClass: "success" },
   CANCELED: { label: "Cancelado", pillClass: "error" },
 };
