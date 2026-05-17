@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Braces,
   CircleAlert,
   CircleCheck,
   Edit3,
@@ -77,8 +78,6 @@ const initialFilters: CatalogFilters = {
   type: "ALL",
   available: "ALL",
 };
-
-const compactMetadataLimit = 2;
 
 const metadataSuggestions = [
   { key: "imageUrl", inputType: "url" },
@@ -247,10 +246,8 @@ function metadataImageUrl(metadata?: Record<string, unknown> | null) {
   return null;
 }
 
-function formatMetadataValue(value: unknown) {
-  const text = stringifyMetadataValue(value);
-
-  return text.length > 34 ? `${text.slice(0, 31)}...` : text;
+function metadataCountLabel(count: number) {
+  return `${count} ${count === 1 ? "campo" : "campos"}`;
 }
 
 function CatalogThumbnail({ product }: { product: CatalogProduct }) {
@@ -276,6 +273,65 @@ function CatalogThumbnail({ product }: { product: CatalogProduct }) {
     <span className="catalog-thumbnail catalog-thumbnail-fallback">
       <Package aria-hidden="true" size={18} />
     </span>
+  );
+}
+
+function CatalogMetadataModal({
+  product,
+  onClose,
+}: {
+  product: CatalogProduct;
+  onClose: () => void;
+}) {
+  const metadata = metadataEntries(product.metadata);
+
+  return (
+    <div className="catalog-modal-layer" role="presentation">
+      <button
+        aria-label="Cerrar metadata"
+        className="catalog-modal-backdrop"
+        onClick={onClose}
+        type="button"
+      />
+      <section
+        aria-label={`Metadata de ${product.name}`}
+        aria-modal="true"
+        className="card card-lg catalog-modal metadata-modal"
+        role="dialog"
+      >
+        <div className="card-header">
+          <div>
+            <h2 className="card-title">Metadata de {product.name}</h2>
+            <p className="muted">{metadataCountLabel(metadata.length)}</p>
+          </div>
+          <button
+            className="icon-button"
+            onClick={onClose}
+            title="Cerrar metadata"
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {metadata.length ? (
+          <div className="metadata-modal-list">
+            {metadata.map(([key, value]) => (
+              <article className="metadata-modal-item" key={key}>
+                <strong className="metadata-modal-key">{key}</strong>
+                <span className="metadata-modal-value">
+                  {stringifyMetadataValue(value) || "-"}
+                </span>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="metadata-empty-state">
+            Este ítem no tiene metadata cargada.
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -364,11 +420,11 @@ export function CatalogManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
-  const [expandedMetadataIds, setExpandedMetadataIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [viewingMetadataProduct, setViewingMetadataProduct] =
+    useState<CatalogProduct | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const hasOpenModal = isFormOpen || viewingMetadataProduct !== null;
 
   const activeCount = useMemo(
     () => products.filter((product) => product.available).length,
@@ -445,12 +501,12 @@ export function CatalogManager() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("modal-open", isFormOpen);
+    document.body.classList.toggle("modal-open", hasOpenModal);
 
     return () => {
       document.body.classList.remove("modal-open");
     };
-  }, [isFormOpen]);
+  }, [hasOpenModal]);
 
   function updateForm<K extends keyof CatalogForm>(
     key: K,
@@ -466,12 +522,14 @@ export function CatalogManager() {
 
   function openCreateForm() {
     resetForm();
+    setViewingMetadataProduct(null);
     setError(null);
     setSuccess(null);
     setIsFormOpen(true);
   }
 
   function openEditForm(product: CatalogProduct) {
+    setViewingMetadataProduct(null);
     setEditingProduct(product);
     setForm(productToForm(product));
     setError(null);
@@ -546,20 +604,12 @@ export function CatalogManager() {
     }));
   }
 
-  function toggleMetadataView(productId: number | string) {
-    const key = String(productId);
+  function openMetadataModal(product: CatalogProduct) {
+    setViewingMetadataProduct(product);
+  }
 
-    setExpandedMetadataIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-
-      return next;
-    });
+  function closeMetadataModal() {
+    setViewingMetadataProduct(null);
   }
 
   function validateForm() {
@@ -691,6 +741,10 @@ export function CatalogManager() {
       if (editingProduct?.id === product.id) {
         resetForm();
         setIsFormOpen(false);
+      }
+
+      if (viewingMetadataProduct?.id === product.id) {
+        setViewingMetadataProduct(null);
       }
 
       setSuccess("Producto eliminado correctamente.");
@@ -875,14 +929,6 @@ export function CatalogManager() {
                 products.map((product) => {
                   const isPending = pendingProductId === String(product.id);
                   const metadata = metadataEntries(product.metadata);
-                  const isMetadataExpanded = expandedMetadataIds.has(
-                    String(product.id)
-                  );
-                  const visibleMetadata = isMetadataExpanded
-                    ? metadata
-                    : metadata.slice(0, compactMetadataLimit);
-                  const hiddenMetadataCount =
-                    metadata.length - visibleMetadata.length;
 
                   return (
                     <tr key={product.id}>
@@ -920,28 +966,17 @@ export function CatalogManager() {
                       </td>
                       <td>
                         {metadata.length ? (
-                          <div
-                            className="metadata-viewer"
-                            aria-label={`Metadata de ${product.name}`}
+                          <button
+                            aria-label={`Ver ${metadataCountLabel(
+                              metadata.length
+                            )} de metadata de ${product.name}`}
+                            className="metadata-trigger"
+                            onClick={() => openMetadataModal(product)}
+                            type="button"
                           >
-                            {visibleMetadata.map(([key, value]) => (
-                              <span className="metadata-viewer-chip" key={key}>
-                                <strong>{key}</strong>
-                                <span>{formatMetadataValue(value)}</span>
-                              </span>
-                            ))}
-                            {metadata.length > compactMetadataLimit ? (
-                              <button
-                                className="metadata-viewer-toggle"
-                                onClick={() => toggleMetadataView(product.id)}
-                                type="button"
-                              >
-                                {isMetadataExpanded
-                                  ? "Compactar"
-                                  : `+${hiddenMetadataCount}`}
-                              </button>
-                            ) : null}
-                          </div>
+                            <Braces aria-hidden="true" size={15} />
+                            <span>{metadataCountLabel(metadata.length)}</span>
+                          </button>
                         ) : (
                           <span className="table-muted">Sin metadata</span>
                         )}
@@ -1286,6 +1321,13 @@ export function CatalogManager() {
             </form>
           </section>
         </div>
+      ) : null}
+
+      {viewingMetadataProduct ? (
+        <CatalogMetadataModal
+          product={viewingMetadataProduct}
+          onClose={closeMetadataModal}
+        />
       ) : null}
     </div>
   );
