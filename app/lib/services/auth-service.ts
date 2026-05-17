@@ -83,6 +83,28 @@ export async function fetchMerchantDetails(
   );
 }
 
+export async function updateMerchantDetails({
+  accessToken,
+  merchantId,
+  payload,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+  payload: Pick<MerchantDetails, "isOpen">;
+}) {
+  return requestJson<MerchantDetails>(
+    `${AUTH_BASE_URL}/merchants/${merchantId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    },
+    "No se pudo actualizar el comercio."
+  );
+}
+
 export async function logoutFromAuthService(refreshToken: string) {
   await requestJson<unknown>(
     `${AUTH_BASE_URL}/auth/logout`,

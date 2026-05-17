@@ -1,5 +1,6 @@
 import {
-  CheckCircle2,
+  CircleAlert,
+  CircleDollarSign,
   Clock3,
   Package,
   Plus,
@@ -10,6 +11,7 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MerchantOpenSwitch } from "../components/merchant-open-switch";
 import { getCommerceRequestContextFromCookies } from "../lib/auth/session";
 import { orderStatusLabel } from "../lib/order-status";
 import {
@@ -50,18 +52,6 @@ const quickActions = [
     icon: Truck,
   },
 ];
-
-function merchantStatus(isOpen?: boolean | null) {
-  if (isOpen === true) {
-    return { label: "Abierto", className: "success" };
-  }
-
-  if (isOpen === false) {
-    return { label: "Cerrado", className: "error" };
-  }
-
-  return { label: "Estado pendiente", className: "pending" };
-}
 
 function formatPrice(value: number | string | undefined, currency = "PYG") {
   const amount = Number(value ?? 0);
@@ -123,6 +113,68 @@ function sameDay(value?: string) {
   return date.toDateString() === today.toDateString();
 }
 
+function orderDateValue(value?: string) {
+  if (!value) return 0;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function isAssignableOrder(order: Order) {
+  return (
+    order.fulfillmentType !== "PICKUP" &&
+    order.status === "CONFIRMED" &&
+    !order.courier?.id
+  );
+}
+
+function isOrderInProgress(order: Order) {
+  return (
+    order.status === "CONFIRMED" ||
+    order.status === "ASSIGNED" ||
+    order.status === "PICKED_UP"
+  );
+}
+
+function isOrderOpen(order: Order) {
+  return order.status !== "DELIVERED" && order.status !== "CANCELED";
+}
+
+function priorityScore(order: Order) {
+  if (order.status === "PLACED") return 0;
+  if (isAssignableOrder(order)) return 1;
+  if (order.status === "ASSIGNED") return 2;
+  if (order.status === "PICKED_UP") return 3;
+  if (order.status === "CONFIRMED") return 4;
+  return 5;
+}
+
+function orderActionLabel(order: Order) {
+  if (order.status === "PLACED") {
+    return "Confirmar pedido";
+  }
+
+  if (isAssignableOrder(order)) {
+    return "Asignar repartidor";
+  }
+
+  if (order.status === "ASSIGNED") {
+    return "Seguir entrega";
+  }
+
+  if (order.status === "PICKED_UP") {
+    return "Marcar entrega";
+  }
+
+  if (order.status === "CONFIRMED") {
+    return order.fulfillmentType === "PICKUP"
+      ? "Preparar retiro"
+      : "Preparar pedido";
+  }
+
+  return "Revisar";
+}
+
 async function loadDashboardData(accessToken: string, merchantId: number | string) {
   const [orders, products, couriers] = await Promise.all([
     listOrdersForMerchant({ accessToken, limit: 100 }).catch(() => null),
@@ -149,67 +201,79 @@ export default async function DashboardPage() {
   }
 
   const { session, accessToken } = context;
-  const status = merchantStatus(session.merchant.isOpen);
   const { orders, products, couriers } = await loadDashboardData(
     accessToken,
     session.merchant.id
   );
 
-  const openOrders = orders.filter(
-    (order) => order.status !== "DELIVERED" && order.status !== "CANCELED"
-  );
+  const openOrders = orders.filter(isOrderOpen);
   const pendingOrders = orders.filter((order) => order.status === "PLACED");
-  const assignableOrders = orders.filter(
-    (order) =>
-      order.fulfillmentType !== "PICKUP" &&
-      order.status === "CONFIRMED" &&
-      !order.courier?.id
+  const assignableOrders = orders.filter(isAssignableOrder);
+  const inProgressOrders = orders.filter(isOrderInProgress);
+  const todayOrders = orders.filter((order) => sameDay(order.createdAt));
+  const soldTodayOrders = todayOrders.filter(
+    (order) => order.status !== "CANCELED"
   );
-  const deliveredToday = orders.filter(
-    (order) => order.status === "DELIVERED" && sameDay(order.updatedAt)
+  const canceledToday = orders.filter(
+    (order) => order.status === "CANCELED" && sameDay(order.updatedAt)
   );
-  const deliveredTodayTotal = deliveredToday.reduce((total, order) => {
+  const actionRequiredCount = pendingOrders.length + assignableOrders.length;
+  const problemCount = canceledToday.length + assignableOrders.length;
+  const salesTodayTotal = soldTodayOrders.reduce((total, order) => {
     const amount = Number(order.total ?? 0);
     return Number.isFinite(amount) ? total + amount : total;
   }, 0);
   const averageTicket =
-    deliveredToday.length > 0 ? deliveredTodayTotal / deliveredToday.length : 0;
-  const recentOrders = orders.slice(0, 4);
+    soldTodayOrders.length > 0 ? salesTodayTotal / soldTodayOrders.length : 0;
+  const priorityOrders = openOrders
+    .slice()
+    .sort((first, second) => {
+      const priorityDiff = priorityScore(first) - priorityScore(second);
+
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      return (
+        orderDateValue(first.createdAt) - orderDateValue(second.createdAt)
+      );
+    })
+    .slice(0, 5);
   const activeProducts = products.filter((product) => product.available).length;
   const activeCouriers = couriers.filter((courier) => courier.isActive).length;
 
   const stats = [
     {
-      label: "Pendientes",
-      value: String(pendingOrders.length),
-      meta: "Requieren confirmación",
-      icon: ReceiptText,
+      label: "Requieren acción",
+      value: String(actionRequiredCount),
+      meta: `${pendingOrders.length} por confirmar · ${assignableOrders.length} por asignar`,
+      icon: CircleAlert,
       pill: "Atención",
       pillClass: "pending",
     },
     {
-      label: "Para asignar",
-      value: String(assignableOrders.length),
-      meta: "Delivery confirmado",
-      icon: Truck,
-      pill: "Delivery",
-      pillClass: "assigned",
-    },
-    {
-      label: "Abiertas",
-      value: String(openOrders.length),
-      meta: "En flujo operativo",
+      label: "Pedidos en curso",
+      value: String(inProgressOrders.length),
+      meta: `${openOrders.length} abiertos en total`,
       icon: Clock3,
-      pill: "Activas",
+      pill: "En marcha",
       pillClass: "confirmed",
     },
     {
-      label: "Entregadas hoy",
-      value: String(deliveredToday.length),
-      meta: formatPrice(deliveredTodayTotal),
-      icon: CheckCircle2,
-      pill: "Cerrado",
+      label: "Ventas hoy",
+      value: formatPrice(salesTodayTotal),
+      meta: `${soldTodayOrders.length} pedidos no cancelados`,
+      icon: CircleDollarSign,
+      pill: "Hoy",
       pillClass: "success",
+    },
+    {
+      label: "Problemas",
+      value: String(problemCount),
+      meta: `${assignableOrders.length} sin repartidor · ${canceledToday.length} cancelados`,
+      icon: Truck,
+      pill: "Revisar",
+      pillClass: problemCount > 0 ? "error" : "success",
     },
   ];
 
@@ -261,8 +325,10 @@ export default async function DashboardPage() {
           <section className="card card-lg">
             <div className="card-header">
               <div>
-                <h2 className="card-title">Pedidos recientes</h2>
-                <p className="muted">Últimos pedidos recibidos del comercio.</p>
+                <h2 className="card-title">Prioridad operativa</h2>
+                <p className="muted">
+                  Pedidos ordenados por acción pendiente.
+                </p>
               </div>
               <Link className="button-tonal" href="/dashboard/ordenes">
                 <ReceiptText size={17} />
@@ -270,10 +336,13 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            {recentOrders.length ? (
+            {priorityOrders.length ? (
               <div className="orders-list">
-                {recentOrders.map((order) => (
-                  <article className="order-row" key={order.id}>
+                {priorityOrders.map((order) => (
+                  <article
+                    className="order-row priority-order-row"
+                    key={order.id}
+                  >
                     <div>
                       <div className="order-code">#{order.id}</div>
                       <div className="order-meta">{formatDate(order.createdAt)}</div>
@@ -293,15 +362,18 @@ export default async function DashboardPage() {
                     >
                       {orderStatusLabel(order.status)}
                     </span>
-                    <strong>{formatPrice(order.total, order.currency)}</strong>
+                    <div className="order-row-value">
+                      <strong>{formatPrice(order.total, order.currency)}</strong>
+                      <span>{orderActionLabel(order)}</span>
+                    </div>
                   </article>
                 ))}
               </div>
             ) : (
               <div className="empty-table-state">
                 <ReceiptText aria-hidden="true" size={26} />
-                <strong>Sin pedidos recientes</strong>
-                <span>Cuando entren órdenes nuevas, van a aparecer acá.</span>
+                <strong>Sin pendientes operativos</strong>
+                <span>No hay pedidos que requieran acción inmediata.</span>
               </div>
             )}
           </section>
@@ -344,11 +416,13 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <h2>{session.merchant.name}</h2>
-                <span className={`pill ${status.className}`}>
-                  {status.label}
-                </span>
+                <p className="muted">Disponibilidad actual</p>
               </div>
             </div>
+            <MerchantOpenSwitch
+              initialIsOpen={session.merchant.isOpen}
+              merchantId={session.merchant.id}
+            />
             <div className="metric-list dashboard-side-metrics">
               <div className="metric-row">
                 <span className="metric-label">Comercio ID</span>
@@ -376,9 +450,9 @@ export default async function DashboardPage() {
             </div>
             <div className="metric-list">
               <div className="metric-row">
-                <span className="metric-label">Ventas entregadas</span>
+                <span className="metric-label">Ventas hoy</span>
                 <span className="metric-value">
-                  {formatPrice(deliveredTodayTotal)}
+                  {formatPrice(salesTodayTotal)}
                 </span>
               </div>
               <div className="metric-row">
@@ -386,8 +460,8 @@ export default async function DashboardPage() {
                 <span className="metric-value">{formatPrice(averageTicket)}</span>
               </div>
               <div className="metric-row">
-                <span className="metric-label">Pedidos abiertos</span>
-                <span className="metric-value">{openOrders.length}</span>
+                <span className="metric-label">Pedidos creados</span>
+                <span className="metric-value">{todayOrders.length}</span>
               </div>
             </div>
           </section>
