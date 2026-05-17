@@ -93,6 +93,7 @@ function toSession({
         null,
       deliveryCost: merchant?.deliveryCost ?? null,
       isOpen: merchant?.isOpen ?? null,
+      metadata: merchant?.metadata ?? null,
     },
   };
 }

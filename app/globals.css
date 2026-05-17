@@ -1939,6 +1939,87 @@ a {
   font-size: 12px;
 }
 
+.merchant-metadata-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.merchant-metadata-preview {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.merchant-image-preview {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--background-alt);
+  color: var(--text-secondary);
+}
+
+.merchant-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.merchant-metadata-preview strong,
+.merchant-metadata-preview span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merchant-metadata-preview strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.merchant-metadata-preview span {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.merchant-category-field {
+  position: relative;
+  display: grid;
+  align-items: center;
+}
+
+.merchant-category-field svg {
+  position: absolute;
+  left: 10px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.merchant-category-field .field-control {
+  padding-left: 34px;
+}
+
+.merchant-metadata-status {
+  margin-top: 2px;
+}
+
+.merchant-metadata-save {
+  width: 100%;
+}
+
 .dashboard-side-metrics {
   margin-top: 18px;
 }

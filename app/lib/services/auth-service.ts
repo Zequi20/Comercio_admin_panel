@@ -90,7 +90,7 @@ export async function updateMerchantDetails({
 }: {
   accessToken: string;
   merchantId: number | string;
-  payload: Pick<MerchantDetails, "isOpen">;
+  payload: Partial<Pick<MerchantDetails, "isOpen" | "metadata">>;
 }) {
   return requestJson<MerchantDetails>(
     `${AUTH_BASE_URL}/merchants/${merchantId}`,

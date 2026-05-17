@@ -1,17 +1,46 @@
 import type { MerchantDetails } from "../auth/types";
 
-export type MerchantPayload = Pick<MerchantDetails, "isOpen">;
+export type MerchantPayload = Partial<
+  Pick<MerchantDetails, "isOpen" | "metadata">
+>;
+
+function readMetadata(value: unknown): Record<string, unknown> | null {
+  if (value === null) {
+    return {};
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
 
 export function merchantPayloadFromClient(value: unknown): MerchantPayload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
 
-  const isOpen = (value as Record<string, unknown>).isOpen;
+  const input = value as Record<string, unknown>;
+  const payload: MerchantPayload = {};
 
-  if (typeof isOpen !== "boolean") {
-    return null;
+  if ("isOpen" in input) {
+    if (typeof input.isOpen !== "boolean") {
+      return null;
+    }
+
+    payload.isOpen = input.isOpen;
   }
 
-  return { isOpen };
+  if ("metadata" in input) {
+    const metadata = readMetadata(input.metadata);
+
+    if (!metadata) {
+      return null;
+    }
+
+    payload.metadata = metadata;
+  }
+
+  return Object.keys(payload).length ? payload : null;
 }

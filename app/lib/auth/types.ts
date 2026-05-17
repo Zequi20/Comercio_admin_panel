@@ -102,6 +102,7 @@ export type CommerceSession = {
     contactEmail?: string | null;
     deliveryCost?: number | string | null;
     isOpen?: boolean | null;
+    metadata?: Record<string, unknown> | null;
   };
 };
 

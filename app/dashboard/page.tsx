@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
 import { getCommerceRequestContextFromCookies } from "../lib/auth/session";
 import { orderStatusLabel } from "../lib/order-status";
@@ -421,6 +422,10 @@ export default async function DashboardPage() {
             </div>
             <MerchantOpenSwitch
               initialIsOpen={session.merchant.isOpen}
+              merchantId={session.merchant.id}
+            />
+            <MerchantMetadataEditor
+              initialMetadata={session.merchant.metadata}
               merchantId={session.merchant.id}
             />
             <div className="metric-list dashboard-side-metrics">

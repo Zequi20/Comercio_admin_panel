@@ -34,7 +34,7 @@ export async function PATCH(request: Request, context: MerchantRouteContext) {
   );
 
   if (!payload) {
-    return badRequestResponse("Enviá isOpen como true o false.");
+    return badRequestResponse("Enviá isOpen o metadata con un formato válido.");
   }
 
   try {
