@@ -7,7 +7,15 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
-import { assignOrderCourierForMerchant } from "@/app/lib/services/commerce-services";
+import {
+  assignmentBlockedReason,
+  canAssignCourierToOrder,
+} from "@/app/lib/order-status";
+import {
+  assignOrderCourierForMerchant,
+  getCourierForMerchant,
+  getOrderForMerchant,
+} from "@/app/lib/services/commerce-services";
 
 type OrderAssignRouteContext = {
   params: Promise<{ orderId: string }>;
@@ -35,6 +43,39 @@ export async function POST(request: Request, context: OrderAssignRouteContext) {
   const { orderId } = await context.params;
 
   try {
+    const [orderDetail, courierDetail] = await Promise.all([
+      getOrderForMerchant({
+        accessToken: sessionContext.accessToken,
+        orderId,
+      }),
+      getCourierForMerchant({
+        accessToken: sessionContext.accessToken,
+        courierId: body.courierId,
+      }),
+    ]);
+
+    if (!canAssignCourierToOrder(orderDetail)) {
+      return badRequestResponse(
+        assignmentBlockedReason(orderDetail) ??
+          "La orden no está disponible para asignación."
+      );
+    }
+
+    if (!courierDetail.isActive) {
+      return badRequestResponse("El repartidor seleccionado no está activo.");
+    }
+
+    const currentVersion = Number(orderDetail.version);
+
+    if (
+      !Number.isInteger(currentVersion) ||
+      currentVersion !== body.expectedVersion
+    ) {
+      return badRequestResponse(
+        "El pedido fue actualizado. Recargá la tabla antes de asignar."
+      );
+    }
+
     const order = await assignOrderCourierForMerchant({
       accessToken: sessionContext.accessToken,
       orderId,

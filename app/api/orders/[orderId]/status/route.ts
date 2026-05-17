@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 
+import { orderStatusPayloadFromClient } from "@/app/lib/api/orders";
 import {
   badRequestResponse,
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
-import { updateOrderStatusForMerchant } from "@/app/lib/services/commerce-services";
-
-const allowedStatuses = new Set([
-  "CONFIRMED",
-  "ASSIGNED",
-  "PICKED_UP",
-  "DELIVERED",
-  "CANCELED",
-]);
+import {
+  canTransitionOrderStatus,
+  statusTransitionBlockedReason,
+} from "@/app/lib/order-status";
+import {
+  getOrderForMerchant,
+  updateOrderStatusForMerchant,
+} from "@/app/lib/services/commerce-services";
 
 type OrderStatusRouteContext = {
   params: Promise<{ orderId: string }>;
@@ -27,13 +27,11 @@ export async function PATCH(request: Request, context: OrderStatusRouteContext) 
     return unauthorizedCommerceResponse();
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | { toStatus?: string; expectedVersion?: number }
-    | null;
-  const toStatus =
-    body?.toStatus === "CANCELLED" ? "CANCELED" : body?.toStatus;
+  const body = orderStatusPayloadFromClient(
+    await request.json().catch(() => null)
+  );
 
-  if (!toStatus || !allowedStatuses.has(toStatus)) {
+  if (!body?.toStatus || body.toStatus === "PLACED") {
     return badRequestResponse("Estado de pedido inválido.");
   }
 
@@ -44,11 +42,33 @@ export async function PATCH(request: Request, context: OrderStatusRouteContext) 
   const { orderId } = await context.params;
 
   try {
+    const orderDetail = await getOrderForMerchant({
+      accessToken: sessionContext.accessToken,
+      orderId,
+    });
+
+    const currentVersion = Number(orderDetail.version);
+
+    if (
+      !Number.isInteger(currentVersion) ||
+      currentVersion !== body.expectedVersion
+    ) {
+      return badRequestResponse(
+        "El pedido fue actualizado. Recargá la tabla antes de cambiar el estado."
+      );
+    }
+
+    if (!canTransitionOrderStatus(orderDetail, body.toStatus)) {
+      return badRequestResponse(
+        statusTransitionBlockedReason(orderDetail, body.toStatus)
+      );
+    }
+
     const order = await updateOrderStatusForMerchant({
       accessToken: sessionContext.accessToken,
       orderId,
       payload: {
-        toStatus,
+        toStatus: body.toStatus,
         expectedVersion: body.expectedVersion,
       },
     });

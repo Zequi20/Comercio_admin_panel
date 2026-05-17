@@ -15,6 +15,12 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import {
+  assignmentBlockedReason,
+  availableOrderStatuses,
+  canAssignCourierToOrder,
+} from "@/app/lib/order-status";
+
 type OrderStatus =
   | "PLACED"
   | "CONFIRMED"
@@ -398,36 +404,37 @@ function courierOptionLabel(courier: Courier) {
   }`;
 }
 
+function courierVehicle(courier?: Courier | null) {
+  return courier ? metadataText(courier.metadata, "vehicle") : "";
+}
+
+function courierLicensePlate(courier?: Courier | null) {
+  return courier
+    ? metadataText(courier.metadata, "licensePlate") ||
+        metadataText(courier.metadata, "license_plate") ||
+        metadataText(courier.metadata, "plate")
+    : "";
+}
+
+function courierArea(courier?: Courier | null) {
+  return courier ? metadataText(courier.metadata, "area") : "";
+}
+
 function statusOptionsForOrder(order: CommerceOrder | null) {
-  if (!order || order.status === "ASSIGNED") {
+  if (!order) {
     return statusOptions;
   }
 
-  return statusOptions.filter((status) => status.value !== "ASSIGNED");
+  const allowedStatuses = new Set(availableOrderStatuses(order));
+  return statusOptions.filter((status) => allowedStatuses.has(status.value));
 }
 
 function canAssignDelivery(order: CommerceOrder) {
-  return (
-    order.fulfillmentType !== "PICKUP" &&
-    order.status === "CONFIRMED" &&
-    !order.courier?.id
-  );
+  return canAssignCourierToOrder(order);
 }
 
 function assignmentActionTitle(order: CommerceOrder) {
-  if (order.fulfillmentType === "PICKUP") {
-    return "No requiere delivery";
-  }
-
-  if (order.courier?.id) {
-    return "Delivery asignado";
-  }
-
-  if (order.status !== "CONFIRMED") {
-    return "Disponible al confirmar";
-  }
-
-  return "Asignar delivery";
+  return assignmentBlockedReason(order) ?? "Asignar delivery";
 }
 
 function itemFieldsToPayload(fields: OrderItemField[]):
@@ -590,7 +597,12 @@ export function OrdersManager() {
   );
 
   const activeCouriers = useMemo(
-    () => couriers.filter((courier) => courier.isActive),
+    () =>
+      couriers
+        .filter((courier) => courier.isActive)
+        .sort((first, second) =>
+          courierDisplayName(first).localeCompare(courierDisplayName(second))
+        ),
     [couriers]
   );
 
@@ -600,6 +612,15 @@ export function OrdersManager() {
         (courier) => String(courier.id) === selectedCourierId
       ) ?? null,
     [activeCouriers, selectedCourierId]
+  );
+  const assignmentBlocker = assigningOrder
+    ? assignmentBlockedReason(assigningOrder)
+    : null;
+  const canSubmitAssignment = Boolean(
+    assigningOrder &&
+      !assignmentBlocker &&
+      selectedCourier &&
+      activeCouriers.length
   );
 
   async function loadProducts() {
@@ -818,17 +839,21 @@ export function OrdersManager() {
   }
 
   function openAssignModal(order: CommerceOrder) {
+    const blockedReason = assignmentBlockedReason(order);
+
     setAssigningOrder(order);
     setViewingItemsOrder(null);
     setIsFormOpen(false);
     setError(null);
     setSuccess(null);
-    setAssignmentError(couriersError);
+    setAssignmentError(blockedReason ?? couriersError);
     setSelectedCourierId(
-      activeCouriers.length === 1 ? String(activeCouriers[0].id) : ""
+      !blockedReason && activeCouriers.length === 1
+        ? String(activeCouriers[0].id)
+        : ""
     );
 
-    if (!couriers.length) {
+    if (!blockedReason && !couriers.length) {
       void loadCouriers();
     }
   }
@@ -1009,8 +1034,10 @@ export function OrdersManager() {
     setAssignmentError(null);
     setSuccess(null);
 
-    if (!canAssignDelivery(assigningOrder)) {
-      setAssignmentError("El pedido debe estar confirmado y sin repartidor.");
+    const blockedReason = assignmentBlockedReason(assigningOrder);
+
+    if (blockedReason) {
+      setAssignmentError(blockedReason);
       return;
     }
 
@@ -1303,6 +1330,7 @@ export function OrdersManager() {
                   const config = statusConfig[status];
                   const items = order.items ?? [];
                   const canAssign = canAssignDelivery(order);
+                  const assignmentReason = assignmentBlockedReason(order);
 
                   return (
                     <tr key={order.id}>
@@ -1359,11 +1387,26 @@ export function OrdersManager() {
                             </span>
                           </>
                         ) : (
-                          <span className="table-muted">
-                            {order.fulfillmentType === "PICKUP"
-                              ? "No aplica"
-                              : "Sin asignar"}
-                          </span>
+                          <>
+                            <span className="table-muted">
+                              {order.fulfillmentType === "PICKUP"
+                                ? "No aplica"
+                                : "Sin asignar"}
+                            </span>
+                            {canAssign ? (
+                              <span className="delivery-ready-chip">
+                                Listo para asignar
+                              </span>
+                            ) : assignmentReason &&
+                              order.fulfillmentType !== "PICKUP" ? (
+                              <span
+                                className="table-muted assignment-lock-reason"
+                                title={assignmentReason}
+                              >
+                                {assignmentReason}
+                              </span>
+                            ) : null}
+                          </>
                         )}
                       </td>
                       <td>{formatPrice(order.total, order.currency ?? "PYG")}</td>
@@ -1388,13 +1431,19 @@ export function OrdersManager() {
                       <td>
                         <div className="table-actions">
                           <button
-                            className="icon-button"
+                            aria-label={`Asignar delivery a la orden ${orderCode(
+                              order
+                            )}`}
+                            className={
+                              canAssign ? "order-assign-trigger" : "icon-button"
+                            }
                             disabled={isPending || !canAssign}
                             onClick={() => openAssignModal(order)}
                             title={assignmentActionTitle(order)}
                             type="button"
                           >
                             <Truck size={17} />
+                            {canAssign ? <span>Asignar</span> : null}
                           </button>
                           <button
                             className="icon-button"
@@ -1787,6 +1836,33 @@ export function OrdersManager() {
             </div>
 
             <form className="catalog-form" onSubmit={handleAssignSubmit}>
+              <div
+                className={
+                  assignmentBlocker
+                    ? "assignment-readiness blocked"
+                    : "assignment-readiness ready"
+                }
+              >
+                <span className="assignment-readiness-icon" aria-hidden="true">
+                  {assignmentBlocker ? (
+                    <CircleAlert size={18} />
+                  ) : (
+                    <CircleCheck size={18} />
+                  )}
+                </span>
+                <div>
+                  <strong>
+                    {assignmentBlocker
+                      ? "Asignación bloqueada"
+                      : "Pedido confirmado para delivery"}
+                  </strong>
+                  <span>
+                    {assignmentBlocker ??
+                      "Al asignar, la orden avanza al estado Asignado."}
+                  </span>
+                </div>
+              </div>
+
               <div className="order-assignment-summary">
                 <div>
                   <span>Estado</span>
@@ -1802,9 +1878,13 @@ export function OrdersManager() {
                   <span>Ítems</span>
                   <strong>{itemCountLabel(assigningOrder.items?.length ?? 0)}</strong>
                 </div>
+                <div>
+                  <span>Flujo</span>
+                  <strong>Confirmado a Asignado</strong>
+                </div>
               </div>
 
-              {isCouriersLoading ? (
+              {!assignmentBlocker && isCouriersLoading ? (
                 <div
                   aria-live="polite"
                   className="modal-inline-loading"
@@ -1815,41 +1895,63 @@ export function OrdersManager() {
                 </div>
               ) : null}
 
-              <div className="field-group">
-                <label className="field-label" htmlFor="order-courier">
-                  Repartidor
-                </label>
-                <select
-                  className="field-control"
-                  disabled={
-                    isAssigning || isCouriersLoading || !activeCouriers.length
-                  }
-                  id="order-courier"
-                  value={selectedCourierId}
-                  onChange={(event) => {
-                    setSelectedCourierId(event.target.value);
-                    setAssignmentError(null);
-                  }}
-                >
-                  <option value="">
-                    {isCouriersLoading
-                      ? "Cargando repartidores"
-                      : activeCouriers.length
-                      ? "Seleccionar repartidor"
-                      : "Sin repartidores activos"}
-                  </option>
-                  {activeCouriers.map((courier) => (
-                    <option key={courier.id} value={courier.id}>
-                      {courierOptionLabel(courier)}
+              {!assignmentBlocker ? (
+                <div className="field-group">
+                  <label className="field-label" htmlFor="order-courier">
+                    Repartidor
+                  </label>
+                  <select
+                    className="field-control"
+                    disabled={
+                      isAssigning || isCouriersLoading || !activeCouriers.length
+                    }
+                    id="order-courier"
+                    value={selectedCourierId}
+                    onChange={(event) => {
+                      setSelectedCourierId(event.target.value);
+                      setAssignmentError(null);
+                    }}
+                  >
+                    <option value="">
+                      {isCouriersLoading
+                        ? "Cargando repartidores"
+                        : activeCouriers.length
+                        ? "Seleccionar repartidor"
+                        : "Sin repartidores activos"}
                     </option>
-                  ))}
-                </select>
-                {selectedCourier ? (
-                  <span className="assignment-courier-hint">
-                    {courierDetail(selectedCourier)}
-                  </span>
-                ) : null}
-              </div>
+                    {activeCouriers.map((courier) => (
+                      <option key={courier.id} value={courier.id}>
+                        {courierOptionLabel(courier)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedCourier ? (
+                    <div className="assignment-courier-card">
+                      <div>
+                        <strong>{courierDisplayName(selectedCourier)}</strong>
+                        <span>{courierDetail(selectedCourier)}</span>
+                      </div>
+                      <div className="assignment-courier-tags">
+                        {courierVehicle(selectedCourier) ? (
+                          <span>{courierVehicle(selectedCourier)}</span>
+                        ) : null}
+                        {courierLicensePlate(selectedCourier) ? (
+                          <span>{courierLicensePlate(selectedCourier)}</span>
+                        ) : null}
+                        {courierArea(selectedCourier) ? (
+                          <span>{courierArea(selectedCourier)}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {!assignmentBlocker && !selectedCourier && !isCouriersLoading ? (
+                <div className="metadata-empty-state">
+                  Sin repartidor seleccionado.
+                </div>
+              ) : null}
 
               {!isCouriersLoading &&
               (assignmentError || (couriersError && !activeCouriers.length)) ? (
@@ -1863,7 +1965,7 @@ export function OrdersManager() {
                 <button
                   className="button-primary"
                   disabled={
-                    isAssigning || isCouriersLoading || !activeCouriers.length
+                    isAssigning || isCouriersLoading || !canSubmitAssignment
                   }
                   type="submit"
                 >
