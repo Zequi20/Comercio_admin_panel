@@ -54,6 +54,17 @@ export async function loginToAuthService(email: string, password: string) {
   );
 }
 
+export async function refreshAuthSession(refreshToken: string) {
+  return requestJson<AuthLoginResponse>(
+    `${AUTH_BASE_URL}/auth/refresh`,
+    {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    },
+    "No se pudo renovar la sesión."
+  );
+}
+
 export async function fetchAuthProfile(accessToken: string) {
   return requestJson<AuthUser>(
     `${AUTH_BASE_URL}/auth/me?expand=merchant`,

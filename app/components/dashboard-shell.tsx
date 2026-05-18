@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { LogoutButton } from "./logout-button";
@@ -85,6 +85,7 @@ export function DashboardShell({
   userEmail: string;
 }>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     document.body.classList.toggle("nav-open", isMenuOpen);
@@ -111,6 +112,52 @@ export function DashboardShell({
       mediaQuery.removeEventListener("change", closeOnDesktop);
     };
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function keepSessionAlive() {
+      if (document.hidden) return;
+
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        if (response.status === 401 && isMounted) {
+          router.push("/login");
+          router.refresh();
+        }
+      } catch {
+        // Una falla temporal de red no debe expulsar al usuario.
+      }
+    }
+
+    const refreshOnFocus = () => {
+      void keepSessionAlive();
+    };
+    const refreshOnVisibility = () => {
+      if (!document.hidden) {
+        void keepSessionAlive();
+      }
+    };
+    const intervalId = window.setInterval(
+      () => void keepSessionAlive(),
+      4 * 60 * 1000
+    );
+
+    void keepSessionAlive();
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnVisibility);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnVisibility);
+    };
+  }, [router]);
 
   return (
     <div className="dashboard-shell">

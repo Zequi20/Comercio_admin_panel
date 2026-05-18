@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -25,6 +25,7 @@ import {
   assignmentBlockedReason,
   availableOrderStatuses,
   canAssignCourierToOrder,
+  nextOrderStatuses,
 } from "@/app/lib/order-status";
 
 type OrderStatus =
@@ -150,6 +151,34 @@ const statusConfig: Record<
   DELIVERED: { label: "Entregado", pillClass: "success" },
   CANCELED: { label: "Cancelado", pillClass: "error" },
 };
+
+const deliveryWorkflowStatuses: OrderStatus[] = [
+  "PLACED",
+  "CONFIRMED",
+  "ASSIGNED",
+  "PICKED_UP",
+  "DELIVERED",
+];
+
+const pickupWorkflowStatuses: OrderStatus[] = [
+  "PLACED",
+  "CONFIRMED",
+  "PICKED_UP",
+  "DELIVERED",
+];
+
+type OrderRowAction =
+  | {
+      kind: "assign";
+      label: string;
+      title: string;
+    }
+  | {
+      kind: "status";
+      label: string;
+      title: string;
+      toStatus: OrderStatus;
+    };
 
 let itemFieldCounter = 0;
 
@@ -443,6 +472,90 @@ function assignmentActionTitle(order: CommerceOrder) {
   return assignmentBlockedReason(order) ?? "Asignar delivery";
 }
 
+function workflowStatusesForOrder(order: CommerceOrder) {
+  return order.fulfillmentType === "PICKUP"
+    ? pickupWorkflowStatuses
+    : deliveryWorkflowStatuses;
+}
+
+function primaryStatusActionLabel(status: OrderStatus) {
+  const labels: Partial<Record<OrderStatus, string>> = {
+    CONFIRMED: "Confirmar",
+    ASSIGNED: "Marcar asignado",
+    PICKED_UP: "Marcar retirado",
+    DELIVERED: "Marcar entregado",
+  };
+
+  return labels[status] ?? statusConfig[status].label;
+}
+
+function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
+  if (canAssignCourierToOrder(order)) {
+    return {
+      kind: "assign",
+      label: "Asignar",
+      title: "Asignar repartidor",
+    };
+  }
+
+  const nextStatus = nextOrderStatuses(order).find(
+    (status) => status !== "CANCELED"
+  );
+
+  if (!nextStatus) {
+    return null;
+  }
+
+  return {
+    kind: "status",
+    label: primaryStatusActionLabel(nextStatus),
+    title: `Avanzar a ${statusConfig[nextStatus].label}`,
+    toStatus: nextStatus,
+  };
+}
+
+function OrderStatusStepper({ order }: { order: CommerceOrder }) {
+  const currentStatus = order.status ?? "PLACED";
+
+  if (currentStatus === "CANCELED") {
+    return (
+      <div className="order-status-canceled-flow">Flujo cancelado</div>
+    );
+  }
+
+  const workflowStatuses = workflowStatusesForOrder(order);
+  const currentStatusIndex = workflowStatuses.indexOf(currentStatus);
+
+  return (
+    <ol
+      aria-label={`Progreso de la orden ${orderCode(order)}`}
+      className="order-status-stepper"
+    >
+      {workflowStatuses.map((status, index) => {
+        const stepState =
+          currentStatusIndex === -1 || index > currentStatusIndex
+            ? "next"
+            : index === currentStatusIndex
+              ? "current"
+              : "done";
+
+        return (
+          <li
+            className={`order-status-step ${stepState}`}
+            key={status}
+            title={statusConfig[status].label}
+          >
+            <span className="order-status-step-dot" />
+            <span className="order-status-step-label">
+              {statusConfig[status].label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function itemFieldsToPayload(fields: OrderItemField[]):
   | {
       ok: true;
@@ -586,11 +699,20 @@ export function OrdersManager() {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [couriersError, setCouriersError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [updatingStatusOrderId, setUpdatingStatusOrderId] = useState<
+    string | null
+  >(null);
+  const [recentlyUpdatedOrderId, setRecentlyUpdatedOrderId] = useState<
+    string | null
+  >(null);
   const [ordersPagination, setOrdersPagination] =
     useState<TablePaginationState>({
       page: 1,
       pageSize: DEFAULT_TABLE_PAGE_SIZE,
     });
+  const rowFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const hasOpenModal =
     isFormOpen || viewingItemsOrder !== null || assigningOrder !== null;
 
@@ -790,9 +912,64 @@ export function OrdersManager() {
     };
   }, [hasOpenModal]);
 
+  useEffect(() => {
+    return () => {
+      if (rowFeedbackTimeoutRef.current) {
+        clearTimeout(rowFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
   function resetOrdersPage() {
     setOrdersPagination((current) =>
       current.page === 1 ? current : { ...current, page: 1 }
+    );
+  }
+
+  function markOrderAsRecentlyUpdated(orderId: string) {
+    if (rowFeedbackTimeoutRef.current) {
+      clearTimeout(rowFeedbackTimeoutRef.current);
+    }
+
+    setRecentlyUpdatedOrderId(orderId);
+    rowFeedbackTimeoutRef.current = setTimeout(() => {
+      setRecentlyUpdatedOrderId((current) =>
+        current === orderId ? null : current
+      );
+      rowFeedbackTimeoutRef.current = null;
+    }, 1800);
+  }
+
+  function updateOrderInTable(updatedOrder: CommerceOrder) {
+    setOrders((current) => {
+      const matchesStatusFilter =
+        filters.status === "ALL" || updatedOrder.status === filters.status;
+
+      return current.flatMap((order) => {
+        if (String(order.id) !== String(updatedOrder.id)) {
+          return [order];
+        }
+
+        return matchesStatusFilter ? [updatedOrder] : [];
+      });
+    });
+
+    setEditingOrder((current) =>
+      current && String(current.id) === String(updatedOrder.id)
+        ? updatedOrder
+        : current
+    );
+
+    setViewingItemsOrder((current) =>
+      current && String(current.id) === String(updatedOrder.id)
+        ? updatedOrder
+        : current
+    );
+
+    setAssigningOrder((current) =>
+      current && String(current.id) === String(updatedOrder.id)
+        ? updatedOrder
+        : current
     );
   }
 
@@ -1141,13 +1318,81 @@ export function OrdersManager() {
       setAssigningOrder(null);
       setSelectedCourierId("");
       setSuccess(`Delivery asignado a ${assignedCourierName}.`);
-      await loadOrders();
+      if (isOrder(payload)) {
+        updateOrderInTable(payload);
+        markOrderAsRecentlyUpdated(String(payload.id));
+      } else {
+        await loadOrders();
+      }
     } catch (err) {
       setAssignmentError(
         err instanceof Error ? err.message : "No se pudo asignar el repartidor."
       );
     } finally {
       setIsAssigning(false);
+      setPendingOrderId(null);
+    }
+  }
+
+  async function handleQuickStatusUpdate(
+    order: CommerceOrder,
+    toStatus: OrderStatus
+  ) {
+    const expectedVersion = readVersion(order);
+
+    if (expectedVersion === null) {
+      setError("No se pudo leer la versión actual del pedido.");
+      return;
+    }
+
+    const orderId = String(order.id);
+
+    setUpdatingStatusOrderId(orderId);
+    setPendingOrderId(orderId);
+    setRecentlyUpdatedOrderId(null);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(orderId)}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            toStatus,
+            expectedVersion,
+          }),
+        }
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(payload, "No se pudo actualizar el estado.")
+        );
+      }
+
+      const updatedOrder = isOrder(payload)
+        ? payload
+        : {
+            ...order,
+            status: toStatus,
+            version: expectedVersion + 1,
+          };
+
+      updateOrderInTable(updatedOrder);
+      markOrderAsRecentlyUpdated(String(updatedOrder.id));
+      setSuccess(
+        `${orderCode(updatedOrder)} avanzó a ${statusConfig[toStatus].label}.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo actualizar el estado."
+      );
+    } finally {
+      setUpdatingStatusOrderId(null);
       setPendingOrderId(null);
     }
   }
@@ -1370,14 +1615,25 @@ export function OrdersManager() {
               ) : visibleOrders.length ? (
                 ordersPage.rows.map((order) => {
                   const isPending = pendingOrderId === String(order.id);
+                  const isUpdatingStatus =
+                    updatingStatusOrderId === String(order.id);
+                  const isRecentlyUpdated =
+                    recentlyUpdatedOrderId === String(order.id);
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
                   const items = order.items ?? [];
                   const canAssign = canAssignDelivery(order);
                   const assignmentReason = assignmentBlockedReason(order);
+                  const nextAction = nextPrimaryOrderAction(order);
+                  const rowStateClass = [
+                    isUpdatingStatus ? "order-row-updating" : "",
+                    isRecentlyUpdated ? "order-row-updated" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
                   return (
-                    <tr key={order.id}>
+                    <tr className={rowStateClass} key={order.id}>
                       <td>
                         <strong>{orderCode(order)}</strong>
                         <span className="table-muted">
@@ -1418,9 +1674,31 @@ export function OrdersManager() {
                         </span>
                       </td>
                       <td>
-                        <span className={`pill ${config.pillClass}`}>
-                          {config.label}
-                        </span>
+                        <div className="order-status-cell">
+                          <div className="order-status-head">
+                            <span className={`pill ${config.pillClass}`}>
+                              {config.label}
+                            </span>
+                            {isUpdatingStatus ? (
+                              <span
+                                aria-live="polite"
+                                className="order-status-feedback"
+                              >
+                                <span aria-hidden="true" className="spinner" />
+                                Actualizando
+                              </span>
+                            ) : null}
+                            {isRecentlyUpdated ? (
+                              <span
+                                aria-live="polite"
+                                className="order-status-feedback success"
+                              >
+                                Actualizado
+                              </span>
+                            ) : null}
+                          </div>
+                          <OrderStatusStepper order={order} />
+                        </div>
                       </td>
                       <td>
                         {order.courier?.id ? (
@@ -1473,22 +1751,55 @@ export function OrdersManager() {
                       </td>
                       <td>{formatDate(order.updatedAt)}</td>
                       <td>
-                        <div className="table-actions">
-                          <button
-                            aria-label={`Asignar delivery a la orden ${orderCode(
-                              order
-                            )}`}
-                            className={
-                              canAssign ? "order-assign-trigger" : "icon-button"
-                            }
-                            disabled={isPending || !canAssign}
-                            onClick={() => openAssignModal(order)}
-                            title={assignmentActionTitle(order)}
-                            type="button"
-                          >
-                            <Truck size={17} />
-                            {canAssign ? <span>Asignar</span> : null}
-                          </button>
+                        <div className="table-actions order-table-actions">
+                          {nextAction ? (
+                            <button
+                              aria-label={`${nextAction.label} en la orden ${orderCode(
+                                order
+                              )}`}
+                              className={
+                                nextAction.kind === "assign"
+                                  ? "order-next-action-trigger assign"
+                                  : "order-next-action-trigger"
+                              }
+                              disabled={isPending}
+                              onClick={() => {
+                                if (nextAction.kind === "assign") {
+                                  openAssignModal(order);
+                                  return;
+                                }
+
+                                void handleQuickStatusUpdate(
+                                  order,
+                                  nextAction.toStatus
+                                );
+                              }}
+                              title={
+                                nextAction.kind === "assign"
+                                  ? assignmentActionTitle(order)
+                                  : nextAction.title
+                              }
+                              type="button"
+                            >
+                              {isUpdatingStatus &&
+                              nextAction.kind === "status" ? (
+                                <span
+                                  aria-hidden="true"
+                                  className="spinner"
+                                />
+                              ) : nextAction.kind === "assign" ? (
+                                <Truck size={16} />
+                              ) : (
+                                <CircleCheck size={16} />
+                              )}
+                              <span>
+                                {isUpdatingStatus &&
+                                nextAction.kind === "status"
+                                  ? "Actualizando"
+                                  : nextAction.label}
+                              </span>
+                            </button>
+                          ) : null}
                           <button
                             className="icon-button"
                             disabled={isPending}

@@ -977,7 +977,7 @@ a {
 }
 
 .orders-data-table {
-  min-width: 1460px;
+  min-width: 1680px;
 }
 
 .couriers-data-table {
@@ -1065,6 +1065,198 @@ a {
 .table-actions .icon-button {
   width: 32px;
   height: 32px;
+}
+
+.order-status-cell {
+  display: grid;
+  min-width: 236px;
+  gap: 7px;
+}
+
+.order-status-head,
+.order-status-feedback {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.order-status-head {
+  flex-wrap: wrap;
+}
+
+.order-status-feedback {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.order-status-feedback.success {
+  color: #1b5e20;
+}
+
+.order-status-feedback .spinner {
+  width: 11px;
+  height: 11px;
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
+  border-top-color: var(--primary);
+}
+
+.order-status-stepper {
+  display: flex;
+  width: min(100%, 260px);
+  max-width: 260px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-status-step {
+  position: relative;
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  justify-items: center;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.order-status-step::before {
+  position: absolute;
+  top: 5px;
+  left: calc(-50% + 5px);
+  width: calc(100% - 10px);
+  height: 2px;
+  background: var(--border-medium);
+  content: "";
+}
+
+.order-status-step:first-child::before {
+  display: none;
+}
+
+.order-status-step.done,
+.order-status-step.current {
+  color: var(--text);
+}
+
+.order-status-step.done::before,
+.order-status-step.current::before {
+  background: color-mix(in srgb, var(--primary) 72%, var(--border-medium));
+}
+
+.order-status-step-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border-medium);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.order-status-step.done .order-status-step-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.order-status-step.current .order-status-step-dot {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.order-status-step-label {
+  display: block;
+  max-width: 62px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-status-canceled-flow {
+  display: inline-flex;
+  width: max-content;
+  max-width: 160px;
+  border-radius: var(--radius-sm);
+  background: var(--error-container);
+  color: var(--on-primary-container);
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.order-table-actions {
+  align-items: stretch;
+}
+
+.order-next-action-trigger {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.order-next-action-trigger.assign {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border-soft));
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.order-next-action-trigger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  background: var(--surface-secondary);
+  color: var(--primary);
+}
+
+.order-next-action-trigger:disabled {
+  opacity: 0.68;
+  transform: none;
+}
+
+.order-next-action-trigger .spinner {
+  width: 12px;
+  height: 12px;
+}
+
+.orders-data-table tbody tr.order-row-updating,
+.orders-data-table tbody tr.order-row-updating td:last-child:not([colspan]) {
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+
+.orders-data-table tbody tr.order-row-updated,
+.orders-data-table tbody tr.order-row-updated td:last-child:not([colspan]) {
+  animation: order-row-updated 1800ms ease;
+}
+
+@keyframes order-row-updated {
+  0%,
+  62% {
+    background: color-mix(in srgb, #22c55e 14%, var(--surface));
+  }
+
+  100% {
+    background: var(--surface);
+  }
 }
 
 .catalog-thumbnail {

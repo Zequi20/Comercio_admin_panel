@@ -6,6 +6,7 @@ import type { NextResponse } from "next/server";
 import {
   fetchAuthProfile,
   fetchMerchantDetails,
+  refreshAuthSession,
 } from "../services/auth-service";
 import {
   decodeJwtPayload,
@@ -20,6 +21,12 @@ import type {
 
 const accessCookieName = "access_token";
 const refreshCookieName = "refresh_token";
+const authCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  path: "/",
+  secure: process.env.NODE_ENV === "production",
+};
 
 function readAccessToken(payload: AuthLoginResponse) {
   return (
@@ -160,6 +167,20 @@ export async function createCommerceSessionFromLogin(
   };
 }
 
+async function refreshCommerceSessionFromToken(refreshToken: string) {
+  const authPayload = await refreshAuthSession(refreshToken);
+  const refreshedSession = await createCommerceSessionFromLogin(authPayload);
+
+  if (!refreshedSession.ok) {
+    return refreshedSession;
+  }
+
+  return {
+    ...refreshedSession,
+    refreshToken: refreshedSession.refreshToken ?? refreshToken,
+  };
+}
+
 export async function getCommerceSessionFromToken(accessToken: string) {
   try {
     const profile = await fetchAuthProfile(accessToken);
@@ -184,15 +205,37 @@ export async function getCommerceSessionFromCookies() {
 }
 
 export async function getCommerceRequestContextFromCookies() {
-  const { accessToken } = await getAuthCookieValues();
+  const { accessToken, refreshToken } = await getAuthCookieValues();
 
-  if (!accessToken) return null;
+  if (accessToken) {
+    const session = await getCommerceSessionFromToken(accessToken);
 
-  const session = await getCommerceSessionFromToken(accessToken);
+    if (session) {
+      return { accessToken, session };
+    }
+  }
 
-  if (!session) return null;
+  if (!refreshToken) return null;
 
-  return { accessToken, session };
+  try {
+    const refreshedSession = await refreshCommerceSessionFromToken(refreshToken);
+
+    if (!refreshedSession.ok) {
+      return null;
+    }
+
+    await persistAuthCookiesIfPossible({
+      accessToken: refreshedSession.accessToken,
+      refreshToken: refreshedSession.refreshToken,
+    });
+
+    return {
+      accessToken: refreshedSession.accessToken,
+      session: refreshedSession.session,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function getAuthCookieValues() {
@@ -209,19 +252,35 @@ export function setAuthCookies(
   values: { accessToken: string; refreshToken?: string | null }
 ) {
   response.cookies.set(accessCookieName, values.accessToken, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
+    ...authCookieOptions,
   });
 
   if (values.refreshToken) {
     response.cookies.set(refreshCookieName, values.refreshToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      secure: process.env.NODE_ENV === "production",
+      ...authCookieOptions,
     });
+  }
+}
+
+async function persistAuthCookiesIfPossible(values: {
+  accessToken: string;
+  refreshToken?: string | null;
+}) {
+  try {
+    const cookieStore = await cookies();
+
+    cookieStore.set(accessCookieName, values.accessToken, {
+      ...authCookieOptions,
+    });
+
+    if (values.refreshToken) {
+      cookieStore.set(refreshCookieName, values.refreshToken, {
+        ...authCookieOptions,
+      });
+    }
+  } catch {
+    // En Server Components las cookies son de solo lectura. La sesión renovada
+    // se usa para la respuesta actual y el próximo API route persistirá cookies.
   }
 }
 
@@ -229,17 +288,11 @@ export function clearAuthCookies(
   response: NextResponse
 ) {
   response.cookies.set(accessCookieName, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    ...authCookieOptions,
     maxAge: 0,
-    secure: process.env.NODE_ENV === "production",
   });
   response.cookies.set(refreshCookieName, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    ...authCookieOptions,
     maxAge: 0,
-    secure: process.env.NODE_ENV === "production",
   });
 }
