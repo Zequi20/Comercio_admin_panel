@@ -902,6 +902,69 @@ a {
   background: var(--surface);
 }
 
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.table-pagination-summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.table-pagination-controls,
+.table-page-buttons,
+.table-page-size-control {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.table-pagination-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.table-page-size-control {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.table-page-size-select {
+  width: 84px;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.table-page-buttons {
+  gap: 4px;
+}
+
+.table-page-buttons .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
+.table-page-indicator {
+  min-width: 104px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .data-table {
   width: 100%;
   min-width: 940px;
@@ -2185,6 +2248,18 @@ a {
     grid-column: 1 / -1;
   }
 
+  .table-pagination {
+    align-items: stretch;
+  }
+
+  .table-pagination-summary {
+    width: 100%;
+  }
+
+  .table-pagination-controls {
+    justify-content: flex-start;
+  }
+
   .order-row {
     grid-template-columns: 1fr auto;
   }
@@ -2286,6 +2361,29 @@ a {
     grid-template-columns: repeat(3, max-content);
     justify-content: start;
     justify-items: start;
+  }
+
+  .table-pagination-controls {
+    display: grid;
+    width: 100%;
+  }
+
+  .table-page-size-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 84px;
+  }
+
+  .table-page-size-select {
+    width: 100%;
+  }
+
+  .table-page-buttons {
+    justify-content: space-between;
+  }
+
+  .table-page-indicator {
+    flex: 1;
+    min-width: 0;
   }
 
   .metadata-key-pill,

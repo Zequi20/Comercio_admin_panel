@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  paginateRows,
+  TablePagination,
+  type TablePaginationState,
+} from "@/app/components/table-pagination";
+
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 
 type EntityReference = {
@@ -247,6 +254,11 @@ export function CouriersManager() {
   const [pendingCourierId, setPendingCourierId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [couriersPagination, setCouriersPagination] =
+    useState<TablePaginationState>({
+      page: 1,
+      pageSize: DEFAULT_TABLE_PAGE_SIZE,
+    });
 
   const visibleCouriers = useMemo(
     () =>
@@ -259,6 +271,10 @@ export function CouriersManager() {
         return matchesStatus && courierMatchesQuery(courier, filters.q);
       }),
     [couriers, filters.q, filters.status]
+  );
+  const couriersPage = useMemo(
+    () => paginateRows(visibleCouriers, couriersPagination),
+    [couriersPagination, visibleCouriers]
   );
 
   const activeCount = useMemo(
@@ -282,7 +298,24 @@ export function CouriersManager() {
         );
       }
 
-      setCouriers(readCouriers(payload));
+      const nextCouriers = readCouriers(payload);
+      const nextVisibleCouriers = nextCouriers.filter((courier) => {
+        const matchesStatus =
+          filters.status === "ALL" ||
+          (filters.status === "ACTIVE" && courier.isActive) ||
+          (filters.status === "INACTIVE" && !courier.isActive);
+
+        return matchesStatus && courierMatchesQuery(courier, filters.q);
+      });
+
+      setCouriers(nextCouriers);
+      setCouriersPagination((current) => {
+        const nextPage = paginateRows(nextVisibleCouriers, current).currentPage;
+
+        return current.page === nextPage
+          ? current
+          : { ...current, page: nextPage };
+      });
     } catch (err) {
       setError(
         err instanceof Error
@@ -314,7 +347,16 @@ export function CouriersManager() {
         }
 
         if (!ignore) {
-          setCouriers(readCouriers(payload));
+          const nextCouriers = readCouriers(payload);
+
+          setCouriers(nextCouriers);
+          setCouriersPagination((current) => {
+            const nextPage = paginateRows(nextCouriers, current).currentPage;
+
+            return current.page === nextPage
+              ? current
+              : { ...current, page: nextPage };
+          });
         }
       } catch (err) {
         if (!ignore) {
@@ -345,6 +387,17 @@ export function CouriersManager() {
       document.body.classList.remove("modal-open");
     };
   }, [isFormOpen]);
+
+  function resetCouriersPage() {
+    setCouriersPagination((current) =>
+      current.page === 1 ? current : { ...current, page: 1 }
+    );
+  }
+
+  function updateFilters(updates: Partial<CourierFilters>) {
+    resetCouriersPage();
+    setFilters((current) => ({ ...current, ...updates }));
+  }
 
   function updateForm<K extends keyof CourierForm>(
     key: K,
@@ -573,9 +626,7 @@ export function CouriersManager() {
               id="couriers-search"
               placeholder="Nombre, usuario, zona o teléfono"
               value={filters.q}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, q: event.target.value }))
-              }
+              onChange={(event) => updateFilters({ q: event.target.value })}
             />
           </div>
           <div className="field-group">
@@ -587,10 +638,9 @@ export function CouriersManager() {
               id="couriers-filter-status"
               value={filters.status}
               onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
+                updateFilters({
                   status: event.target.value as StatusFilter,
-                }))
+                })
               }
             >
               <option value="ALL">Todos</option>
@@ -629,7 +679,7 @@ export function CouriersManager() {
                   </tr>
                 ))
               ) : visibleCouriers.length ? (
-                visibleCouriers.map((courier) => {
+                couriersPage.rows.map((courier) => {
                   const isPending = pendingCourierId === String(courier.id);
                   const area = metadataText(courier.metadata, "area");
                   const vehicle = metadataText(courier.metadata, "vehicle");
@@ -705,6 +755,21 @@ export function CouriersManager() {
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={couriersPage.currentPage}
+          itemLabelPlural="repartidores"
+          itemLabelSingular="repartidor"
+          pageSize={couriersPage.pageSize}
+          totalItems={couriersPage.totalItems}
+          totalPages={couriersPage.totalPages}
+          onPageChange={(page) =>
+            setCouriersPagination((current) => ({ ...current, page }))
+          }
+          onPageSizeChange={(pageSize) =>
+            setCouriersPagination({ page: 1, pageSize })
+          }
+        />
       </section>
 
       {isFormOpen ? (

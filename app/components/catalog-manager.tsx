@@ -15,6 +15,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  paginateRows,
+  TablePagination,
+  type TablePaginationState,
+} from "@/app/components/table-pagination";
+
 type ProductType = "PRODUCT" | "SERVICE";
 type AvailabilityFilter = "ALL" | "true" | "false";
 type ProductTypeFilter = "ALL" | ProductType;
@@ -431,11 +438,20 @@ export function CatalogManager() {
     useState<CatalogProduct | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [catalogPagination, setCatalogPagination] =
+    useState<TablePaginationState>({
+      page: 1,
+      pageSize: DEFAULT_TABLE_PAGE_SIZE,
+    });
   const hasOpenModal = isFormOpen || viewingMetadataProduct !== null;
 
   const activeCount = useMemo(
     () => products.filter((product) => product.available).length,
     [products]
+  );
+  const catalogPage = useMemo(
+    () => paginateRows(products, catalogPagination),
+    [catalogPagination, products]
   );
 
   async function loadProducts(nextFilters = filters) {
@@ -454,7 +470,16 @@ export function CatalogManager() {
         );
       }
 
-      setProducts(readProducts(payload));
+      const nextProducts = readProducts(payload);
+
+      setProducts(nextProducts);
+      setCatalogPagination((current) => {
+        const nextPage = paginateRows(nextProducts, current).currentPage;
+
+        return current.page === nextPage
+          ? current
+          : { ...current, page: nextPage };
+      });
     } catch (err) {
       setError(
         err instanceof Error
@@ -483,7 +508,16 @@ export function CatalogManager() {
         }
 
         if (!ignore) {
-          setProducts(readProducts(payload));
+          const nextProducts = readProducts(payload);
+
+          setProducts(nextProducts);
+          setCatalogPagination((current) => {
+            const nextPage = paginateRows(nextProducts, current).currentPage;
+
+            return current.page === nextPage
+              ? current
+              : { ...current, page: nextPage };
+          });
         }
       } catch (err) {
         if (!ignore) {
@@ -514,6 +548,17 @@ export function CatalogManager() {
       document.body.classList.remove("modal-open");
     };
   }, [hasOpenModal]);
+
+  function resetCatalogPage() {
+    setCatalogPagination((current) =>
+      current.page === 1 ? current : { ...current, page: 1 }
+    );
+  }
+
+  function updateFilters(updates: Partial<CatalogFilters>) {
+    resetCatalogPage();
+    setFilters((current) => ({ ...current, ...updates }));
+  }
 
   function updateForm<K extends keyof CatalogForm>(
     key: K,
@@ -862,9 +907,7 @@ export function CatalogManager() {
               id="catalog-search"
               placeholder="Nombre o SKU"
               value={filters.q}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, q: event.target.value }))
-              }
+              onChange={(event) => updateFilters({ q: event.target.value })}
             />
           </div>
           <div className="field-group">
@@ -876,10 +919,9 @@ export function CatalogManager() {
               id="catalog-filter-type"
               value={filters.type}
               onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
+                updateFilters({
                   type: event.target.value as ProductTypeFilter,
-                }))
+                })
               }
             >
               <option value="ALL">Todos</option>
@@ -896,10 +938,9 @@ export function CatalogManager() {
               id="catalog-filter-available"
               value={filters.available}
               onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
+                updateFilters({
                   available: event.target.value as AvailabilityFilter,
-                }))
+                })
               }
             >
               <option value="ALL">Todos</option>
@@ -937,7 +978,7 @@ export function CatalogManager() {
                   </tr>
                 ))
               ) : products.length ? (
-                products.map((product) => {
+                catalogPage.rows.map((product) => {
                   const isPending = pendingProductId === String(product.id);
                   const metadata = metadataEntries(product.metadata);
 
@@ -1031,6 +1072,21 @@ export function CatalogManager() {
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={catalogPage.currentPage}
+          itemLabelPlural="ítems"
+          itemLabelSingular="ítem"
+          pageSize={catalogPage.pageSize}
+          totalItems={catalogPage.totalItems}
+          totalPages={catalogPage.totalPages}
+          onPageChange={(page) =>
+            setCatalogPagination((current) => ({ ...current, page }))
+          }
+          onPageSizeChange={(pageSize) =>
+            setCatalogPagination({ page: 1, pageSize })
+          }
+        />
       </section>
 
       {isFormOpen ? (

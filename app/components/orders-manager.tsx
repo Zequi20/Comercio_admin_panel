@@ -16,6 +16,12 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  paginateRows,
+  TablePagination,
+  type TablePaginationState,
+} from "@/app/components/table-pagination";
+import {
   assignmentBlockedReason,
   availableOrderStatuses,
   canAssignCourierToOrder,
@@ -580,12 +586,21 @@ export function OrdersManager() {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [couriersError, setCouriersError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [ordersPagination, setOrdersPagination] =
+    useState<TablePaginationState>({
+      page: 1,
+      pageSize: DEFAULT_TABLE_PAGE_SIZE,
+    });
   const hasOpenModal =
     isFormOpen || viewingItemsOrder !== null || assigningOrder !== null;
 
   const visibleOrders = useMemo(
     () => orders.filter((order) => orderMatchesQuery(order, filters.q)),
     [filters.q, orders]
+  );
+  const ordersPage = useMemo(
+    () => paginateRows(visibleOrders, ordersPagination),
+    [ordersPagination, visibleOrders]
   );
 
   const openCount = useMemo(
@@ -686,7 +701,19 @@ export function OrdersManager() {
         );
       }
 
-      setOrders(readOrders(payload));
+      const nextOrders = readOrders(payload);
+      const nextVisibleOrders = nextOrders.filter((order) =>
+        orderMatchesQuery(order, nextFilters.q)
+      );
+
+      setOrders(nextOrders);
+      setOrdersPagination((current) => {
+        const nextPage = paginateRows(nextVisibleOrders, current).currentPage;
+
+        return current.page === nextPage
+          ? current
+          : { ...current, page: nextPage };
+      });
     } catch (err) {
       setError(
         err instanceof Error
@@ -720,7 +747,16 @@ export function OrdersManager() {
         }
 
         if (!ignore) {
-          setOrders(readOrders(ordersPayload));
+          const nextOrders = readOrders(ordersPayload);
+
+          setOrders(nextOrders);
+          setOrdersPagination((current) => {
+            const nextPage = paginateRows(nextOrders, current).currentPage;
+
+            return current.page === nextPage
+              ? current
+              : { ...current, page: nextPage };
+          });
         }
 
         await Promise.all([loadProducts(), loadCouriers()]);
@@ -753,6 +789,17 @@ export function OrdersManager() {
       document.body.classList.remove("modal-open");
     };
   }, [hasOpenModal]);
+
+  function resetOrdersPage() {
+    setOrdersPagination((current) =>
+      current.page === 1 ? current : { ...current, page: 1 }
+    );
+  }
+
+  function updateFilters(updates: Partial<OrderFilters>) {
+    resetOrdersPage();
+    setFilters((current) => ({ ...current, ...updates }));
+  }
 
   function updateForm<K extends keyof OrderForm>(key: K, value: OrderForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -1263,9 +1310,7 @@ export function OrdersManager() {
               id="orders-search"
               placeholder="Orden, cliente o producto"
               value={filters.q}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, q: event.target.value }))
-              }
+              onChange={(event) => updateFilters({ q: event.target.value })}
             />
           </div>
           <div className="field-group">
@@ -1277,10 +1322,9 @@ export function OrdersManager() {
               id="orders-filter-status"
               value={filters.status}
               onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
+                updateFilters({
                   status: event.target.value as StatusFilter,
-                }))
+                })
               }
             >
               <option value="ALL">Todos</option>
@@ -1324,7 +1368,7 @@ export function OrdersManager() {
                   </tr>
                 ))
               ) : visibleOrders.length ? (
-                visibleOrders.map((order) => {
+                ordersPage.rows.map((order) => {
                   const isPending = pendingOrderId === String(order.id);
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
@@ -1482,6 +1526,21 @@ export function OrdersManager() {
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={ordersPage.currentPage}
+          itemLabelPlural="órdenes"
+          itemLabelSingular="orden"
+          pageSize={ordersPage.pageSize}
+          totalItems={ordersPage.totalItems}
+          totalPages={ordersPage.totalPages}
+          onPageChange={(page) =>
+            setOrdersPagination((current) => ({ ...current, page }))
+          }
+          onPageSizeChange={(pageSize) =>
+            setOrdersPagination({ page: 1, pageSize })
+          }
+        />
       </section>
 
       {isFormOpen ? (
