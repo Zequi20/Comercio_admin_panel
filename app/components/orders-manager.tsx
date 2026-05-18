@@ -879,9 +879,9 @@ export function OrdersManager() {
               ? current
               : { ...current, page: nextPage };
           });
+          setIsLoading(false);
+          void Promise.all([loadProducts(), loadCouriers()]);
         }
-
-        await Promise.all([loadProducts(), loadCouriers()]);
       } catch (err) {
         if (!ignore) {
           setError(

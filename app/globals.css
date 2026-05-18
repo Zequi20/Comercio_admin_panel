@@ -706,6 +706,26 @@ a {
   min-width: 0;
 }
 
+.sidebar-account-panel {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidebar-merchant-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--primary-container);
+  color: var(--primary);
+}
+
 .sidebar-account strong,
 .sidebar-account span {
   overflow: hidden;
@@ -2072,9 +2092,23 @@ a {
   width: 46px;
   height: 46px;
   place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
   background: var(--primary-container);
   color: var(--primary);
+}
+
+.merchant-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.merchant-avatar.has-image {
+  background: var(--surface-secondary);
+  color: transparent;
 }
 
 .merchant-summary {
@@ -2309,6 +2343,112 @@ a {
   content: "";
   transform: translateX(-100%);
   animation: shimmer 1300ms infinite;
+}
+
+.dashboard-shimmer-topbar {
+  min-height: 90px;
+}
+
+.dashboard-shimmer-card {
+  display: grid;
+  align-content: start;
+}
+
+.dashboard-shimmer-row {
+  pointer-events: none;
+}
+
+.dashboard-shimmer-action {
+  cursor: default;
+  pointer-events: none;
+}
+
+.shimmer-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+}
+
+.shimmer-avatar {
+  display: inline-flex;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+}
+
+.shimmer-pill {
+  display: inline-flex;
+  width: 70px;
+  height: 24px;
+}
+
+.shimmer-button {
+  display: inline-flex;
+  width: 118px;
+  height: 36px;
+  border-radius: var(--radius-md);
+}
+
+.shimmer-heading {
+  display: block;
+  width: min(100%, 340px);
+  height: 32px;
+  margin-top: 7px;
+}
+
+.shimmer-title {
+  display: block;
+  width: 150px;
+  height: 18px;
+}
+
+.shimmer-value {
+  display: block;
+  width: 96px;
+  height: 30px;
+  margin-top: 12px;
+}
+
+.shimmer-line {
+  display: block;
+  height: 12px;
+  margin-top: 6px;
+}
+
+.shimmer-line.tiny {
+  width: 54px;
+}
+
+.shimmer-line.short {
+  width: 88px;
+}
+
+.shimmer-line.medium {
+  width: 130px;
+}
+
+.shimmer-line.long {
+  width: min(100%, 230px);
+}
+
+.shimmer-panel {
+  display: block;
+  width: 100%;
+  height: 84px;
+  margin-top: 12px;
+}
+
+.shimmer-panel.compact {
+  height: 46px;
+}
+
+.dashboard-shimmer .merchant-summary {
+  align-items: center;
+}
+
+.dashboard-shimmer .metric-row {
+  min-height: 36px;
 }
 
 @keyframes shimmer {

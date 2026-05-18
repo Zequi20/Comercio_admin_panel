@@ -5,16 +5,20 @@ import {
   Package,
   Plus,
   ReceiptText,
-  Store,
   Truck,
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
+import { DashboardContentShimmer } from "../components/dashboard-shimmer";
+import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
+import type { CommerceSession, MerchantDetails } from "../lib/auth/types";
 import { getCommerceRequestContextFromCookies } from "../lib/auth/session";
 import { orderStatusLabel } from "../lib/order-status";
+import { fetchMerchantDetails } from "../lib/services/auth-service";
 import {
   listCouriersForMerchant,
   listOrdersForMerchant,
@@ -177,35 +181,62 @@ function orderActionLabel(order: Order) {
 }
 
 async function loadDashboardData(accessToken: string, merchantId: number | string) {
-  const [orders, products, couriers] = await Promise.all([
-    listOrdersForMerchant({ accessToken, limit: 100 }).catch(() => null),
+  const dashboardListLimit = 10;
+  const [orders, products, couriers, merchant] = await Promise.all([
+    listOrdersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
+      () => null
+    ),
     listProductsForMerchant({
       accessToken,
       merchantId,
-      limit: 100,
+      limit: dashboardListLimit,
     }).catch(() => null),
-    listCouriersForMerchant({ accessToken, limit: 100 }).catch(() => null),
+    listCouriersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
+      () => null
+    ),
+    fetchMerchantDetails(merchantId, accessToken).catch(() => null),
   ]);
 
   return {
     orders: orders?.data ?? [],
     products: products?.data ?? [],
     couriers: couriers?.data ?? [],
+    merchant,
   };
 }
 
-export default async function DashboardPage() {
-  const context = await getCommerceRequestContextFromCookies();
-
-  if (!context) {
-    redirect("/login");
+function mergeMerchantDetails(
+  session: CommerceSession,
+  merchant: MerchantDetails | null
+): CommerceSession["merchant"] {
+  if (!merchant) {
+    return session.merchant;
   }
 
-  const { session, accessToken } = context;
-  const { orders, products, couriers } = await loadDashboardData(
+  return {
+    ...session.merchant,
+    id: merchant.id ?? session.merchant.id,
+    name: merchant.name ?? session.merchant.name,
+    contactEmail:
+      merchant.contactEmail ?? merchant.email ?? session.merchant.contactEmail,
+    deliveryCost: merchant.deliveryCost ?? session.merchant.deliveryCost,
+    isOpen: merchant.isOpen ?? session.merchant.isOpen,
+    metadata: merchant.metadata ?? session.merchant.metadata,
+  };
+}
+
+async function DashboardContent({
+  accessToken,
+  session,
+}: {
+  accessToken: string;
+  session: CommerceSession;
+}) {
+  const { orders, products, couriers, merchant } = await loadDashboardData(
     accessToken,
     session.merchant.id
   );
+  const dashboardMerchant = mergeMerchantDetails(session, merchant);
 
   const openOrders = orders.filter(isOrderOpen);
   const pendingOrders = orders.filter((order) => order.status === "PLACED");
@@ -279,63 +310,38 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="dashboard-main">
-      <div className="dashboard-topbar">
-        <div>
-          <p className="eyebrow">Dashboard</p>
-          <h1 className="dashboard-title">Operación del comercio</h1>
-          <p className="muted">
-            {session.merchant.name} · {session.user.email}
-          </p>
+    <div className="dashboard-grid">
+      <section className="main-column" aria-label="Resumen operativo">
+        <div className="stats-grid">
+          {stats.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article className="card stat-card" key={item.label}>
+                <div className="card-header">
+                  <span className="icon-surface" aria-hidden="true">
+                    <Icon size={19} />
+                  </span>
+                  <span className={`pill ${item.pillClass}`}>{item.pill}</span>
+                </div>
+                <span className="stat-label">{item.label}</span>
+                <strong className="stat-value">{item.value}</strong>
+                <span className="stat-label">{item.meta}</span>
+              </article>
+            );
+          })}
         </div>
-        <div className="dashboard-actions">
-          <Link className="button-secondary" href="/dashboard/catalogo">
-            <Package size={17} />
-            Catálogo
-          </Link>
-          <Link className="button-tonal" href="/dashboard/ordenes">
-            <ReceiptText size={17} />
-            Ver órdenes
-          </Link>
-        </div>
-      </div>
 
-      <div className="dashboard-grid">
-        <section className="main-column" aria-label="Resumen operativo">
-          <div className="stats-grid">
-            {stats.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article className="card stat-card" key={item.label}>
-                  <div className="card-header">
-                    <span className="icon-surface" aria-hidden="true">
-                      <Icon size={19} />
-                    </span>
-                    <span className={`pill ${item.pillClass}`}>
-                      {item.pill}
-                    </span>
-                  </div>
-                  <span className="stat-label">{item.label}</span>
-                  <strong className="stat-value">{item.value}</strong>
-                  <span className="stat-label">{item.meta}</span>
-                </article>
-              );
-            })}
-          </div>
-
-          <section className="card card-lg">
-            <div className="card-header">
-              <div>
-                <h2 className="card-title">Prioridad operativa</h2>
-                <p className="muted">
-                  Pedidos ordenados por acción pendiente.
-                </p>
-              </div>
-              <Link className="button-tonal" href="/dashboard/ordenes">
-                <ReceiptText size={17} />
-                Ver pedidos
-              </Link>
+        <section className="card card-lg">
+          <div className="card-header">
+            <div>
+              <h2 className="card-title">Prioridad operativa</h2>
+              <p className="muted">Pedidos ordenados por acción pendiente.</p>
             </div>
+            <Link className="button-tonal" href="/dashboard/ordenes">
+              <ReceiptText size={17} />
+              Ver pedidos
+            </Link>
+          </div>
 
             {priorityOrders.length ? (
               <div className="orders-list">
@@ -412,37 +418,38 @@ export default async function DashboardPage() {
         <aside className="side-column" aria-label="Estado del comercio">
           <section className="card card-lg">
             <div className="merchant-summary">
-              <div className="commerce-avatar" aria-hidden="true">
-                <Store size={28} />
-              </div>
+              <MerchantAvatar
+                metadata={dashboardMerchant.metadata}
+                name={dashboardMerchant.name}
+              />
               <div>
-                <h2>{session.merchant.name}</h2>
+                <h2>{dashboardMerchant.name}</h2>
                 <p className="muted">Disponibilidad actual</p>
               </div>
             </div>
             <MerchantOpenSwitch
-              initialIsOpen={session.merchant.isOpen}
-              merchantId={session.merchant.id}
+              initialIsOpen={dashboardMerchant.isOpen}
+              merchantId={dashboardMerchant.id}
             />
             <MerchantMetadataEditor
-              initialMetadata={session.merchant.metadata}
-              merchantId={session.merchant.id}
+              initialMetadata={dashboardMerchant.metadata}
+              merchantId={dashboardMerchant.id}
             />
             <div className="metric-list dashboard-side-metrics">
               <div className="metric-row">
                 <span className="metric-label">Comercio ID</span>
-                <span className="metric-value">{session.merchant.id}</span>
+                <span className="metric-value">{dashboardMerchant.id}</span>
               </div>
               <div className="metric-row">
                 <span className="metric-label">Costo delivery</span>
                 <span className="metric-value">
-                  {session.merchant.deliveryCost ?? "Pendiente"}
+                  {dashboardMerchant.deliveryCost ?? "Pendiente"}
                 </span>
               </div>
               <div className="metric-row">
                 <span className="metric-label">Contacto</span>
                 <span className="metric-value">
-                  {session.merchant.contactEmail ?? "Sin correo"}
+                  {dashboardMerchant.contactEmail ?? "Sin correo"}
                 </span>
               </div>
             </div>
@@ -488,7 +495,44 @@ export default async function DashboardPage() {
             </Link>
           </section>
         </aside>
+    </div>
+  );
+}
+
+export default async function DashboardPage() {
+  const context = await getCommerceRequestContextFromCookies();
+
+  if (!context) {
+    redirect("/login");
+  }
+
+  const { session, accessToken } = context;
+
+  return (
+    <main className="dashboard-main">
+      <div className="dashboard-topbar">
+        <div>
+          <p className="eyebrow">Dashboard</p>
+          <h1 className="dashboard-title">Operación del comercio</h1>
+          <p className="muted">
+            {session.merchant.name} · {session.user.email}
+          </p>
+        </div>
+        <div className="dashboard-actions">
+          <Link className="button-secondary" href="/dashboard/catalogo">
+            <Package size={17} />
+            Catálogo
+          </Link>
+          <Link className="button-tonal" href="/dashboard/ordenes">
+            <ReceiptText size={17} />
+            Ver órdenes
+          </Link>
+        </div>
       </div>
+
+      <Suspense fallback={<DashboardContentShimmer />}>
+        <DashboardContent accessToken={accessToken} session={session} />
+      </Suspense>
     </main>
   );
 }

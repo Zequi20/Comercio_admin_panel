@@ -203,7 +203,6 @@ export async function listProductsForMerchant({
     q,
     available,
     limit,
-    expand: "merchant",
   })}`;
 
   return requestJson<ListResponse<Product>>(
@@ -436,7 +435,7 @@ export async function listOrdersForMerchant({
     roleScope: "merchant",
     status,
     limit,
-    expand: "customer,merchant,courier",
+    expand: "customer,courier",
   })}`;
 
   return requestJson<ListResponse<Order>>(
@@ -454,7 +453,7 @@ export async function getOrderForMerchant({
   orderId: number | string;
 }) {
   const url = `${serviceUrls.orders}/orders/${orderId}${buildQuery({
-    expand: "customer,merchant,courier",
+    expand: "customer,courier",
   })}`;
 
   return requestJson<Order>(

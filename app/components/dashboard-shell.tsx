@@ -14,6 +14,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { LogoutButton } from "./logout-button";
+import { MerchantAvatar } from "./merchant-avatar";
 import { ThemeToggle } from "./theme-toggle";
 
 const navItems = [
@@ -77,10 +78,12 @@ function NavigationLinks({
 
 export function DashboardShell({
   children,
+  merchantMetadata,
   merchantName,
   userEmail,
 }: Readonly<{
   children: ReactNode;
+  merchantMetadata?: Record<string, unknown> | null;
   merchantName: string;
   userEmail: string;
 }>) {
@@ -165,9 +168,17 @@ export function DashboardShell({
         <BrandLockup />
         <NavigationLinks />
         <div className="sidebar-footer">
-          <div className="sidebar-account">
-            <strong>{merchantName}</strong>
-            <span>{userEmail}</span>
+          <div className="sidebar-account-panel">
+            <MerchantAvatar
+              className="sidebar-merchant-avatar"
+              iconSize={18}
+              metadata={merchantMetadata}
+              name={merchantName}
+            />
+            <div className="sidebar-account">
+              <strong>{merchantName}</strong>
+              <span>{userEmail}</span>
+            </div>
           </div>
           <ThemeToggle />
           <LogoutButton />
@@ -221,9 +232,17 @@ export function DashboardShell({
             </div>
             <NavigationLinks onNavigate={() => setIsMenuOpen(false)} />
             <div className="sidebar-footer">
-              <div className="sidebar-account">
-                <strong>{merchantName}</strong>
-                <span>{userEmail}</span>
+              <div className="sidebar-account-panel">
+                <MerchantAvatar
+                  className="sidebar-merchant-avatar"
+                  iconSize={18}
+                  metadata={merchantMetadata}
+                  name={merchantName}
+                />
+                <div className="sidebar-account">
+                  <strong>{merchantName}</strong>
+                  <span>{userEmail}</span>
+                </div>
               </div>
               <ThemeToggle />
               <LogoutButton />

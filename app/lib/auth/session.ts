@@ -27,6 +27,9 @@ const authCookieOptions = {
   path: "/",
   secure: process.env.NODE_ENV === "production",
 };
+type CommerceSessionOptions = {
+  includeMerchantDetails?: boolean;
+};
 
 function readAccessToken(payload: AuthLoginResponse) {
   return (
@@ -117,7 +120,8 @@ async function getMerchantSafely(
 }
 
 export async function createCommerceSessionFromLogin(
-  payload: AuthLoginResponse
+  payload: AuthLoginResponse,
+  options: CommerceSessionOptions = {}
 ): Promise<
   | {
       ok: true;
@@ -153,7 +157,9 @@ export async function createCommerceSessionFromLogin(
     return { ok: false, reason: access.reason };
   }
 
-  const merchant = await getMerchantSafely(access.merchantId, accessToken);
+  const merchant = options.includeMerchantDetails
+    ? await getMerchantSafely(access.merchantId, accessToken)
+    : null;
 
   return {
     ok: true,
@@ -167,9 +173,15 @@ export async function createCommerceSessionFromLogin(
   };
 }
 
-async function refreshCommerceSessionFromToken(refreshToken: string) {
+async function refreshCommerceSessionFromToken(
+  refreshToken: string,
+  options: CommerceSessionOptions = {}
+) {
   const authPayload = await refreshAuthSession(refreshToken);
-  const refreshedSession = await createCommerceSessionFromLogin(authPayload);
+  const refreshedSession = await createCommerceSessionFromLogin(
+    authPayload,
+    options
+  );
 
   if (!refreshedSession.ok) {
     return refreshedSession;
@@ -181,7 +193,10 @@ async function refreshCommerceSessionFromToken(refreshToken: string) {
   };
 }
 
-export async function getCommerceSessionFromToken(accessToken: string) {
+export async function getCommerceSessionFromToken(
+  accessToken: string,
+  options: CommerceSessionOptions = {}
+) {
   try {
     const profile = await fetchAuthProfile(accessToken);
     const access = resolveCommerceAccess({
@@ -191,7 +206,9 @@ export async function getCommerceSessionFromToken(accessToken: string) {
 
     if (!access.ok) return null;
 
-    const merchant = await getMerchantSafely(access.merchantId, accessToken);
+    const merchant = options.includeMerchantDetails
+      ? await getMerchantSafely(access.merchantId, accessToken)
+      : null;
 
     return toSession({ user: profile, access, merchant });
   } catch {
@@ -199,16 +216,20 @@ export async function getCommerceSessionFromToken(accessToken: string) {
   }
 }
 
-export async function getCommerceSessionFromCookies() {
-  const context = await getCommerceRequestContextFromCookies();
+export async function getCommerceSessionFromCookies(
+  options: CommerceSessionOptions = {}
+) {
+  const context = await getCommerceRequestContextFromCookies(options);
   return context?.session ?? null;
 }
 
-export async function getCommerceRequestContextFromCookies() {
+export async function getCommerceRequestContextFromCookies(
+  options: CommerceSessionOptions = {}
+) {
   const { accessToken, refreshToken } = await getAuthCookieValues();
 
   if (accessToken) {
-    const session = await getCommerceSessionFromToken(accessToken);
+    const session = await getCommerceSessionFromToken(accessToken, options);
 
     if (session) {
       return { accessToken, session };
@@ -218,7 +239,10 @@ export async function getCommerceRequestContextFromCookies() {
   if (!refreshToken) return null;
 
   try {
-    const refreshedSession = await refreshCommerceSessionFromToken(refreshToken);
+    const refreshedSession = await refreshCommerceSessionFromToken(
+      refreshToken,
+      options
+    );
 
     if (!refreshedSession.ok) {
       return null;

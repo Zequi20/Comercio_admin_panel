@@ -10,7 +10,9 @@ export default async function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getCommerceSessionFromCookies();
+  const session = await getCommerceSessionFromCookies({
+    includeMerchantDetails: true,
+  });
 
   if (!session) {
     redirect("/login");
@@ -18,6 +20,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell
+      merchantMetadata={session.merchant.metadata}
       merchantName={session.merchant.name}
       userEmail={session.user.email}
     >
