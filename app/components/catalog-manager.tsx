@@ -4,13 +4,16 @@ import {
   Braces,
   CircleAlert,
   CircleCheck,
+  Download,
   Edit3,
+  FileSpreadsheet,
   Package,
   PackagePlus,
   RefreshCw,
   Save,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -50,6 +53,25 @@ type CatalogProduct = {
 
 type ListProductsResponse = {
   data?: CatalogProduct[];
+};
+
+type ProductImportError =
+  | string
+  | {
+      row?: number | string;
+      sku?: string;
+      field?: string;
+      message?: string;
+      detail?: string;
+      error?: string;
+      [key: string]: unknown;
+    };
+
+type ProductImportResponse = {
+  processed: number;
+  created: number;
+  failed: number;
+  errors: ProductImportError[];
 };
 
 type CatalogForm = {
@@ -115,6 +137,80 @@ function messageFromPayload(payload: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function readImportCount(value: unknown) {
+  const numberValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : 0;
+
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function isImportError(value: unknown): value is ProductImportError {
+  return typeof value === "string" || Boolean(value && typeof value === "object");
+}
+
+function readProductImportResponse(payload: unknown): ProductImportResponse {
+  if (!payload || typeof payload !== "object") {
+    return {
+      processed: 0,
+      created: 0,
+      failed: 0,
+      errors: [],
+    };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const errors = Array.isArray(record.errors)
+    ? record.errors.filter(isImportError)
+    : [];
+
+  return {
+    processed: readImportCount(record.processed),
+    created: readImportCount(record.created),
+    failed: readImportCount(record.failed),
+    errors,
+  };
+}
+
+function firstImportErrorText(error: Exclude<ProductImportError, string>) {
+  for (const key of ["message", "detail", "error"]) {
+    const value = error[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function formatImportError(error: ProductImportError, index: number) {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  const parts: string[] = [];
+
+  if (error.row !== undefined && error.row !== null && String(error.row)) {
+    parts.push(`Fila ${error.row}`);
+  }
+
+  if (typeof error.sku === "string" && error.sku.trim()) {
+    parts.push(`SKU ${error.sku.trim()}`);
+  }
+
+  if (typeof error.field === "string" && error.field.trim()) {
+    parts.push(`Campo ${error.field.trim()}`);
+  }
+
+  parts.push(firstImportErrorText(error) ?? `Error ${index + 1}`);
+
+  return parts.join(" · ");
 }
 
 function readProducts(payload: unknown): CatalogProduct[] {
@@ -433,6 +529,11 @@ export function CatalogManager() {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] =
+    useState<ProductImportResponse | null>(null);
+  const [importInputKey, setImportInputKey] = useState(0);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [viewingMetadataProduct, setViewingMetadataProduct] =
     useState<CatalogProduct | null>(null);
@@ -444,6 +545,7 @@ export function CatalogManager() {
       pageSize: DEFAULT_TABLE_PAGE_SIZE,
     });
   const hasOpenModal = isFormOpen || viewingMetadataProduct !== null;
+  const isFormBusy = isSubmitting || isImporting;
 
   const activeCount = useMemo(
     () => products.filter((product) => product.available).length,
@@ -453,6 +555,13 @@ export function CatalogManager() {
     () => paginateRows(products, catalogPagination),
     [catalogPagination, products]
   );
+  const advancedStatusLabel = form.metadata.length
+    ? metadataCountLabel(form.metadata.length)
+    : importFile
+      ? "Excel listo"
+      : importResult
+        ? "Importado"
+        : "Opcional";
 
   async function loadProducts(nextFilters = filters) {
     setIsLoading(true);
@@ -567,10 +676,17 @@ export function CatalogManager() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function resetImportState() {
+    setImportFile(null);
+    setImportResult(null);
+    setImportInputKey((current) => current + 1);
+  }
+
   function resetForm() {
     setEditingProduct(null);
     setForm(emptyForm);
     setIsAdvancedOpen(false);
+    resetImportState();
   }
 
   function openCreateForm() {
@@ -585,6 +701,7 @@ export function CatalogManager() {
     setViewingMetadataProduct(null);
     setEditingProduct(product);
     setForm(productToForm(product));
+    resetImportState();
     setIsAdvancedOpen(metadataEntries(product.metadata).length > 0);
     setError(null);
     setSuccess(null);
@@ -592,10 +709,17 @@ export function CatalogManager() {
   }
 
   function closeFormModal() {
-    if (isSubmitting) return;
+    if (isFormBusy) return;
     resetForm();
     setError(null);
     setIsFormOpen(false);
+  }
+
+  function updateImportFile(file: File | null) {
+    setImportFile(file);
+    setImportResult(null);
+    setError(null);
+    setSuccess(null);
   }
 
   function addMetadataSuggestion(
@@ -691,6 +815,9 @@ export function CatalogManager() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isImporting) return;
+
     setError(null);
     setSuccess(null);
 
@@ -758,6 +885,71 @@ export function CatalogManager() {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleImportProducts() {
+    if (isSubmitting) return;
+
+    setError(null);
+    setSuccess(null);
+    setImportResult(null);
+
+    if (!importFile) {
+      setError("Seleccioná una plantilla .xlsx para importar.");
+      return;
+    }
+
+    if (!importFile.name.toLowerCase().endsWith(".xlsx")) {
+      setError("Subí una plantilla .xlsx válida.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("file", importFile);
+    setIsImporting(true);
+
+    try {
+      const response = await fetch("/api/products/import", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(payload, "No se pudo importar el archivo.")
+        );
+      }
+
+      const result = readProductImportResponse(payload);
+
+      setImportResult(result);
+      if (result.created > 0) {
+        setSuccess(
+          `Importación finalizada: ${result.created} creados, ${result.failed} fallidos.`
+        );
+      } else {
+        setError(
+          result.failed > 0
+            ? "No se creó ningún producto. Revisá los errores detectados en el archivo."
+            : "No se creó ningún producto desde el archivo."
+        );
+      }
+      setImportFile(null);
+      setImportInputKey((current) => current + 1);
+      setFilters(initialFilters);
+      resetCatalogPage();
+      await loadProducts(initialFilters);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo importar el archivo."
+      );
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -1094,7 +1286,7 @@ export function CatalogManager() {
           <button
             aria-label="Cerrar formulario"
             className="catalog-modal-backdrop"
-            disabled={isSubmitting}
+            disabled={isFormBusy}
             onClick={closeFormModal}
             type="button"
           />
@@ -1115,7 +1307,7 @@ export function CatalogManager() {
               </div>
               <button
                 className="icon-button"
-                disabled={isSubmitting}
+                disabled={isFormBusy}
                 onClick={closeFormModal}
                 title="Cerrar formulario"
                 type="button"
@@ -1257,13 +1449,126 @@ export function CatalogManager() {
                     </span>
                   </span>
                   <span className="pill">
-                    {form.metadata.length
-                      ? metadataCountLabel(form.metadata.length)
-                      : "Opcional"}
+                    {advancedStatusLabel}
                   </span>
                 </summary>
 
                 <div className="advanced-section-content">
+                  {!editingProduct ? (
+                    <div className="catalog-import-panel">
+                      <div className="field-label-row">
+                        <label
+                          className="field-label"
+                          htmlFor="catalog-import-file"
+                        >
+                          Importar productos por Excel
+                        </label>
+                        <span className="pill">.xlsx</span>
+                      </div>
+
+                      <input
+                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        className="catalog-import-input"
+                        disabled={isFormBusy}
+                        id="catalog-import-file"
+                        key={importInputKey}
+                        type="file"
+                        onChange={(event) =>
+                          updateImportFile(event.target.files?.[0] ?? null)
+                        }
+                      />
+                      <label
+                        className={
+                          importFile
+                            ? "catalog-import-file has-file"
+                            : "catalog-import-file"
+                        }
+                        htmlFor="catalog-import-file"
+                      >
+                        <FileSpreadsheet aria-hidden="true" size={20} />
+                        <span>
+                          <strong>
+                            {importFile?.name ?? "Seleccionar plantilla"}
+                          </strong>
+                          <span>
+                            Obligatorios: sku, name, price y currency
+                          </span>
+                        </span>
+                      </label>
+
+                      <div className="catalog-import-actions">
+                        <a
+                          className="button-secondary"
+                          download="plantilla-productos.xlsx"
+                          href="/api/products/import/template"
+                        >
+                          <Download size={17} />
+                          Plantilla
+                        </a>
+                        <button
+                          className="button-primary"
+                          disabled={!importFile || isFormBusy}
+                          onClick={() => void handleImportProducts()}
+                          type="button"
+                        >
+                          {isImporting ? (
+                            <>
+                              <span aria-hidden="true" className="spinner" />
+                              Importando
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={17} />
+                              Importar archivo
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {importResult ? (
+                        <div
+                          className={
+                            importResult.failed
+                              ? "catalog-import-result has-errors"
+                              : "catalog-import-result"
+                          }
+                          role="status"
+                        >
+                          <div className="catalog-import-stats">
+                            <span>
+                              <strong>{importResult.processed}</strong>
+                              <span>Procesados</span>
+                            </span>
+                            <span>
+                              <strong>{importResult.created}</strong>
+                              <span>Creados</span>
+                            </span>
+                            <span>
+                              <strong>{importResult.failed}</strong>
+                              <span>Fallidos</span>
+                            </span>
+                          </div>
+
+                          {importResult.errors.length ? (
+                            <ul className="catalog-import-errors">
+                              {importResult.errors
+                                .slice(0, 5)
+                                .map((item, index) => {
+                                  const message = formatImportError(item, index);
+
+                                  return (
+                                    <li key={`${message}-${index}`}>
+                                      {message}
+                                    </li>
+                                  );
+                                })}
+                            </ul>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="field-label-row">
                     <span className="field-label">Campos técnicos</span>
                     <div
@@ -1391,7 +1696,7 @@ export function CatalogManager() {
               <div className="form-actions">
                 <button
                   className="button-primary"
-                  disabled={isSubmitting}
+                  disabled={isFormBusy}
                   type="submit"
                 >
                   {isSubmitting ? (
@@ -1408,7 +1713,7 @@ export function CatalogManager() {
                 </button>
                 <button
                   className="button-secondary"
-                  disabled={isSubmitting}
+                  disabled={isFormBusy}
                   onClick={closeFormModal}
                   type="button"
                 >

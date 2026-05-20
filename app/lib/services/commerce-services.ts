@@ -34,6 +34,20 @@ export type ProductPayload = {
   metadata?: Record<string, unknown> | null;
 };
 
+export type ProductImportError = {
+  row?: number | string;
+  sku?: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+export type ProductImportResponse = {
+  processed: number;
+  created: number;
+  failed: number;
+  errors: ProductImportError[];
+};
+
 export type OrderStatus =
   | "PLACED"
   | "CONFIRMED"
@@ -175,6 +189,36 @@ async function requestJson<T>(
   return parsed as T;
 }
 
+async function requestFormDataJson<T>(
+  input: string,
+  init: RequestInit,
+  fallbackError: string
+) {
+  const response = await fetch(input, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...init.headers,
+    },
+  });
+
+  const text = await response.text();
+  const parsed = text ? parseJsonSafely(text) : null;
+
+  if (!response.ok) {
+    throw new Error(extractErrorMessage(parsed ?? text, fallbackError));
+  }
+
+  if (!text) return {} as T;
+
+  if (parsed === null) {
+    throw new Error("El servicio respondió con un formato inesperado.");
+  }
+
+  return parsed as T;
+}
+
 function authHeaders(accessToken: string, idempotencyKey?: string) {
   return {
     Authorization: `Bearer ${accessToken}`,
@@ -288,6 +332,24 @@ export async function deleteProductForMerchant({
     `${serviceUrls.products}/products/${productId}`,
     { method: "DELETE", headers: authHeaders(accessToken) },
     "No se pudo eliminar el producto."
+  );
+}
+
+export async function importProductsForMerchant({
+  accessToken,
+  formData,
+}: {
+  accessToken: string;
+  formData: FormData;
+}) {
+  return requestFormDataJson<ProductImportResponse>(
+    `${serviceUrls.products}/products/import`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: formData,
+    },
+    "No se pudo importar el archivo."
   );
 }
 
