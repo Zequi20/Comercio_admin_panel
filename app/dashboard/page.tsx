@@ -180,11 +180,14 @@ function orderActionLabel(order: Order) {
   return "Revisar";
 }
 
-async function loadDashboardData(accessToken: string, merchantId: number | string) {
+async function loadDashboardData(
+  accessToken: string,
+  merchantId: number | string,
+) {
   const dashboardListLimit = 10;
   const [orders, products, couriers, merchant] = await Promise.all([
     listOrdersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
-      () => null
+      () => null,
     ),
     listProductsForMerchant({
       accessToken,
@@ -192,7 +195,7 @@ async function loadDashboardData(accessToken: string, merchantId: number | strin
       limit: dashboardListLimit,
     }).catch(() => null),
     listCouriersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
-      () => null
+      () => null,
     ),
     fetchMerchantDetails(merchantId, accessToken).catch(() => null),
   ]);
@@ -207,7 +210,7 @@ async function loadDashboardData(accessToken: string, merchantId: number | strin
 
 function mergeMerchantDetails(
   session: CommerceSession,
-  merchant: MerchantDetails | null
+  merchant: MerchantDetails | null,
 ): CommerceSession["merchant"] {
   if (!merchant) {
     return session.merchant;
@@ -234,7 +237,7 @@ async function DashboardContent({
 }) {
   const { orders, products, couriers, merchant } = await loadDashboardData(
     accessToken,
-    session.merchant.id
+    session.merchant.id,
   );
   const dashboardMerchant = mergeMerchantDetails(session, merchant);
 
@@ -244,10 +247,10 @@ async function DashboardContent({
   const inProgressOrders = orders.filter(isOrderInProgress);
   const todayOrders = orders.filter((order) => sameDay(order.createdAt));
   const soldTodayOrders = todayOrders.filter(
-    (order) => order.status !== "CANCELED"
+    (order) => order.status !== "CANCELED",
   );
   const canceledToday = orders.filter(
-    (order) => order.status === "CANCELED" && sameDay(order.updatedAt)
+    (order) => order.status === "CANCELED" && sameDay(order.updatedAt),
   );
   const actionRequiredCount = pendingOrders.length + assignableOrders.length;
   const problemCount = canceledToday.length + assignableOrders.length;
@@ -266,9 +269,7 @@ async function DashboardContent({
         return priorityDiff;
       }
 
-      return (
-        orderDateValue(first.createdAt) - orderDateValue(second.createdAt)
-      );
+      return orderDateValue(first.createdAt) - orderDateValue(second.createdAt);
     })
     .slice(0, 5);
   const activeProducts = products.filter((product) => product.available).length;
@@ -343,158 +344,164 @@ async function DashboardContent({
             </Link>
           </div>
 
-            {priorityOrders.length ? (
-              <div className="orders-list">
-                {priorityOrders.map((order) => (
-                  <article
-                    className="order-row priority-order-row"
-                    key={order.id}
+          {priorityOrders.length ? (
+            <div className="orders-list">
+              {priorityOrders.map((order) => (
+                <article
+                  className="order-row priority-order-row"
+                  key={order.id}
+                >
+                  <div>
+                    <div className="order-code">#{order.id}</div>
+                    <div className="order-meta">
+                      {formatDate(order.createdAt)}
+                    </div>
+                  </div>
+                  <div className="order-customer">
+                    <strong>{customerName(order)}</strong>
+                    <div className="order-meta">
+                      {order.fulfillmentType === "PICKUP"
+                        ? "Retiro"
+                        : "Delivery"}
+                    </div>
+                  </div>
+                  <span
+                    className={`pill ${
+                      statusPillClass[order.status ?? "PLACED"] ?? "pending"
+                    }`}
                   >
-                    <div>
-                      <div className="order-code">#{order.id}</div>
-                      <div className="order-meta">{formatDate(order.createdAt)}</div>
-                    </div>
-                    <div className="order-customer">
-                      <strong>{customerName(order)}</strong>
-                      <div className="order-meta">
-                        {order.fulfillmentType === "PICKUP"
-                          ? "Retiro"
-                          : "Delivery"}
-                      </div>
-                    </div>
-                    <span
-                      className={`pill ${
-                        statusPillClass[order.status ?? "PLACED"] ?? "pending"
-                      }`}
-                    >
-                      {orderStatusLabel(order.status)}
-                    </span>
-                    <div className="order-row-value">
-                      <strong>{formatPrice(order.total, order.currency)}</strong>
-                      <span>{orderActionLabel(order)}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-table-state">
-                <ReceiptText aria-hidden="true" size={26} />
-                <strong>Sin pendientes operativos</strong>
-                <span>No hay pedidos que requieran acción inmediata.</span>
-              </div>
-            )}
-          </section>
-
-          <section className="card card-lg">
-            <div className="card-header">
-              <div>
-                <h2 className="card-title">Acciones rápidas</h2>
-                <p className="muted">Atajos para las tareas más frecuentes.</p>
-              </div>
+                    {orderStatusLabel(order.status)}
+                  </span>
+                  <div className="order-row-value">
+                    <strong>{formatPrice(order.total, order.currency)}</strong>
+                    <span>{orderActionLabel(order)}</span>
+                  </div>
+                </article>
+              ))}
             </div>
-            <div className="quick-actions">
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <Link className="quick-action" href={action.href} key={action.title}>
-                    <span className="icon-surface" aria-hidden="true">
-                      <Icon size={19} />
-                    </span>
-                    <span>
-                      <strong>{action.title}</strong>
-                      <br />
-                      <span>{action.detail}</span>
-                    </span>
-                    <span aria-hidden="true" className="quick-action-arrow">
-                      Abrir
-                    </span>
-                  </Link>
-                );
-              })}
+          ) : (
+            <div className="empty-table-state">
+              <ReceiptText aria-hidden="true" size={26} />
+              <strong>Sin pendientes operativos</strong>
+              <span>No hay pedidos que requieran acción inmediata.</span>
             </div>
-          </section>
+          )}
         </section>
 
-        <aside className="side-column" aria-label="Estado del comercio">
-          <section className="card card-lg">
-            <div className="merchant-summary">
-              <MerchantAvatar
-                metadata={dashboardMerchant.metadata}
-                name={dashboardMerchant.name}
-              />
-              <div>
-                <h2>{dashboardMerchant.name}</h2>
-                <p className="muted">Disponibilidad actual</p>
-              </div>
-            </div>
-            <MerchantOpenSwitch
-              initialIsOpen={dashboardMerchant.isOpen}
-              merchantId={dashboardMerchant.id}
-            />
-            <MerchantMetadataEditor
-              initialMetadata={dashboardMerchant.metadata}
-              merchantId={dashboardMerchant.id}
-            />
-            <div className="metric-list dashboard-side-metrics">
-              <div className="metric-row">
-                <span className="metric-label">Comercio ID</span>
-                <span className="metric-value">{dashboardMerchant.id}</span>
-              </div>
-              <div className="metric-row">
-                <span className="metric-label">Costo delivery</span>
-                <span className="metric-value">
-                  {dashboardMerchant.deliveryCost ?? "Pendiente"}
-                </span>
-              </div>
-              <div className="metric-row">
-                <span className="metric-label">Contacto</span>
-                <span className="metric-value">
-                  {dashboardMerchant.contactEmail ?? "Sin correo"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section className="card">
-            <div className="card-header">
-              <h2 className="card-title">Métricas</h2>
-              <span className="pill">Hoy</span>
-            </div>
-            <div className="metric-list">
-              <div className="metric-row">
-                <span className="metric-label">Ventas hoy</span>
-                <span className="metric-value">
-                  {formatPrice(salesTodayTotal)}
-                </span>
-              </div>
-              <div className="metric-row">
-                <span className="metric-label">Ticket medio</span>
-                <span className="metric-value">{formatPrice(averageTicket)}</span>
-              </div>
-              <div className="metric-row">
-                <span className="metric-label">Pedidos creados</span>
-                <span className="metric-value">{todayOrders.length}</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="empty-state dashboard-catalog-summary">
-            <Package aria-hidden="true" size={28} />
+        <section className="card card-lg">
+          <div className="card-header">
             <div>
-              <h2 className="card-title">Catálogo</h2>
-              <p className="muted">
-                {products.length} ítems cargados · {activeProducts} activos.
-              </p>
-              <p className="muted">
-                {activeCouriers} repartidores activos para delivery.
-              </p>
+              <h2 className="card-title">Acciones rápidas</h2>
+              <p className="muted">Atajos para las tareas más frecuentes.</p>
             </div>
-            <Link className="button-secondary" href="/dashboard/catalogo">
-              <Plus size={17} />
-              Agregar producto
-            </Link>
-          </section>
-        </aside>
+          </div>
+          <div className="quick-actions">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  className="quick-action"
+                  href={action.href}
+                  key={action.title}
+                >
+                  <span className="icon-surface" aria-hidden="true">
+                    <Icon size={19} />
+                  </span>
+                  <span>
+                    <strong>{action.title}</strong>
+                    <br />
+                    <span>{action.detail}</span>
+                  </span>
+                  <span aria-hidden="true" className="quick-action-arrow">
+                    Abrir
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      </section>
+
+      <aside className="side-column" aria-label="Estado del comercio">
+        <section className="card card-lg">
+          <div className="merchant-summary">
+            <MerchantAvatar
+              metadata={dashboardMerchant.metadata}
+              name={dashboardMerchant.name}
+            />
+            <div>
+              <h2>{dashboardMerchant.name}</h2>
+              <p className="muted">Disponibilidad actual</p>
+            </div>
+          </div>
+          <MerchantOpenSwitch
+            initialIsOpen={dashboardMerchant.isOpen}
+            merchantId={dashboardMerchant.id}
+          />
+          <MerchantMetadataEditor
+            initialMetadata={dashboardMerchant.metadata}
+            merchantId={dashboardMerchant.id}
+          />
+          <div className="metric-list dashboard-side-metrics">
+            <div className="metric-row">
+              <span className="metric-label">Comercio ID</span>
+              <span className="metric-value">{dashboardMerchant.id}</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Costo delivery</span>
+              <span className="metric-value">
+                {dashboardMerchant.deliveryCost ?? "Pendiente"}
+              </span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Contacto</span>
+              <span className="metric-value">
+                {dashboardMerchant.contactEmail ?? "Sin correo"}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <h2 className="card-title">Métricas</h2>
+            <span className="pill">Hoy</span>
+          </div>
+          <div className="metric-list">
+            <div className="metric-row">
+              <span className="metric-label">Ventas hoy</span>
+              <span className="metric-value">
+                {formatPrice(salesTodayTotal)}
+              </span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Ticket medio</span>
+              <span className="metric-value">{formatPrice(averageTicket)}</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Pedidos creados</span>
+              <span className="metric-value">{todayOrders.length}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="empty-state dashboard-catalog-summary">
+          <Package aria-hidden="true" size={28} />
+          <div>
+            <h2 className="card-title">Catálogo</h2>
+            <p className="muted">
+              {products.length} ítems cargados · {activeProducts} activos.
+            </p>
+            <p className="muted">
+              {activeCouriers} repartidores activos para delivery.
+            </p>
+          </div>
+          <Link className="button-secondary" href="/dashboard/catalogo">
+            <Plus size={17} />
+            Agregar producto
+          </Link>
+        </section>
+      </aside>
     </div>
   );
 }
@@ -513,7 +520,7 @@ export default async function DashboardPage() {
       <div className="dashboard-topbar">
         <div>
           <p className="eyebrow">Dashboard</p>
-          <h1 className="dashboard-title">Operación del comercio</h1>
+          <h1 className="dashboard-title">Panel de control</h1>
           <p className="muted">
             {session.merchant.name} · {session.user.email}
           </p>
