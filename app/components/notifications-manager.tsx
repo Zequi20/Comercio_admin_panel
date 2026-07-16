@@ -854,7 +854,7 @@ export function NotificationsManager() {
             <div>
               <strong>Cómo funciona la entrega</strong>
               <span>
-                La solicitud se encola por usuario. FCM sólo podrá entregarla si
+                La solicitud se encola por usuario. El sistema sólo podrá entregarla si
                 ese usuario inició sesión en la app y tiene un token vigente.
                 “Encolada” no confirma la recepción en el dispositivo.
               </span>

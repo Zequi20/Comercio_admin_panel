@@ -6,9 +6,9 @@ export default function NotificacionesPage() {
       <div className="dashboard-topbar">
         <div>
           <p className="eyebrow">Notificaciones</p>
-          <h1 className="dashboard-title">Mensajería FCM</h1>
+          <h1 className="dashboard-title">Centro de difusión</h1>
           <p className="muted">
-            Enviá mensajes a Pedidos App y Pedidos Repartidor.
+            Enviá mensajes a Clientes y Repartidores.
           </p>
         </div>
       </div>
