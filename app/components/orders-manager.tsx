@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ArrowLeftRight,
   CircleAlert,
   CircleCheck,
   Edit3,
+  Pin,
   Plus,
   ReceiptText,
   RefreshCw,
@@ -26,6 +28,7 @@ import {
   availableOrderStatuses,
   canAssignCourierToOrder,
   nextOrderStatuses,
+  orderStatusLabel,
 } from "@/app/lib/order-status";
 
 type OrderStatus =
@@ -132,24 +135,30 @@ const initialFilters: OrderFilters = {
 };
 
 const statusOptions: Array<{ value: OrderStatus; label: string }> = [
-  { value: "PLACED", label: "Pendiente" },
-  { value: "CONFIRMED", label: "Confirmado" },
-  { value: "ASSIGNED", label: "Asignado" },
-  { value: "PICKED_UP", label: "Retirado" },
-  { value: "DELIVERED", label: "Entregado" },
-  { value: "CANCELED", label: "Cancelado" },
+  { value: "PLACED", label: orderStatusLabel("PLACED") },
+  { value: "CONFIRMED", label: orderStatusLabel("CONFIRMED") },
+  { value: "ASSIGNED", label: orderStatusLabel("ASSIGNED") },
+  { value: "PICKED_UP", label: orderStatusLabel("PICKED_UP") },
+  { value: "DELIVERED", label: orderStatusLabel("DELIVERED") },
+  { value: "CANCELED", label: orderStatusLabel("CANCELED") },
 ];
 
 const statusConfig: Record<
   OrderStatus,
   { label: string; pillClass: string }
 > = {
-  PLACED: { label: "Pendiente", pillClass: "pending" },
-  CONFIRMED: { label: "Confirmado", pillClass: "confirmed" },
-  ASSIGNED: { label: "Asignado", pillClass: "assigned" },
-  PICKED_UP: { label: "Retirado", pillClass: "picked-up" },
-  DELIVERED: { label: "Entregado", pillClass: "success" },
-  CANCELED: { label: "Cancelado", pillClass: "error" },
+  PLACED: { label: orderStatusLabel("PLACED"), pillClass: "pending" },
+  CONFIRMED: {
+    label: orderStatusLabel("CONFIRMED"),
+    pillClass: "confirmed",
+  },
+  ASSIGNED: { label: orderStatusLabel("ASSIGNED"), pillClass: "assigned" },
+  PICKED_UP: {
+    label: orderStatusLabel("PICKED_UP"),
+    pillClass: "picked-up",
+  },
+  DELIVERED: { label: orderStatusLabel("DELIVERED"), pillClass: "success" },
+  CANCELED: { label: orderStatusLabel("CANCELED"), pillClass: "error" },
 };
 
 const deliveryWorkflowStatuses: OrderStatus[] = [
@@ -482,7 +491,7 @@ function primaryStatusActionLabel(status: OrderStatus) {
   const labels: Partial<Record<OrderStatus, string>> = {
     CONFIRMED: "Confirmar",
     ASSIGNED: "Marcar asignado",
-    PICKED_UP: "Marcar retirado",
+    PICKED_UP: "Marcar en camino",
     DELIVERED: "Marcar entregado",
   };
 
@@ -1586,7 +1595,18 @@ export function OrdersManager() {
           </button>
         </form>
 
-        <div className="table-wrap">
+        <div className="orders-table-guide" aria-label="Comportamiento de la tabla">
+          <span className="orders-table-scroll-guide">
+            <ArrowLeftRight aria-hidden="true" size={16} />
+            Deslizá para ver el resto de las columnas
+          </span>
+          <span className="orders-table-fixed-guide">
+            <Pin aria-hidden="true" size={14} />
+            Acciones fijas
+          </span>
+        </div>
+
+        <div className="table-wrap orders-table-wrap">
           <table className="data-table orders-data-table">
             <thead>
               <tr>
@@ -1600,7 +1620,12 @@ export function OrdersManager() {
                 <th>Total</th>
                 <th>Ítems</th>
                 <th>Actualizado</th>
-                <th>Acciones</th>
+                <th className="orders-actions-column">
+                  <span className="orders-actions-heading">
+                    <Pin aria-hidden="true" size={13} />
+                    Acciones
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1750,7 +1775,7 @@ export function OrdersManager() {
                         )}
                       </td>
                       <td>{formatDate(order.updatedAt)}</td>
-                      <td>
+                      <td className="orders-actions-column">
                         <div className="table-actions order-table-actions">
                           {nextAction ? (
                             <button

@@ -83,7 +83,7 @@ export function LoginForm() {
             type="email"
             autoComplete="email"
             inputMode="email"
-            placeholder="comercio@y4pido.com"
+            placeholder="comercio@pedidos.com"
             value={email}
             disabled={isSubmitting}
             onChange={(event) => setEmail(event.target.value)}

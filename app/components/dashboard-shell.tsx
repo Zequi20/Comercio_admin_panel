@@ -39,7 +39,7 @@ function BrandLockup() {
         <Store size={26} />
       </div>
       <div>
-        <p className="eyebrow">Y4Pido</p>
+        <p className="eyebrow">Pedidos</p>
         <strong>Comercio</strong>
       </div>
     </div>

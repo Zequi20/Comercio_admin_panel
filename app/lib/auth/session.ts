@@ -87,7 +87,7 @@ function toSession({
   return {
     user: {
       id: access.userId ?? user?.id,
-      email: access.email ?? user?.email ?? "usuario@y4pido.local",
+      email: access.email ?? user?.email ?? "usuario@pedidos.local",
       nickname: access.nickname ?? user?.nickname,
       roles: access.roles,
       permissions: access.permissions,

@@ -30,7 +30,7 @@ export default async function LoginPage() {
                 <Store size={28} />
               </div>
               <div>
-                <p className="eyebrow">Y4Pido Comercio</p>
+                <p className="eyebrow">Pedidos Comercio</p>
                 <h1 className="login-title">Portal comercio</h1>
               </div>
             </div>
@@ -85,7 +85,7 @@ export default async function LoginPage() {
             <ThemeToggle compact />
           </div>
           <p className="login-copy">
-            Entrá con tu cuenta Y4Pido. Vamos a validar rol, permisos y comercio
+            Entrá con tu cuenta Pedidos. Vamos a validar rol, permisos y comercio
             asociado antes de abrir el dashboard.
           </p>
           <LoginForm />

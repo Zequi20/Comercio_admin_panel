@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Y4Pido Comercio",
-  description: "Portal operativo para comercios de Y4Pido.",
+  title: "Pedidos Comercio",
+  description: "Portal operativo para comercios de Pedidos.",
 };
 
 export const viewport: Viewport = {

@@ -15,10 +15,10 @@ export type OrderWorkflowShape = {
 };
 
 const statusLabels: Record<OrderStatus, string> = {
-  PLACED: "Pendiente",
+  PLACED: "Creado",
   CONFIRMED: "Confirmado",
   ASSIGNED: "Asignado",
-  PICKED_UP: "Retirado",
+  PICKED_UP: "En camino",
   DELIVERED: "Entregado",
   CANCELED: "Cancelado",
 };
