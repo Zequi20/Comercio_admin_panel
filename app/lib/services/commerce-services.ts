@@ -100,6 +100,36 @@ export type CourierUserCreateResponse = {
   user?: EntityReference;
 };
 
+export type NotificationDirectoryRole =
+  | "ADMIN"
+  | "MERCHANT"
+  | "COURIER"
+  | "CUSTOMER";
+
+export type NotificationDirectoryUser = {
+  id: number;
+  email: string;
+  nickname?: string | null;
+  phone?: string | null;
+  isActive: boolean;
+  roles: NotificationDirectoryRole[];
+  merchant?: EntityReference | null;
+  courier?: CourierReference | null;
+};
+
+export type NotificationDirectoryResponse = {
+  data: NotificationDirectoryUser[];
+  truncated: boolean;
+};
+
+export type ManualNotificationResult = {
+  status: "queued" | "partial" | "failed";
+  attempted: number;
+  queued: number;
+  failed: number;
+  failedUserIds: number[];
+};
+
 export type OrderItem = {
   productId: number | string;
   sku?: string | null;
@@ -370,6 +400,117 @@ export async function listCouriersForMerchant({
     { method: "GET", headers: authHeaders(accessToken) },
     "No se pudo cargar la lista de repartidores."
   );
+}
+
+export async function listNotificationUsers({
+  accessToken,
+}: {
+  accessToken: string;
+}): Promise<NotificationDirectoryResponse> {
+  const pageSize = 100;
+  const maxUsers = 2_000;
+  const users: NotificationDirectoryUser[] = [];
+  const seenIds = new Set<number>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+  let truncated = false;
+
+  while (users.length < maxUsers) {
+    const response = await requestJson<ListResponse<NotificationDirectoryUser>>(
+      `${serviceUrls.auth}/users${buildQuery({
+        limit: pageSize,
+        cursor,
+        expand: "merchant,courier",
+      })}`,
+      { method: "GET", headers: authHeaders(accessToken) },
+      "No se pudo cargar el directorio de usuarios."
+    );
+
+    for (const user of response.data ?? []) {
+      const userId = Number(user.id);
+      if (!Number.isSafeInteger(userId) || userId <= 0 || seenIds.has(userId)) {
+        continue;
+      }
+
+      seenIds.add(userId);
+      users.push({ ...user, id: userId });
+    }
+
+    const nextCursor = response.cursor;
+    const cursorKey = nextCursor === null || nextCursor === undefined
+      ? ""
+      : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    if (users.length >= maxUsers) {
+      truncated = true;
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
+
+  return { data: users.slice(0, maxUsers), truncated };
+}
+
+export async function sendManualNotifications({
+  accessToken,
+  userIds,
+  title,
+  body,
+  data,
+}: {
+  accessToken: string;
+  userIds: number[];
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}): Promise<ManualNotificationResult> {
+  const failedUserIds: number[] = [];
+  let queued = 0;
+  let nextIndex = 0;
+  const concurrency = Math.min(8, userIds.length);
+
+  async function worker() {
+    while (nextIndex < userIds.length) {
+      const userId = userIds[nextIndex];
+      nextIndex += 1;
+
+      try {
+        await requestJson<{ status?: string }>(
+          `${serviceUrls.notify}/notify/test`,
+          {
+            method: "POST",
+            headers: authHeaders(accessToken),
+            body: JSON.stringify({ userId, title, body, ...(data ? { data } : {}) }),
+          },
+          `No se pudo encolar la notificación para el usuario #${userId}.`
+        );
+        queued += 1;
+      } catch {
+        failedUserIds.push(userId);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const failed = failedUserIds.length;
+  return {
+    status: failed === 0 ? "queued" : queued === 0 ? "failed" : "partial",
+    attempted: userIds.length,
+    queued,
+    failed,
+    failedUserIds,
+  };
 }
 
 export async function createCourierUser({

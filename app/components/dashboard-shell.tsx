@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellRing,
   LayoutDashboard,
   Menu,
   Package,
@@ -22,6 +23,11 @@ const navItems = [
   { label: "Catálogo", href: "/dashboard/catalogo", icon: Package },
   { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
   { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
+  {
+    label: "Notificaciones",
+    href: "/dashboard/notificaciones",
+    icon: BellRing,
+  },
 ];
 
 function isActiveRoute(pathname: string, href: string) {
