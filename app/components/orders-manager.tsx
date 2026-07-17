@@ -129,6 +129,10 @@ type OrderFilters = {
   status: StatusFilter;
 };
 
+type LoadOrdersOptions = {
+  background?: boolean;
+};
+
 const initialFilters: OrderFilters = {
   q: "",
   status: "ALL",
@@ -722,6 +726,16 @@ export function OrdersManager() {
   const rowFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const realtimeRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const filtersRef = useRef(filters);
+  const loadOrdersRef = useRef<
+    (
+      nextFilters?: OrderFilters,
+      options?: LoadOrdersOptions
+    ) => Promise<void>
+  >(async () => {});
   const hasOpenModal =
     isFormOpen || viewingItemsOrder !== null || assigningOrder !== null;
 
@@ -816,12 +830,18 @@ export function OrdersManager() {
     }
   }
 
-  async function loadOrders(nextFilters = filters) {
-    setIsLoading(true);
-    setError(null);
+  async function loadOrders(
+    nextFilters = filters,
+    { background = false }: LoadOrdersOptions = {}
+  ) {
+    if (!background) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
       const response = await fetch(buildOrdersUrl(nextFilters), {
+        cache: "no-store",
         credentials: "include",
       });
       const payload = await response.json().catch(() => null);
@@ -846,15 +866,24 @@ export function OrdersManager() {
           : { ...current, page: nextPage };
       });
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo cargar la lista de pedidos."
-      );
+      if (!background) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar la lista de pedidos."
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (!background) {
+        setIsLoading(false);
+      }
     }
   }
+
+  useEffect(() => {
+    filtersRef.current = filters;
+    loadOrdersRef.current = loadOrders;
+  });
 
   useEffect(() => {
     let ignore = false;
@@ -920,6 +949,33 @@ export function OrdersManager() {
       document.body.classList.remove("modal-open");
     };
   }, [hasOpenModal]);
+
+  useEffect(() => {
+    const events = new EventSource("/api/orders/events");
+
+    const refreshFromRealtime = () => {
+      if (realtimeRefreshTimeoutRef.current) {
+        clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
+
+      realtimeRefreshTimeoutRef.current = setTimeout(() => {
+        realtimeRefreshTimeoutRef.current = null;
+        void loadOrdersRef.current(filtersRef.current, { background: true });
+      }, 250);
+    };
+
+    events.addEventListener("orders.changed", refreshFromRealtime);
+
+    return () => {
+      events.removeEventListener("orders.changed", refreshFromRealtime);
+      events.close();
+
+      if (realtimeRefreshTimeoutRef.current) {
+        clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     return () => {

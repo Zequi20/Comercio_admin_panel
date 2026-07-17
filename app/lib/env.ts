@@ -44,3 +44,18 @@ export const serviceUrls = {
     fallback: "http://localhost:3003/api/v1",
   }),
 };
+
+function readOrdersSocketUrl() {
+  const configuredUrl = process.env.ORDERS_SOCKET_URL?.trim();
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  return new URL(serviceUrls.orders).origin;
+}
+
+export const ordersSocketConfig = {
+  url: readOrdersSocketUrl(),
+  path: process.env.ORDERS_SOCKET_PATH?.trim() || "/ws",
+};
