@@ -131,12 +131,15 @@ type OrderFilters = {
 
 type LoadOrdersOptions = {
   background?: boolean;
+  merge?: boolean;
 };
 
 const initialFilters: OrderFilters = {
   q: "",
   status: "ALL",
 };
+
+const MAX_LOADED_ORDERS = 100;
 
 const statusOptions: Array<{ value: OrderStatus; label: string }> = [
   { value: "PLACED", label: orderStatusLabel("PLACED") },
@@ -251,6 +254,106 @@ function readOrders(payload: unknown): CommerceOrder[] {
   }
 
   return [];
+}
+
+function orderMatchesStatus(order: CommerceOrder, status: StatusFilter) {
+  return status === "ALL" || order.status === status;
+}
+
+function newerOrder(
+  current: CommerceOrder,
+  incoming: CommerceOrder
+): CommerceOrder {
+  const currentVersion = Number(current.version);
+  const incomingVersion = Number(incoming.version);
+
+  if (
+    Number.isFinite(currentVersion) &&
+    Number.isFinite(incomingVersion) &&
+    currentVersion !== incomingVersion
+  ) {
+    return incomingVersion > currentVersion ? incoming : current;
+  }
+
+  const currentUpdatedAt = Date.parse(current.updatedAt ?? "");
+  const incomingUpdatedAt = Date.parse(incoming.updatedAt ?? "");
+
+  if (
+    Number.isFinite(currentUpdatedAt) &&
+    Number.isFinite(incomingUpdatedAt) &&
+    currentUpdatedAt !== incomingUpdatedAt
+  ) {
+    return incomingUpdatedAt > currentUpdatedAt ? incoming : current;
+  }
+
+  return incoming;
+}
+
+function newestOrdersFirst(first: CommerceOrder, second: CommerceOrder) {
+  const firstCreatedAt = Date.parse(first.createdAt ?? "");
+  const secondCreatedAt = Date.parse(second.createdAt ?? "");
+
+  if (
+    Number.isFinite(firstCreatedAt) &&
+    Number.isFinite(secondCreatedAt) &&
+    firstCreatedAt !== secondCreatedAt
+  ) {
+    return secondCreatedAt - firstCreatedAt;
+  }
+
+  const firstId = Number(first.id);
+  const secondId = Number(second.id);
+
+  if (Number.isFinite(firstId) && Number.isFinite(secondId)) {
+    return secondId - firstId;
+  }
+
+  return 0;
+}
+
+function mergeOrders(
+  current: CommerceOrder[],
+  incoming: CommerceOrder[],
+  status: StatusFilter
+) {
+  const ordersById = new Map(
+    current.map((order) => [String(order.id), order] as const)
+  );
+
+  incoming.forEach((order) => {
+    const orderId = String(order.id);
+    const existing = ordersById.get(orderId);
+    ordersById.set(orderId, existing ? newerOrder(existing, order) : order);
+  });
+
+  return Array.from(ordersById.values())
+    .filter((order) => orderMatchesStatus(order, status))
+    .sort(newestOrdersFirst)
+    .slice(0, MAX_LOADED_ORDERS);
+}
+
+type RealtimeOrdersChangedPayload = {
+  event?: string;
+  orderId?: number | string | null;
+};
+
+function readRealtimeOrdersChanged(event: Event) {
+  if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(event.data) as RealtimeOrdersChangedPayload;
+    const orderId = payload.orderId;
+
+    return {
+      event: payload.event,
+      orderId:
+        orderId === null || orderId === undefined ? null : String(orderId),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function isProduct(value: unknown): value is CatalogProduct {
@@ -726,9 +829,8 @@ export function OrdersManager() {
   const rowFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-  const realtimeRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const ordersLoadRequestRef = useRef(0);
+  const ordersMutationRevisionRef = useRef(0);
   const filtersRef = useRef(filters);
   const loadOrdersRef = useRef<
     (
@@ -832,8 +934,11 @@ export function OrdersManager() {
 
   async function loadOrders(
     nextFilters = filters,
-    { background = false }: LoadOrdersOptions = {}
+    { background = false, merge = false }: LoadOrdersOptions = {}
   ) {
+    const requestId = ++ordersLoadRequestRef.current;
+    const mutationRevision = ordersMutationRevisionRef.current;
+
     if (!background) {
       setIsLoading(true);
       setError(null);
@@ -853,20 +958,31 @@ export function OrdersManager() {
       }
 
       const nextOrders = readOrders(payload);
-      const nextVisibleOrders = nextOrders.filter((order) =>
-        orderMatchesQuery(order, nextFilters.q)
-      );
+      if (requestId !== ordersLoadRequestRef.current) return;
 
-      setOrders(nextOrders);
-      setOrdersPagination((current) => {
-        const nextPage = paginateRows(nextVisibleOrders, current).currentPage;
-
-        return current.page === nextPage
-          ? current
-          : { ...current, page: nextPage };
+      setOrders((current) => {
+        const shouldMerge =
+          merge || mutationRevision !== ordersMutationRevisionRef.current;
+        return shouldMerge
+          ? mergeOrders(current, nextOrders, nextFilters.status)
+          : nextOrders;
       });
+
+      if (!merge && mutationRevision === ordersMutationRevisionRef.current) {
+        const nextVisibleOrders = nextOrders.filter((order) =>
+          orderMatchesQuery(order, nextFilters.q)
+        );
+
+        setOrdersPagination((current) => {
+          const nextPage = paginateRows(nextVisibleOrders, current).currentPage;
+
+          return current.page === nextPage
+            ? current
+            : { ...current, page: nextPage };
+        });
+      }
     } catch (err) {
-      if (!background) {
+      if (!background && requestId === ordersLoadRequestRef.current) {
         setError(
           err instanceof Error
             ? err.message
@@ -874,7 +990,7 @@ export function OrdersManager() {
         );
       }
     } finally {
-      if (!background) {
+      if (!background && requestId === ordersLoadRequestRef.current) {
         setIsLoading(false);
       }
     }
@@ -889,6 +1005,8 @@ export function OrdersManager() {
     let ignore = false;
 
     async function loadInitialData() {
+      const requestId = ++ordersLoadRequestRef.current;
+      const mutationRevision = ordersMutationRevisionRef.current;
       setIsLoading(true);
 
       try {
@@ -906,10 +1024,14 @@ export function OrdersManager() {
           );
         }
 
-        if (!ignore) {
+        if (!ignore && requestId === ordersLoadRequestRef.current) {
           const nextOrders = readOrders(ordersPayload);
 
-          setOrders(nextOrders);
+          setOrders((current) =>
+            mutationRevision === ordersMutationRevisionRef.current
+              ? nextOrders
+              : mergeOrders(current, nextOrders, initialFilters.status)
+          );
           setOrdersPagination((current) => {
             const nextPage = paginateRows(nextOrders, current).currentPage;
 
@@ -921,7 +1043,7 @@ export function OrdersManager() {
           void Promise.all([loadProducts(), loadCouriers()]);
         }
       } catch (err) {
-        if (!ignore) {
+        if (!ignore && requestId === ordersLoadRequestRef.current) {
           setError(
             err instanceof Error
               ? err.message
@@ -929,7 +1051,7 @@ export function OrdersManager() {
           );
         }
       } finally {
-        if (!ignore) {
+        if (!ignore && requestId === ordersLoadRequestRef.current) {
           setIsLoading(false);
         }
       }
@@ -952,28 +1074,117 @@ export function OrdersManager() {
 
   useEffect(() => {
     const events = new EventSource("/api/orders/events");
+    const pendingRealtimeOrderIds = new Map<string, boolean>();
+    let isClosed = false;
+    let needsFullRealtimeRefresh = false;
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const refreshFromRealtime = () => {
-      if (realtimeRefreshTimeoutRef.current) {
-        clearTimeout(realtimeRefreshTimeoutRef.current);
+    const refreshFromRealtime = (event: Event) => {
+      const change = readRealtimeOrdersChanged(event);
+
+      if (change?.orderId) {
+        const wasCreated =
+          change.event === "order.created" ||
+          pendingRealtimeOrderIds.get(change.orderId) === true;
+        pendingRealtimeOrderIds.set(change.orderId, wasCreated);
+      } else {
+        needsFullRealtimeRefresh = true;
       }
 
-      realtimeRefreshTimeoutRef.current = setTimeout(() => {
-        realtimeRefreshTimeoutRef.current = null;
-        void loadOrdersRef.current(filtersRef.current, { background: true });
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+
+      refreshTimeout = setTimeout(() => {
+        refreshTimeout = null;
+        const pendingOrders = Array.from(pendingRealtimeOrderIds.entries());
+        const needsFullRefresh = needsFullRealtimeRefresh;
+
+        pendingRealtimeOrderIds.clear();
+        needsFullRealtimeRefresh = false;
+
+        void (async () => {
+          const results = await Promise.allSettled(
+            pendingOrders.map(async ([orderId, wasCreated]) => {
+              const response = await fetch(
+                `/api/orders/${encodeURIComponent(orderId)}`,
+                {
+                  cache: "no-store",
+                  credentials: "include",
+                }
+              );
+              const payload = await response.json().catch(() => null);
+
+              if (!response.ok || !isOrder(payload)) {
+                throw new Error("No se pudo actualizar el pedido en tiempo real.");
+              }
+
+              return { order: payload, wasCreated };
+            })
+          );
+          const refreshedOrders = results.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : []
+          );
+
+          if (isClosed) return;
+
+          if (refreshedOrders.length) {
+            const orders = refreshedOrders.map(({ order }) => order);
+            const ordersById = new Map(
+              orders.map((order) => [String(order.id), order] as const)
+            );
+
+            ordersMutationRevisionRef.current += 1;
+            setOrders((current) =>
+              mergeOrders(current, orders, filtersRef.current.status)
+            );
+            setEditingOrder((current) => {
+              if (!current) return current;
+              return ordersById.get(String(current.id)) ?? current;
+            });
+            setViewingItemsOrder((current) => {
+              if (!current) return current;
+              return ordersById.get(String(current.id)) ?? current;
+            });
+            setAssigningOrder((current) => {
+              if (!current) return current;
+              return ordersById.get(String(current.id)) ?? current;
+            });
+
+            if (refreshedOrders.some(({ wasCreated }) => wasCreated)) {
+              setOrdersPagination((current) =>
+                current.page === 1 ? current : { ...current, page: 1 }
+              );
+            }
+          }
+
+          if (
+            needsFullRefresh ||
+            results.some((result) => result.status === "rejected")
+          ) {
+            await loadOrdersRef.current(filtersRef.current, {
+              background: true,
+              merge: true,
+            });
+          }
+        })();
       }, 250);
     };
 
     events.addEventListener("orders.changed", refreshFromRealtime);
 
     return () => {
+      isClosed = true;
       events.removeEventListener("orders.changed", refreshFromRealtime);
       events.close();
 
-      if (realtimeRefreshTimeoutRef.current) {
-        clearTimeout(realtimeRefreshTimeoutRef.current);
-        realtimeRefreshTimeoutRef.current = null;
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+        refreshTimeout = null;
       }
+
+      pendingRealtimeOrderIds.clear();
+      needsFullRealtimeRefresh = false;
     };
   }, []);
 
@@ -1006,18 +1217,10 @@ export function OrdersManager() {
   }
 
   function updateOrderInTable(updatedOrder: CommerceOrder) {
-    setOrders((current) => {
-      const matchesStatusFilter =
-        filters.status === "ALL" || updatedOrder.status === filters.status;
-
-      return current.flatMap((order) => {
-        if (String(order.id) !== String(updatedOrder.id)) {
-          return [order];
-        }
-
-        return matchesStatusFilter ? [updatedOrder] : [];
-      });
-    });
+    ordersMutationRevisionRef.current += 1;
+    setOrders((current) =>
+      mergeOrders(current, [updatedOrder], filtersRef.current.status)
+    );
 
     setEditingOrder((current) =>
       current && String(current.id) === String(updatedOrder.id)
@@ -1249,6 +1452,8 @@ export function OrdersManager() {
     if (!response.ok) {
       throw new Error(messageFromPayload(payload, "No se pudo crear el pedido."));
     }
+
+    return isOrder(payload) ? payload : null;
   }
 
   async function submitUpdateOrder(order: CommerceOrder) {
@@ -1312,7 +1517,13 @@ export function OrdersManager() {
           messageFromPayload(payload, "No se pudo actualizar el pedido.")
         );
       }
+
+      if (isOrder(payload)) {
+        latestOrder = payload;
+      }
     }
+
+    return latestOrder;
   }
 
   async function handleAssignSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1479,11 +1690,9 @@ export function OrdersManager() {
     setIsSubmitting(true);
 
     try {
-      if (editingOrder) {
-        await submitUpdateOrder(editingOrder);
-      } else {
-        await submitCreateOrder();
-      }
+      const savedOrder = editingOrder
+        ? await submitUpdateOrder(editingOrder)
+        : await submitCreateOrder();
 
       resetForm();
       setIsFormOpen(false);
@@ -1492,7 +1701,12 @@ export function OrdersManager() {
           ? "Orden actualizada correctamente."
           : "Orden creada correctamente."
       );
-      await loadOrders();
+      if (savedOrder) {
+        updateOrderInTable(savedOrder);
+        markOrderAsRecentlyUpdated(String(savedOrder.id));
+      } else {
+        await loadOrders(filters, { merge: true });
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo guardar la orden."
