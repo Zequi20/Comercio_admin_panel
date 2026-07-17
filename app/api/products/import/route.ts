@@ -6,6 +6,10 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import {
+  normalizeProductImportFile,
+  ProductImportNormalizationError,
+} from "@/app/lib/products/normalize-product-import";
 import { importProductsForMerchant } from "@/app/lib/services/commerce-services";
 
 function isUploadedFile(value: FormDataEntryValue | null): value is File {
@@ -47,10 +51,15 @@ export async function POST(request: Request) {
     return badRequestResponse("Subí una plantilla .xlsx válida.");
   }
 
-  const formData = new FormData();
-  formData.set("file", file, file.name || "productos.xlsx");
-
   try {
+    const normalizedFile = await normalizeProductImportFile(file);
+    const formData = new FormData();
+    formData.set(
+      "file",
+      normalizedFile,
+      normalizedFile.name || "productos.xlsx"
+    );
+
     const importResult = await importProductsForMerchant({
       accessToken: context.accessToken,
       formData,
@@ -58,6 +67,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(importResult);
   } catch (error) {
+    if (error instanceof ProductImportNormalizationError) {
+      return badRequestResponse(error.message);
+    }
+
     return serviceErrorResponse(error, "No se pudo importar el archivo.");
   }
 }

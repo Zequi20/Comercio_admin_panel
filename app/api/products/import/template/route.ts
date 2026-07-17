@@ -13,24 +13,105 @@ const templateColumns = [
   "currency",
   "available",
   "type",
+  "imageUrl",
+  "category",
+  "serviceMode",
   "metadata",
 ];
 
 const fieldGuideRows = [
-  ["Campo", "Requerido", "Formato"],
-  ["sku", "Sí", "Texto único. Las filas con SKU duplicado se rechazan."],
-  ["name", "Sí", "Nombre visible del producto o servicio."],
-  ["description", "No", "Descripción breve."],
-  ["price", "Sí", "Número mayor a 0. Ejemplo: 45000."],
-  ["currency", "Sí", "Código de moneda de 3 letras. Ejemplo: PYG."],
-  ["available", "No", "true o false."],
-  ["type", "No", "PRODUCT o SERVICE."],
-  ["metadata", "No", 'JSON. Ejemplo: {"category":"comidas"}'],
+  ["Campo", "Requerido", "Qué ingresar", "Ejemplo"],
+  [
+    "sku",
+    "Sí",
+    "Texto único. Las filas con SKU duplicado se rechazan.",
+    "HAMB-001",
+  ],
+  ["name", "Sí", "Nombre visible del producto o servicio.", "Hamburguesa"],
+  ["description", "No", "Descripción breve.", "Con papas fritas"],
+  ["price", "Sí", "Número mayor a 0, sin separador de miles.", "45000"],
+  ["currency", "Sí", "Código de moneda de 3 letras.", "PYG"],
+  ["available", "No", "Elegí true o false. Si queda vacío, usa true.", "true"],
+  [
+    "type",
+    "No",
+    "PRODUCT para un producto o SERVICE para un servicio.",
+    "PRODUCT",
+  ],
+  [
+    "imageUrl",
+    "No",
+    "URL pública y directa de la imagen. No pegues la imagen dentro del Excel.",
+    "https://ejemplo.com/producto.jpg",
+  ],
+  ["category", "No", "Categoría visible del producto o servicio.", "comidas"],
+  [
+    "serviceMode",
+    "No",
+    "Para servicios: DELIVERY, PICKUP o DELIVERY_PICKUP.",
+    "DELIVERY_PICKUP",
+  ],
+  [
+    "metadata",
+    "No",
+    "Columna avanzada oculta. imageUrl, category y serviceMode se guardan automáticamente.",
+    '{"otroCampo":"valor"}',
+  ],
+  [],
+  [
+    "IMPORTANTE",
+    "",
+    "Completá solamente la hoja Productos. La hoja Ejemplos es una referencia y no se importa.",
+    "",
+  ],
+  [
+    "CAMPOS TÉCNICOS",
+    "",
+    "Usá las columnas imageUrl, category y serviceMode. No hace falta construir ni editar el JSON de metadata.",
+    "",
+  ],
+];
+
+const exampleRows = [
+  [
+    "HAMB-001",
+    "Hamburguesa clásica",
+    "Hamburguesa con papas fritas",
+    "45000",
+    "PYG",
+    "true",
+    "PRODUCT",
+    "https://ejemplo.com/hamburguesa.jpg",
+    "comidas",
+    "",
+    "",
+  ],
+  [
+    "ENVIO-001",
+    "Entrega programada",
+    "Servicio de entrega coordinada",
+    "20000",
+    "PYG",
+    "true",
+    "SERVICE",
+    "https://ejemplo.com/entrega.jpg",
+    "envíos",
+    "DELIVERY_PICKUP",
+    "",
+  ],
 ];
 
 type ZipFile = {
   name: string;
   content: string | Buffer;
+};
+
+type WorksheetOptions = {
+  autoFilter?: boolean;
+  freezeHeader?: boolean;
+  hiddenColumns?: number[];
+  validations?: Array<{ range: string; values: string[] }>;
+  widths?: number[];
 };
 
 function escapeXml(value: string) {
@@ -69,22 +150,50 @@ function row(index: number, values: string[]) {
   return `<row r="${index}">${cells}</row>`;
 }
 
-function worksheetXml(rows: string[][]) {
+function worksheetXml(rows: string[][], options: WorksheetOptions = {}) {
   const sheetRows = rows
     .map((values, index) => row(index + 1, values))
     .join("");
+  const columnCount = Math.max(
+    1,
+    options.widths?.length ?? 0,
+    ...rows.map((values) => values.length)
+  );
+  const columns = (options.widths ?? Array(columnCount).fill(18))
+    .map(
+      (width, index) => {
+        const columnNumber = index + 1;
+        const hidden = options.hiddenColumns?.includes(columnNumber)
+          ? ' hidden="1"'
+          : "";
+
+        return `<col min="${columnNumber}" max="${columnNumber}" width="${width}" customWidth="1"${hidden}/>`;
+      }
+    )
+    .join("");
+  const pane = options.freezeHeader
+    ? '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'
+    : "";
+  const autoFilter = options.autoFilter
+    ? `<autoFilter ref="A1:${columnName(columnCount - 1)}${Math.max(rows.length, 1)}"/>`
+    : "";
+  const validations = options.validations?.length
+    ? `<dataValidations count="${options.validations.length}">${options.validations
+        .map(
+          ({ range, values }) =>
+            `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${range}"><formula1>&quot;${escapeXml(values.join(","))}&quot;</formula1></dataValidation>`
+        )
+        .join("")}</dataValidations>`
+    : "";
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="15"/>
-  <cols>
-    <col min="1" max="1" width="18" customWidth="1"/>
-    <col min="2" max="2" width="28" customWidth="1"/>
-    <col min="3" max="3" width="34" customWidth="1"/>
-    <col min="4" max="8" width="18" customWidth="1"/>
-  </cols>
+  <cols>${columns}</cols>
   <sheetData>${sheetRows}</sheetData>
+  ${autoFilter}
+  ${validations}
 </worksheet>`;
 }
 
@@ -237,6 +346,7 @@ function createTemplateWorkbook() {
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>`,
     },
     {
@@ -253,6 +363,7 @@ function createTemplateWorkbook() {
   <sheets>
     <sheet name="Productos" sheetId="1" r:id="rId1"/>
     <sheet name="Guia" sheetId="2" r:id="rId2"/>
+    <sheet name="Ejemplos" sheetId="3" r:id="rId3"/>
   </sheets>
 </workbook>`,
     },
@@ -262,15 +373,41 @@ function createTemplateWorkbook() {
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>
 </Relationships>`,
     },
     {
       name: "xl/worksheets/sheet1.xml",
-      content: worksheetXml([templateColumns]),
+      content: worksheetXml([templateColumns], {
+        autoFilter: true,
+        freezeHeader: true,
+        hiddenColumns: [11],
+        validations: [
+          { range: "F2:F1001", values: ["true", "false"] },
+          { range: "G2:G1001", values: ["PRODUCT", "SERVICE"] },
+          {
+            range: "J2:J1001",
+            values: ["DELIVERY", "PICKUP", "DELIVERY_PICKUP"],
+          },
+        ],
+        widths: [18, 28, 34, 16, 14, 14, 16, 42, 22, 24, 36],
+      }),
     },
     {
       name: "xl/worksheets/sheet2.xml",
-      content: worksheetXml(fieldGuideRows),
+      content: worksheetXml(fieldGuideRows, {
+        freezeHeader: true,
+        widths: [20, 14, 78, 40],
+      }),
+    },
+    {
+      name: "xl/worksheets/sheet3.xml",
+      content: worksheetXml([templateColumns, ...exampleRows], {
+        autoFilter: true,
+        freezeHeader: true,
+        hiddenColumns: [11],
+        widths: [18, 28, 34, 16, 14, 14, 16, 42, 22, 24, 36],
+      }),
     },
   ]);
 }

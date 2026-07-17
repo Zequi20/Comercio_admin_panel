@@ -1491,7 +1491,7 @@ export function CatalogManager() {
                             {importFile?.name ?? "Seleccionar plantilla"}
                           </strong>
                           <span>
-                            Obligatorios: sku, name, price y currency
+                            Incluye imagen, categoría y modo de servicio
                           </span>
                         </span>
                       </label>
