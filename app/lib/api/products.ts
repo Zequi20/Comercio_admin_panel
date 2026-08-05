@@ -1,4 +1,8 @@
-import type { ProductPayload, ProductType } from "../services/commerce-services";
+import type {
+  ProductAvailabilityStatus,
+  ProductPayload,
+  ProductType,
+} from "../services/commerce-services";
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -6,6 +10,21 @@ function readString(value: unknown) {
 
 function readProductType(value: unknown): ProductType {
   return value === "SERVICE" ? "SERVICE" : "PRODUCT";
+}
+
+function readAvailabilityStatus(
+  value: unknown
+): ProductAvailabilityStatus | undefined {
+  if (
+    value === "AVAILABLE" ||
+    value === "PAUSED" ||
+    value === "OUT_OF_STOCK" ||
+    value === "INACTIVE"
+  ) {
+    return value;
+  }
+
+  return undefined;
 }
 
 function readMetadata(value: unknown) {
@@ -27,6 +46,7 @@ export function productPayloadFromClient(value: unknown): ProductPayload | null 
   const currency = readString(record.currency);
   const description = readString(record.description);
   const metadata = readMetadata(record.metadata);
+  const availabilityStatus = readAvailabilityStatus(record.availabilityStatus);
 
   return {
     type: readProductType(record.type),
@@ -40,6 +60,7 @@ export function productPayloadFromClient(value: unknown): ProductPayload | null 
     ...(typeof record.available === "boolean"
       ? { available: record.available }
       : {}),
+    ...(availabilityStatus ? { availabilityStatus } : {}),
     ...(metadata ? { metadata } : {}),
   };
 }

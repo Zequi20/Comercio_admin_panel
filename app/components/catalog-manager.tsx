@@ -7,6 +7,7 @@ import {
   Download,
   Edit3,
   FileSpreadsheet,
+  Image as ImageIcon,
   Package,
   PackagePlus,
   RefreshCw,
@@ -26,7 +27,12 @@ import {
 } from "@/app/components/table-pagination";
 
 type ProductType = "PRODUCT" | "SERVICE";
-type AvailabilityFilter = "ALL" | "true" | "false";
+type ProductAvailabilityStatus =
+  | "AVAILABLE"
+  | "PAUSED"
+  | "OUT_OF_STOCK"
+  | "INACTIVE";
+type AvailabilityFilter = "ALL" | ProductAvailabilityStatus;
 type ProductTypeFilter = "ALL" | ProductType;
 type MetadataFieldInput = "text" | "url" | "select";
 
@@ -48,6 +54,7 @@ type CatalogProduct = {
   price: number | string;
   currency: string;
   available: boolean;
+  availabilityStatus?: ProductAvailabilityStatus;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -79,16 +86,17 @@ type CatalogForm = {
   sku: string;
   name: string;
   description: string;
+  imageUrl: string;
   price: string;
   currency: string;
-  available: boolean;
+  availabilityStatus: ProductAvailabilityStatus;
   metadata: MetadataField[];
 };
 
 type CatalogFilters = {
   q: string;
   type: ProductTypeFilter;
-  available: AvailabilityFilter;
+  availabilityStatus: AvailabilityFilter;
 };
 
 const emptyForm: CatalogForm = {
@@ -96,23 +104,70 @@ const emptyForm: CatalogForm = {
   sku: "",
   name: "",
   description: "",
+  imageUrl: "",
   price: "",
   currency: "PYG",
-  available: true,
+  availabilityStatus: "AVAILABLE",
   metadata: [],
 };
 
 const initialFilters: CatalogFilters = {
   q: "",
   type: "ALL",
-  available: "ALL",
+  availabilityStatus: "ALL",
 };
 
+const availabilityOptions: ReadonlyArray<{
+  value: ProductAvailabilityStatus;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "AVAILABLE",
+    label: "Activo",
+    description:
+      "Visible en catálogo y detalle; se puede agregar, comprar y confirmar.",
+  },
+  {
+    value: "PAUSED",
+    label: "Pausado",
+    description:
+      "Visible con aviso; no se puede agregar ni confirmar hasta reactivarlo.",
+  },
+  {
+    value: "OUT_OF_STOCK",
+    label: "Sin stock",
+    description:
+      "Visible con aviso; no se puede agregar ni confirmar hasta reponer stock.",
+  },
+  {
+    value: "INACTIVE",
+    label: "Inactivo",
+    description:
+      "Oculto del catálogo cliente; un carrito anterior lo marcará para eliminar.",
+  },
+];
+
+function availabilityStatusForProduct(
+  product: CatalogProduct
+): ProductAvailabilityStatus {
+  return product.availabilityStatus ??
+    (product.available ? "AVAILABLE" : "PAUSED");
+}
+
+function availabilityLabel(status: ProductAvailabilityStatus) {
+  return (
+    availabilityOptions.find((option) => option.value === status)?.label ??
+    status
+  );
+}
+
 const metadataSuggestions = [
-  { key: "imageUrl", label: "Imagen", inputType: "url" },
   { key: "category", label: "Categoría", inputType: "text" },
   { key: "serviceMode", label: "Modo de servicio", inputType: "select" },
 ] as const;
+
+const productImageMetadataKey = "imageUrl";
 
 const serviceModeOptions = [
   { value: "", label: "Seleccionar" },
@@ -242,9 +297,10 @@ function productToForm(product: CatalogProduct): CatalogForm {
     sku: product.sku ?? "",
     name: product.name,
     description: product.description ?? "",
+    imageUrl: metadataText(product.metadata, productImageMetadataKey),
     price: String(product.price ?? ""),
     currency: product.currency || "PYG",
-    available: product.available,
+    availabilityStatus: availabilityStatusForProduct(product),
     metadata: metadataToFields(product.metadata),
   };
 }
@@ -287,8 +343,8 @@ function buildProductsUrl(filters: CatalogFilters) {
     params.set("type", filters.type);
   }
 
-  if (filters.available !== "ALL") {
-    params.set("available", filters.available);
+  if (filters.availabilityStatus !== "ALL") {
+    params.set("availabilityStatus", filters.availabilityStatus);
   }
 
   return `/api/products?${params.toString()}`;
@@ -318,39 +374,52 @@ function stringifyMetadataValue(value: unknown) {
   return JSON.stringify(value);
 }
 
+function metadataText(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  return typeof value === "string" ? value : "";
+}
+
 function metadataEntries(metadata?: Record<string, unknown> | null) {
   if (!metadata) {
     return [];
   }
 
-  return Object.entries(metadata).filter(([, value]) => {
+  return Object.entries(metadata).filter(([key, value]) => {
+    if (key === productImageMetadataKey) {
+      return false;
+    }
+
     return value !== null && value !== undefined && String(value).trim() !== "";
   });
 }
 
 function metadataImageUrl(metadata?: Record<string, unknown> | null) {
-  const value = metadata?.imageUrl;
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
+  const trimmed = metadataText(metadata, productImageMetadataKey).trim();
 
   if (!trimmed) {
     return null;
   }
 
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("/") ||
-    trimmed.startsWith("data:image/")
-  ) {
-    return trimmed;
+  return isImageUrl(trimmed) ? trimmed : null;
+}
+
+function isImageUrl(value: string) {
+  if (!value) return true;
+
+  if (value.startsWith("/") || value.startsWith("data:image/")) {
+    return true;
   }
 
-  return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function metadataCountLabel(count: number) {
@@ -469,15 +538,17 @@ function metadataToFields(metadata?: Record<string, unknown> | null) {
     return [];
   }
 
-  return Object.entries(metadata).map(([key, value]) => {
-    const config = metadataConfigForKey(key);
+  return Object.entries(metadata)
+    .filter(([key]) => key !== productImageMetadataKey)
+    .map(([key, value]) => {
+      const config = metadataConfigForKey(key);
 
-    return createMetadataField({
-      key,
-      value: stringifyMetadataValue(value),
-      lockedKey: Boolean(config),
+      return createMetadataField({
+        key,
+        value: stringifyMetadataValue(value),
+        lockedKey: Boolean(config),
+      });
     });
-  });
 }
 
 function metadataFieldsToObject(fields: MetadataField[]):
@@ -498,6 +569,13 @@ function metadataFieldsToObject(fields: MetadataField[]):
       return {
         ok: false,
         message: "Ingresá el nombre del campo técnico.",
+      };
+    }
+
+    if (key === productImageMetadataKey) {
+      return {
+        ok: false,
+        message: "La imagen se configura en el campo principal de imagen.",
       };
     }
 
@@ -537,6 +615,7 @@ export function CatalogManager() {
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [viewingMetadataProduct, setViewingMetadataProduct] =
     useState<CatalogProduct | null>(null);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [catalogPagination, setCatalogPagination] =
@@ -546,9 +625,18 @@ export function CatalogManager() {
     });
   const hasOpenModal = isFormOpen || viewingMetadataProduct !== null;
   const isFormBusy = isSubmitting || isImporting;
+  const previewImageUrl = form.imageUrl.trim();
+  const isPreviewImageUrlValid = isImageUrl(previewImageUrl);
+  const hasPreviewImage =
+    Boolean(previewImageUrl) &&
+    isPreviewImageUrlValid &&
+    failedImageUrl !== previewImageUrl;
 
   const activeCount = useMemo(
-    () => products.filter((product) => product.available).length,
+    () =>
+      products.filter(
+        (product) => availabilityStatusForProduct(product) === "AVAILABLE"
+      ).length,
     [products]
   );
   const catalogPage = useMemo(
@@ -685,6 +773,7 @@ export function CatalogManager() {
   function resetForm() {
     setEditingProduct(null);
     setForm(emptyForm);
+    setFailedImageUrl(null);
     setIsAdvancedOpen(false);
     resetImportState();
   }
@@ -701,6 +790,7 @@ export function CatalogManager() {
     setViewingMetadataProduct(null);
     setEditingProduct(product);
     setForm(productToForm(product));
+    setFailedImageUrl(null);
     resetImportState();
     setIsAdvancedOpen(metadataEntries(product.metadata).length > 0);
     setError(null);
@@ -777,6 +867,11 @@ export function CatalogManager() {
     }));
   }
 
+  function updateImageUrl(value: string) {
+    updateForm("imageUrl", value);
+    setFailedImageUrl(null);
+  }
+
   function removeMetadataField(id: string) {
     setForm((current) => ({
       ...current,
@@ -804,6 +899,10 @@ export function CatalogManager() {
       return "Ingresá un precio válido.";
     }
 
+    if (!isImageUrl(form.imageUrl.trim())) {
+      return "Ingresá una URL de imagen válida.";
+    }
+
     const metadataResult = metadataFieldsToObject(form.metadata);
 
     if (!metadataResult.ok) {
@@ -829,6 +928,14 @@ export function CatalogManager() {
     }
 
     const metadataResult = metadataFieldsToObject(form.metadata);
+    const metadata = metadataResult.ok
+      ? { ...(metadataResult.metadata ?? {}) }
+      : {};
+    const imageUrl = form.imageUrl.trim();
+
+    if (imageUrl) {
+      metadata[productImageMetadataKey] = imageUrl;
+    }
 
     const payload = {
       type: form.type,
@@ -837,11 +944,8 @@ export function CatalogManager() {
       description: form.description.trim() || undefined,
       price: normalizePrice(form.price),
       currency: form.currency.trim().toUpperCase() || "PYG",
-      available: form.available,
-      ...(metadataResult.ok &&
-      (metadataResult.metadata || (editingProduct && !form.metadata.length))
-        ? { metadata: metadataResult.metadata ?? {} }
-        : {}),
+      availabilityStatus: form.availabilityStatus,
+      ...(Object.keys(metadata).length || editingProduct ? { metadata } : {}),
     };
 
     setIsSubmitting(true);
@@ -1008,7 +1112,12 @@ export function CatalogManager() {
     }
   }
 
-  async function handleAvailability(product: CatalogProduct) {
+  async function handleAvailabilityStatus(
+    product: CatalogProduct,
+    availabilityStatus: ProductAvailabilityStatus
+  ) {
+    if (availabilityStatus === availabilityStatusForProduct(product)) return;
+
     setPendingProductId(String(product.id));
     setError(null);
     setSuccess(null);
@@ -1020,7 +1129,7 @@ export function CatalogManager() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ available: !product.available }),
+          body: JSON.stringify({ availabilityStatus }),
         }
       );
       const payload = await response.json().catch(() => null);
@@ -1031,7 +1140,11 @@ export function CatalogManager() {
         );
       }
 
-      setSuccess("Disponibilidad actualizada.");
+      setSuccess(
+        `Estado de ${product.name}: ${availabilityLabel(
+          availabilityStatus
+        ).toLowerCase()}.`
+      );
       await loadProducts();
     } catch (err) {
       setError(
@@ -1089,6 +1202,30 @@ export function CatalogManager() {
           </div>
         ) : null}
 
+        <section
+          aria-label="Comportamiento de los estados del catálogo"
+          className="catalog-state-guide"
+        >
+          <div className="catalog-state-guide-header">
+            <strong>Qué significa cada estado</strong>
+            <span>
+              Solo los ítems activos pueden agregarse al carrito y confirmarse.
+            </span>
+          </div>
+          <div className="catalog-state-guide-grid">
+            {availabilityOptions.map((option) => (
+              <article className="catalog-state-guide-item" key={option.value}>
+                <span
+                  className={`catalog-state-label status-${option.value.toLowerCase()}`}
+                >
+                  {option.label}
+                </span>
+                <span>{option.description}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <form className="catalog-filters" onSubmit={handleFilterSubmit}>
           <div className="field-group">
             <label className="field-label" htmlFor="catalog-search">
@@ -1128,16 +1265,19 @@ export function CatalogManager() {
             <select
               className="field-control"
               id="catalog-filter-available"
-              value={filters.available}
+              value={filters.availabilityStatus}
               onChange={(event) =>
                 updateFilters({
-                  available: event.target.value as AvailabilityFilter,
+                  availabilityStatus: event.target.value as AvailabilityFilter,
                 })
               }
             >
               <option value="ALL">Todos</option>
-              <option value="true">Activos</option>
-              <option value="false">Pausados</option>
+              {availabilityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           <button className="button-tonal" disabled={isLoading} type="submit">
@@ -1195,18 +1335,33 @@ export function CatalogManager() {
                       <td>{product.sku || "Sin SKU"}</td>
                       <td>{formatPrice(product.price, product.currency)}</td>
                       <td>
-                        <button
-                          className={
-                            product.available
-                              ? "status-toggle active"
-                              : "status-toggle"
-                          }
+                        <select
+                          aria-label={`Estado de ${product.name}`}
+                          className={`catalog-status-select status-${availabilityStatusForProduct(
+                            product
+                          ).toLowerCase()}`}
                           disabled={isPending}
-                          onClick={() => void handleAvailability(product)}
-                          type="button"
+                          title={
+                            availabilityOptions.find(
+                              (option) =>
+                                option.value ===
+                                availabilityStatusForProduct(product)
+                            )?.description
+                          }
+                          value={availabilityStatusForProduct(product)}
+                          onChange={(event) =>
+                            void handleAvailabilityStatus(
+                              product,
+                              event.target.value as ProductAvailabilityStatus
+                            )
+                          }
                         >
-                          {product.available ? "Activo" : "Pausado"}
-                        </button>
+                          {availabilityOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td>
                         {metadata.length ? (
@@ -1382,6 +1537,63 @@ export function CatalogManager() {
                 />
               </div>
 
+              <div className="catalog-product-image-field">
+                <div
+                  className={
+                    hasPreviewImage
+                      ? "catalog-product-image-preview has-image"
+                      : "catalog-product-image-preview"
+                  }
+                >
+                  {hasPreviewImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt="Previsualización del producto"
+                      referrerPolicy="no-referrer"
+                      src={previewImageUrl}
+                      onError={() => setFailedImageUrl(previewImageUrl)}
+                    />
+                  ) : (
+                    <ImageIcon aria-hidden="true" size={24} />
+                  )}
+                </div>
+                <div className="field-group">
+                  <label className="field-label" htmlFor="catalog-image-url">
+                    Imagen del producto
+                  </label>
+                  <input
+                    aria-describedby="catalog-image-url-hint"
+                    aria-invalid={Boolean(
+                      previewImageUrl && !isPreviewImageUrlValid
+                    )}
+                    autoComplete="url"
+                    className="field-control"
+                    disabled={isSubmitting}
+                    id="catalog-image-url"
+                    inputMode="url"
+                    placeholder="https://ejemplo.com/producto.jpg"
+                    value={form.imageUrl}
+                    onChange={(event) => updateImageUrl(event.target.value)}
+                  />
+                  <span
+                    className={
+                      previewImageUrl && !isPreviewImageUrlValid
+                        ? "field-hint field-hint-error"
+                        : "field-hint"
+                    }
+                    id="catalog-image-url-hint"
+                  >
+                    {!previewImageUrl
+                      ? "Pegá la URL pública de la imagen para previsualizarla."
+                      : !isPreviewImageUrlValid
+                        ? "Ingresá una URL que comience con http:// o https://."
+                        : failedImageUrl === previewImageUrl
+                          ? "La URL es válida, pero no se pudo cargar la imagen."
+                          : "Previsualización de la imagen que verá el cliente."}
+                  </span>
+                </div>
+              </div>
+
               <div className="form-grid">
                 <div className="field-group">
                   <label className="field-label" htmlFor="catalog-price">
@@ -1418,21 +1630,36 @@ export function CatalogManager() {
                 </div>
               </div>
 
-              <label className="toggle-row" htmlFor="catalog-available">
-                <span>
-                  <strong>Disponible</strong>
-                  <span>Se muestra para venta cuando está activo.</span>
-                </span>
-                <input
-                  checked={form.available}
+              <div className="field-group">
+                <label className="field-label" htmlFor="catalog-availability-status">
+                  Disponibilidad
+                </label>
+                <select
+                  className="field-control"
                   disabled={isSubmitting}
-                  id="catalog-available"
-                  type="checkbox"
+                  id="catalog-availability-status"
+                  value={form.availabilityStatus}
                   onChange={(event) =>
-                    updateForm("available", event.target.checked)
+                    updateForm(
+                      "availabilityStatus",
+                      event.target.value as ProductAvailabilityStatus
+                    )
                   }
-                />
-              </label>
+                >
+                  {availabilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-hint">
+                  {
+                    availabilityOptions.find(
+                      (option) => option.value === form.availabilityStatus
+                    )?.description
+                  }
+                </span>
+              </div>
 
               <details
                 className="advanced-section"
@@ -1445,7 +1672,7 @@ export function CatalogManager() {
                   <span>
                     <strong>Configuración avanzada</strong>
                     <span>
-                      Imagen externa, categoría y campos técnicos del ítem.
+                      Categoría y campos técnicos del ítem.
                     </span>
                   </span>
                   <span className="pill">

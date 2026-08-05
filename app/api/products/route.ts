@@ -29,6 +29,8 @@ export async function GET(request: Request) {
       type: searchParams.get("type") ?? undefined,
       q: searchParams.get("q") ?? undefined,
       available: searchParams.get("available") ?? undefined,
+      availabilityStatus:
+        searchParams.get("availabilityStatus") ?? undefined,
       limit: Number(searchParams.get("limit") ?? 30),
     });
 

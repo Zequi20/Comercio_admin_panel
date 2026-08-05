@@ -9,6 +9,11 @@ export type ListResponse<T> = {
 };
 
 export type ProductType = "PRODUCT" | "SERVICE";
+export type ProductAvailabilityStatus =
+  | "AVAILABLE"
+  | "PAUSED"
+  | "OUT_OF_STOCK"
+  | "INACTIVE";
 
 export type Product = {
   id: number | string;
@@ -20,6 +25,7 @@ export type Product = {
   price: number | string;
   currency: string;
   available: boolean;
+  availabilityStatus: ProductAvailabilityStatus;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -31,6 +37,7 @@ export type ProductPayload = {
   price?: number | string;
   currency?: string;
   available?: boolean;
+  availabilityStatus?: ProductAvailabilityStatus;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -262,6 +269,7 @@ export async function listProductsForMerchant({
   type,
   q,
   available,
+  availabilityStatus,
   limit = 30,
 }: {
   accessToken: string;
@@ -269,6 +277,7 @@ export async function listProductsForMerchant({
   type?: string;
   q?: string;
   available?: string;
+  availabilityStatus?: string;
   limit?: number;
 }) {
   const url = `${serviceUrls.products}/products${buildQuery({
@@ -276,6 +285,7 @@ export async function listProductsForMerchant({
     type,
     q,
     available,
+    availabilityStatus,
     limit,
   })}`;
 
