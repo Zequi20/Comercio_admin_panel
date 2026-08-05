@@ -605,6 +605,7 @@ export function CatalogManager() {
     null
   );
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -624,8 +625,8 @@ export function CatalogManager() {
       page: 1,
       pageSize: DEFAULT_TABLE_PAGE_SIZE,
     });
-  const hasOpenModal = isFormOpen || viewingMetadataProduct !== null;
-  const isFormBusy = isSubmitting || isImporting;
+  const hasOpenModal =
+    isFormOpen || isImportModalOpen || viewingMetadataProduct !== null;
   const previewImageUrl = form.imageUrl.trim();
   const isPreviewImageUrlValid = isImageUrl(previewImageUrl);
   const hasPreviewImage =
@@ -646,11 +647,7 @@ export function CatalogManager() {
   );
   const advancedStatusLabel = form.metadata.length
     ? metadataCountLabel(form.metadata.length)
-    : importFile
-      ? "Excel listo"
-      : importResult
-        ? "Importado"
-        : "Opcional";
+    : "Opcional";
 
   async function loadProducts(nextFilters = filters) {
     setIsLoading(true);
@@ -776,7 +773,6 @@ export function CatalogManager() {
     setForm(emptyForm);
     setFailedImageUrl(null);
     setIsAdvancedOpen(false);
-    resetImportState();
   }
 
   function openCreateForm() {
@@ -792,7 +788,6 @@ export function CatalogManager() {
     setEditingProduct(product);
     setForm(productToForm(product));
     setFailedImageUrl(null);
-    resetImportState();
     setIsAdvancedOpen(metadataEntries(product.metadata).length > 0);
     setError(null);
     setSuccess(null);
@@ -800,12 +795,30 @@ export function CatalogManager() {
   }
 
   function closeFormModal() {
-    if (isFormBusy) return;
+    if (isSubmitting) return;
     if (!confirmDialogClose("form")) return;
 
     resetForm();
     setError(null);
     setIsFormOpen(false);
+  }
+
+  function openImportModal() {
+    resetImportState();
+    setViewingMetadataProduct(null);
+    setError(null);
+    setSuccess(null);
+    setIsImportModalOpen(true);
+  }
+
+  function closeImportModal() {
+    if (isImporting) return;
+    if (!confirmDialogClose("form")) return;
+
+    resetImportState();
+    setError(null);
+    setSuccess(null);
+    setIsImportModalOpen(false);
   }
 
   function updateImportFile(file: File | null) {
@@ -997,7 +1010,9 @@ export function CatalogManager() {
     }
   }
 
-  async function handleImportProducts() {
+  async function handleImportProducts(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     if (isSubmitting) return;
 
     setError(null);
@@ -1182,6 +1197,14 @@ export function CatalogManager() {
               Agregar
             </button>
             <button
+              className="button-secondary"
+              onClick={openImportModal}
+              type="button"
+            >
+              <FileSpreadsheet size={17} />
+              Importar
+            </button>
+            <button
               className="icon-button"
               disabled={isLoading}
               onClick={() => void loadProducts()}
@@ -1193,14 +1216,14 @@ export function CatalogManager() {
           </div>
         </div>
 
-        {!isFormOpen && error ? (
+        {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
             <CircleAlert aria-hidden="true" size={18} />
             <span>{error}</span>
           </div>
         ) : null}
 
-        {!isFormOpen && success ? (
+        {!hasOpenModal && success ? (
           <div className="success-box catalog-status-message" role="status">
             <CircleCheck aria-hidden="true" size={18} />
             <span>{success}</span>
@@ -1446,7 +1469,7 @@ export function CatalogManager() {
           <button
             aria-label="Cerrar formulario"
             className="catalog-modal-backdrop"
-            disabled={isFormBusy}
+            disabled={isSubmitting}
             onClick={closeFormModal}
             type="button"
           />
@@ -1467,7 +1490,7 @@ export function CatalogManager() {
               </div>
               <button
                 className="icon-button"
-                disabled={isFormBusy}
+                disabled={isSubmitting}
                 onClick={closeFormModal}
                 title="Cerrar formulario"
                 type="button"
@@ -1686,121 +1709,6 @@ export function CatalogManager() {
                 </summary>
 
                 <div className="advanced-section-content">
-                  {!editingProduct ? (
-                    <div className="catalog-import-panel">
-                      <div className="field-label-row">
-                        <label
-                          className="field-label"
-                          htmlFor="catalog-import-file"
-                        >
-                          Importar productos por Excel
-                        </label>
-                        <span className="pill">.xlsx</span>
-                      </div>
-
-                      <input
-                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        className="catalog-import-input"
-                        disabled={isFormBusy}
-                        id="catalog-import-file"
-                        key={importInputKey}
-                        type="file"
-                        onChange={(event) =>
-                          updateImportFile(event.target.files?.[0] ?? null)
-                        }
-                      />
-                      <label
-                        className={
-                          importFile
-                            ? "catalog-import-file has-file"
-                            : "catalog-import-file"
-                        }
-                        htmlFor="catalog-import-file"
-                      >
-                        <FileSpreadsheet aria-hidden="true" size={20} />
-                        <span>
-                          <strong>
-                            {importFile?.name ?? "Seleccionar plantilla"}
-                          </strong>
-                          <span>
-                            Incluye imagen, categoría y modo de servicio
-                          </span>
-                        </span>
-                      </label>
-
-                      <div className="catalog-import-actions">
-                        <a
-                          className="button-secondary"
-                          download="plantilla-productos.xlsx"
-                          href="/api/products/import/template"
-                        >
-                          <Download size={17} />
-                          Plantilla
-                        </a>
-                        <button
-                          className="button-primary"
-                          disabled={!importFile || isFormBusy}
-                          onClick={() => void handleImportProducts()}
-                          type="button"
-                        >
-                          {isImporting ? (
-                            <>
-                              <span aria-hidden="true" className="spinner" />
-                              Importando
-                            </>
-                          ) : (
-                            <>
-                              <Upload size={17} />
-                              Importar archivo
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {importResult ? (
-                        <div
-                          className={
-                            importResult.failed
-                              ? "catalog-import-result has-errors"
-                              : "catalog-import-result"
-                          }
-                          role="status"
-                        >
-                          <div className="catalog-import-stats">
-                            <span>
-                              <strong>{importResult.processed}</strong>
-                              <span>Procesados</span>
-                            </span>
-                            <span>
-                              <strong>{importResult.created}</strong>
-                              <span>Creados</span>
-                            </span>
-                            <span>
-                              <strong>{importResult.failed}</strong>
-                              <span>Fallidos</span>
-                            </span>
-                          </div>
-
-                          {importResult.errors.length ? (
-                            <ul className="catalog-import-errors">
-                              {importResult.errors
-                                .slice(0, 5)
-                                .map((item, index) => {
-                                  const message = formatImportError(item, index);
-
-                                  return (
-                                    <li key={`${message}-${index}`}>
-                                      {message}
-                                    </li>
-                                  );
-                                })}
-                            </ul>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
                   <div className="field-label-row">
                     <span className="field-label">Campos técnicos</span>
                     <div
@@ -1928,7 +1836,7 @@ export function CatalogManager() {
               <div className="form-actions">
                 <button
                   className="button-primary"
-                  disabled={isFormBusy}
+                  disabled={isSubmitting}
                   type="submit"
                 >
                   {isSubmitting ? (
@@ -1945,8 +1853,178 @@ export function CatalogManager() {
                 </button>
                 <button
                   className="button-secondary"
-                  disabled={isFormBusy}
+                  disabled={isSubmitting}
                   onClick={closeFormModal}
+                  type="button"
+                >
+                  <X size={17} />
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isImportModalOpen ? (
+        <div className="catalog-modal-layer" role="presentation">
+          <button
+            aria-label="Cerrar importación"
+            className="catalog-modal-backdrop"
+            disabled={isImporting}
+            onClick={closeImportModal}
+            type="button"
+          />
+          <section
+            aria-label="Importar productos"
+            aria-modal="true"
+            className="card card-lg catalog-modal catalog-import-modal"
+            role="dialog"
+          >
+            <div className="card-header">
+              <div>
+                <h2 className="card-title">Importar productos</h2>
+                <p className="muted">
+                  Cargá varios productos de una vez mediante una plantilla
+                  Excel.
+                </p>
+              </div>
+              <button
+                className="icon-button"
+                disabled={isImporting}
+                onClick={closeImportModal}
+                title="Cerrar importación"
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form className="catalog-form" onSubmit={handleImportProducts}>
+              <div className="catalog-import-panel">
+                <div className="field-label-row">
+                  <label className="field-label" htmlFor="catalog-import-file">
+                    Archivo de productos
+                  </label>
+                  <span className="pill">.xlsx</span>
+                </div>
+
+                <input
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="catalog-import-input"
+                  disabled={isImporting}
+                  id="catalog-import-file"
+                  key={importInputKey}
+                  type="file"
+                  onChange={(event) =>
+                    updateImportFile(event.target.files?.[0] ?? null)
+                  }
+                />
+                <label
+                  className={
+                    importFile
+                      ? "catalog-import-file has-file"
+                      : "catalog-import-file"
+                  }
+                  htmlFor="catalog-import-file"
+                >
+                  <FileSpreadsheet aria-hidden="true" size={20} />
+                  <span>
+                    <strong>
+                      {importFile?.name ?? "Seleccionar archivo Excel"}
+                    </strong>
+                    <span>
+                      La plantilla incluye imagen, categoría y modo de servicio.
+                    </span>
+                  </span>
+                </label>
+
+                <span className="field-hint">
+                  Descargá la plantilla, completala y seleccioná el archivo para
+                  iniciar la importación.
+                </span>
+              </div>
+
+              {error ? (
+                <div className="error-box" role="alert">
+                  <CircleAlert aria-hidden="true" size={18} />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              {success ? (
+                <div className="success-box" role="status">
+                  <CircleCheck aria-hidden="true" size={18} />
+                  <span>{success}</span>
+                </div>
+              ) : null}
+
+              {importResult ? (
+                <div
+                  className={
+                    importResult.failed
+                      ? "catalog-import-result has-errors"
+                      : "catalog-import-result"
+                  }
+                  role="status"
+                >
+                  <div className="catalog-import-stats">
+                    <span>
+                      <strong>{importResult.processed}</strong>
+                      <span>Procesados</span>
+                    </span>
+                    <span>
+                      <strong>{importResult.created}</strong>
+                      <span>Creados</span>
+                    </span>
+                    <span>
+                      <strong>{importResult.failed}</strong>
+                      <span>Fallidos</span>
+                    </span>
+                  </div>
+
+                  {importResult.errors.length ? (
+                    <ul className="catalog-import-errors">
+                      {importResult.errors.slice(0, 5).map((item, index) => {
+                        const message = formatImportError(item, index);
+
+                        return <li key={`${message}-${index}`}>{message}</li>;
+                      })}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="catalog-import-actions">
+                <a
+                  className="button-secondary"
+                  download="plantilla-productos.xlsx"
+                  href="/api/products/import/template"
+                >
+                  <Download size={17} />
+                  Descargar plantilla
+                </a>
+                <button
+                  className="button-primary"
+                  disabled={!importFile || isImporting}
+                  type="submit"
+                >
+                  {isImporting ? (
+                    <>
+                      <span aria-hidden="true" className="spinner" />
+                      Importando
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={17} />
+                      Importar archivo
+                    </>
+                  )}
+                </button>
+                <button
+                  className="button-secondary"
+                  disabled={isImporting}
+                  onClick={closeImportModal}
                   type="button"
                 >
                   <X size={17} />

@@ -2137,6 +2137,10 @@ a {
   width: min(100%, 580px);
 }
 
+.catalog-modal.catalog-import-modal {
+  width: min(100%, 580px);
+}
+
 .metadata-modal-list {
   display: grid;
   gap: 8px;
