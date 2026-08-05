@@ -2,6 +2,7 @@ import {
   CircleAlert,
   CircleDollarSign,
   Clock3,
+  Globe2,
   Package,
   Plus,
   ReceiptText,
@@ -15,12 +16,13 @@ import { DashboardContentShimmer } from "../components/dashboard-shimmer";
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
-import type { CommerceSession, MerchantDetails } from "../lib/auth/types";
-import { getCommerceRequestContextFromCookies } from "../lib/auth/session";
+import type { PortalScope } from "../lib/auth/types";
+import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
 import { orderStatusLabel } from "../lib/order-status";
-import { fetchMerchantDetails } from "../lib/services/auth-service";
 import {
+  listCouriersForAdminScope,
   listCouriersForMerchant,
+  listOrdersForAdminScope,
   listOrdersForMerchant,
   listProductsForMerchant,
   type Order,
@@ -182,64 +184,54 @@ function orderActionLabel(order: Order) {
 
 async function loadDashboardData(
   accessToken: string,
-  merchantId: number | string,
+  scope: PortalScope,
+  isAdmin: boolean,
 ) {
-  const dashboardListLimit = 10;
-  const [orders, products, couriers, merchant] = await Promise.all([
-    listOrdersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
-      () => null,
-    ),
+  const dashboardListLimit = 100;
+  const [orders, products, couriers] = await Promise.all([
+    (isAdmin
+      ? listOrdersForAdminScope({
+          accessToken,
+          merchantId: scope.merchantId ?? undefined,
+        })
+      : listOrdersForMerchant({ accessToken, limit: dashboardListLimit })
+    ).catch(() => null),
     listProductsForMerchant({
       accessToken,
-      merchantId,
+      merchantId: scope.merchantId ?? undefined,
       limit: dashboardListLimit,
     }).catch(() => null),
-    listCouriersForMerchant({ accessToken, limit: dashboardListLimit }).catch(
-      () => null,
-    ),
-    fetchMerchantDetails(merchantId, accessToken).catch(() => null),
+    (isAdmin
+      ? listCouriersForAdminScope({
+          accessToken,
+          merchantId: scope.merchantId ?? undefined,
+        })
+      : listCouriersForMerchant({ accessToken, limit: dashboardListLimit })
+    ).catch(() => null),
   ]);
 
   return {
     orders: orders?.data ?? [],
     products: products?.data ?? [],
     couriers: couriers?.data ?? [],
-    merchant,
-  };
-}
-
-function mergeMerchantDetails(
-  session: CommerceSession,
-  merchant: MerchantDetails | null,
-): CommerceSession["merchant"] {
-  if (!merchant) {
-    return session.merchant;
-  }
-
-  return {
-    ...session.merchant,
-    id: merchant.id ?? session.merchant.id,
-    name: merchant.name ?? session.merchant.name,
-    contactEmail:
-      merchant.contactEmail ?? merchant.email ?? session.merchant.contactEmail,
-    deliveryCost: merchant.deliveryCost ?? session.merchant.deliveryCost,
-    isOpen: merchant.isOpen ?? session.merchant.isOpen,
-    metadata: merchant.metadata ?? session.merchant.metadata,
   };
 }
 
 async function DashboardContent({
   accessToken,
-  session,
+  isAdmin,
+  scope,
 }: {
   accessToken: string;
-  session: CommerceSession;
+  isAdmin: boolean;
+  scope: PortalScope;
 }) {
-  const { orders, products, couriers, merchant } = await loadDashboardData(
+  const { orders, products, couriers } = await loadDashboardData(
     accessToken,
-    session.merchant.id,
+    scope,
+    isAdmin,
   );
-  const dashboardMerchant = mergeMerchantDetails(session, merchant);
+  const dashboardMerchant = scope.merchant;
 
   const openOrders = orders.filter(isOrderOpen);
   const pendingOrders = orders.filter((order) => order.status === "PLACED");
@@ -360,9 +352,10 @@ async function DashboardContent({
                   <div className="order-customer">
                     <strong>{customerName(order)}</strong>
                     <div className="order-meta">
-                      {order.fulfillmentType === "PICKUP"
-                        ? "Retiro"
-                        : "Delivery"}
+                      {isAdmin && order.merchant?.name
+                        ? `${order.merchant.name} · `
+                        : ""}
+                      {order.fulfillmentType === "PICKUP" ? "Retiro" : "Delivery"}
                     </div>
                   </div>
                   <span
@@ -423,44 +416,82 @@ async function DashboardContent({
       </section>
 
       <aside className="side-column" aria-label="Estado del comercio">
-        <section className="card card-lg">
-          <div className="merchant-summary">
-            <MerchantAvatar
-              metadata={dashboardMerchant.metadata}
-              name={dashboardMerchant.name}
+        {dashboardMerchant ? (
+          <section className="card card-lg">
+            <div className="merchant-summary">
+              <MerchantAvatar
+                metadata={dashboardMerchant.metadata}
+                name={
+                  dashboardMerchant.name ??
+                  `Comercio #${dashboardMerchant.id}`
+                }
+              />
+              <div>
+                <h2>
+                  {dashboardMerchant.name ??
+                    `Comercio #${dashboardMerchant.id}`}
+                </h2>
+                <p className="muted">Disponibilidad actual</p>
+              </div>
+            </div>
+            <MerchantOpenSwitch
+              initialIsOpen={dashboardMerchant.isOpen}
+              merchantId={dashboardMerchant.id}
             />
-            <div>
-              <h2>{dashboardMerchant.name}</h2>
-              <p className="muted">Disponibilidad actual</p>
+            <MerchantMetadataEditor
+              initialMetadata={dashboardMerchant.metadata}
+              merchantId={dashboardMerchant.id}
+            />
+            <div className="metric-list dashboard-side-metrics">
+              <div className="metric-row">
+                <span className="metric-label">Comercio ID</span>
+                <span className="metric-value">{dashboardMerchant.id}</span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Costo delivery</span>
+                <span className="metric-value">
+                  {dashboardMerchant.deliveryCost ?? "Pendiente"}
+                </span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Contacto</span>
+                <span className="metric-value">
+                  {dashboardMerchant.contactEmail ?? "Sin correo"}
+                </span>
+              </div>
             </div>
-          </div>
-          <MerchantOpenSwitch
-            initialIsOpen={dashboardMerchant.isOpen}
-            merchantId={dashboardMerchant.id}
-          />
-          <MerchantMetadataEditor
-            initialMetadata={dashboardMerchant.metadata}
-            merchantId={dashboardMerchant.id}
-          />
-          <div className="metric-list dashboard-side-metrics">
-            <div className="metric-row">
-              <span className="metric-label">Comercio ID</span>
-              <span className="metric-value">{dashboardMerchant.id}</span>
-            </div>
-            <div className="metric-row">
-              <span className="metric-label">Costo delivery</span>
-              <span className="metric-value">
-                {dashboardMerchant.deliveryCost ?? "Pendiente"}
+          </section>
+        ) : (
+          <section className="card card-lg">
+            <div className="merchant-summary">
+              <span className="commerce-avatar" aria-hidden="true">
+                <Globe2 size={24} />
               </span>
+              <div>
+                <h2>Todos los comercios</h2>
+                <p className="muted">Resumen consolidado administrativo</p>
+              </div>
             </div>
-            <div className="metric-row">
-              <span className="metric-label">Contacto</span>
-              <span className="metric-value">
-                {dashboardMerchant.contactEmail ?? "Sin correo"}
-              </span>
+            <p className="muted admin-global-description">
+              Seleccioná un comercio en el control de alcance para habilitar
+              operaciones y configuración específica.
+            </p>
+            <div className="metric-list dashboard-side-metrics">
+              <div className="metric-row">
+                <span className="metric-label">Órdenes consultadas</span>
+                <span className="metric-value">{orders.length}</span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Ítems de catálogo</span>
+                <span className="metric-value">{products.length}</span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Repartidores</span>
+                <span className="metric-value">{couriers.length}</span>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="card">
           <div className="card-header">
@@ -507,13 +538,17 @@ async function DashboardContent({
 }
 
 export default async function DashboardPage() {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     redirect("/login");
   }
 
-  const { session, accessToken } = context;
+  const { session, accessToken, isAdmin, scope } = context;
+  const scopeName =
+    scope.mode === "global"
+      ? "Todos los comercios"
+      : scope.merchant.name ?? `Comercio #${scope.merchantId}`;
 
   return (
     <main className="dashboard-main">
@@ -522,7 +557,7 @@ export default async function DashboardPage() {
           <p className="eyebrow">Dashboard</p>
           <h1 className="dashboard-title">Panel de control</h1>
           <p className="muted">
-            {session.merchant.name} · {session.user.email}
+            {scopeName} · {session.user.email}
           </p>
         </div>
         <div className="dashboard-actions">
@@ -538,7 +573,11 @@ export default async function DashboardPage() {
       </div>
 
       <Suspense fallback={<DashboardContentShimmer />}>
-        <DashboardContent accessToken={accessToken} session={session} />
+        <DashboardContent
+          accessToken={accessToken}
+          isAdmin={isAdmin}
+          scope={scope}
+        />
       </Suspense>
     </main>
   );

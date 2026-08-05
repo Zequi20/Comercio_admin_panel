@@ -18,6 +18,7 @@ export type ProductAvailabilityStatus =
 export type Product = {
   id: number | string;
   merchantId: number | string;
+  merchant?: EntityReference;
   type?: ProductType;
   sku?: string;
   name: string;
@@ -84,6 +85,7 @@ export type Courier = {
   id: number | string;
   name?: string | null;
   user?: EntityReference | null;
+  merchant?: EntityReference | null;
   isActive: boolean;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
@@ -101,6 +103,7 @@ export type CourierUserPayload = {
   password: string;
   nickname?: string | null;
   phone?: string | null;
+  merchantId?: number | string;
 };
 
 export type CourierUserCreateResponse = {
@@ -265,6 +268,7 @@ function authHeaders(accessToken: string, idempotencyKey?: string) {
 
 export async function listProductsForMerchant({
   accessToken,
+  cursor,
   merchantId,
   type,
   q,
@@ -273,7 +277,8 @@ export async function listProductsForMerchant({
   limit = 30,
 }: {
   accessToken: string;
-  merchantId: number | string;
+  cursor?: number | string;
+  merchantId?: number | string;
   type?: string;
   q?: string;
   available?: string;
@@ -282,11 +287,13 @@ export async function listProductsForMerchant({
 }) {
   const url = `${serviceUrls.products}/products${buildQuery({
     merchantId,
+    cursor,
     type,
     q,
     available,
     availabilityStatus,
     limit,
+    expand: "merchant",
   })}`;
 
   return requestJson<ListResponse<Product>>(
@@ -294,6 +301,73 @@ export async function listProductsForMerchant({
     { method: "GET", headers: authHeaders(accessToken) },
     "No se pudo cargar el catálogo."
   );
+}
+
+export async function listProductsForAdminScope({
+  accessToken,
+  merchantId,
+  type,
+  q,
+  available,
+  availabilityStatus,
+}: {
+  accessToken: string;
+  merchantId?: number | string;
+  type?: string;
+  q?: string;
+  available?: string;
+  availabilityStatus?: string;
+}) {
+  const pageSize = 100;
+  const maxProducts = 2_000;
+  const products: Product[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+  let truncated = false;
+
+  while (products.length < maxProducts) {
+    const response = await listProductsForMerchant({
+      accessToken,
+      merchantId,
+      type,
+      q,
+      available,
+      availabilityStatus,
+      cursor,
+      limit: pageSize,
+    });
+
+    for (const product of response.data ?? []) {
+      const id = String(product.id);
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      products.push(product);
+    }
+
+    const nextCursor = response.cursor;
+    const cursorKey = nextCursor === null || nextCursor === undefined
+      ? ""
+      : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    if (products.length >= maxProducts) {
+      truncated = true;
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
+
+  return { data: products, cursor: null, truncated };
 }
 
 export async function createProductForMerchant({
@@ -395,13 +469,16 @@ export async function importProductsForMerchant({
 
 export async function listCouriersForMerchant({
   accessToken,
+  cursor,
   limit = 100,
 }: {
   accessToken: string;
+  cursor?: number | string;
   limit?: number;
 }) {
   const url = `${serviceUrls.auth}/couriers${buildQuery({
     limit,
+    cursor,
     expand: "user",
   })}`;
 
@@ -410,6 +487,85 @@ export async function listCouriersForMerchant({
     { method: "GET", headers: authHeaders(accessToken) },
     "No se pudo cargar la lista de repartidores."
   );
+}
+
+export async function listCouriersForAdminScope({
+  accessToken,
+  merchantId,
+}: {
+  accessToken: string;
+  merchantId?: number | string;
+}) {
+  const pageSize = 100;
+  const maxCouriers = 2_000;
+  const couriers: Courier[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+  let truncated = false;
+
+  while (couriers.length < maxCouriers) {
+    const response = await listCouriersForMerchant({
+      accessToken,
+      cursor,
+      limit: pageSize,
+    });
+
+    for (const courier of response.data ?? []) {
+      const id = String(courier.id);
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      couriers.push(courier);
+    }
+
+    const nextCursor = response.cursor;
+    const cursorKey = nextCursor === null || nextCursor === undefined
+      ? ""
+      : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    if (couriers.length >= maxCouriers) {
+      truncated = true;
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
+
+  const directory = await listNotificationUsers({ accessToken });
+  const usersByCourierId = new Map<string, NotificationDirectoryUser>();
+
+  for (const user of directory.data) {
+    if (user.courier?.id !== undefined) {
+      usersByCourierId.set(String(user.courier.id), user);
+    }
+  }
+
+  const enrichedCouriers = couriers.map((courier) => {
+    const directoryUser = usersByCourierId.get(String(courier.id));
+    return {
+      ...courier,
+      merchant: directoryUser?.merchant ?? null,
+    };
+  });
+
+  return {
+    cursor: null,
+    truncated: truncated || directory.truncated,
+    data: merchantId
+      ? enrichedCouriers.filter(
+          (courier) => String(courier.merchant?.id ?? "") === String(merchantId)
+        )
+      : enrichedCouriers,
+  };
 }
 
 export async function listNotificationUsers({
@@ -637,18 +793,23 @@ export async function createOrderForMerchant({
 
 export async function listOrdersForMerchant({
   accessToken,
+  cursor,
+  roleScope = "merchant",
   status,
   limit = 30,
 }: {
   accessToken: string;
+  cursor?: number | string;
+  roleScope?: "merchant" | "admin";
   status?: string;
   limit?: number;
 }) {
   const url = `${serviceUrls.orders}/orders${buildQuery({
-    roleScope: "merchant",
+    roleScope,
     status,
     limit,
-    expand: "customer,courier",
+    cursor,
+    expand: "customer,merchant,courier",
   })}`;
 
   return requestJson<ListResponse<Order>>(
@@ -656,6 +817,72 @@ export async function listOrdersForMerchant({
     { method: "GET", headers: authHeaders(accessToken) },
     "No se pudo cargar la lista de pedidos."
   );
+}
+
+export async function listOrdersForAdminScope({
+  accessToken,
+  merchantId,
+  status,
+}: {
+  accessToken: string;
+  merchantId?: number | string;
+  status?: string;
+}) {
+  const pageSize = 100;
+  const maxOrders = 2_000;
+  const orders: Order[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+  let truncated = false;
+
+  while (orders.length < maxOrders) {
+    const response = await listOrdersForMerchant({
+      accessToken,
+      cursor,
+      roleScope: "admin",
+      status,
+      limit: pageSize,
+    });
+
+    for (const order of response.data ?? []) {
+      const id = String(order.id);
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      orders.push(order);
+    }
+
+    const nextCursor = response.cursor;
+    const cursorKey = nextCursor === null || nextCursor === undefined
+      ? ""
+      : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    if (orders.length >= maxOrders) {
+      truncated = true;
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
+
+  return {
+    data: merchantId
+      ? orders.filter(
+          (order) => String(order.merchantId ?? "") === String(merchantId)
+        )
+      : orders,
+    cursor: null,
+    truncated,
+  };
 }
 
 export async function getOrderForMerchant({

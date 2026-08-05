@@ -80,9 +80,11 @@ function toSession({
   access: Extract<ReturnType<typeof resolveCommerceAccess>, { ok: true }>;
   merchant: MerchantDetails | null;
 }): CommerceSession {
-  const merchantFallback = access.merchant
-    ? { ...access.merchant, id: access.merchantId }
-    : { id: access.merchantId };
+  const merchantFallback = access.merchantId
+    ? access.merchant
+      ? { ...access.merchant, id: access.merchantId }
+      : { id: access.merchantId }
+    : null;
 
   return {
     user: {
@@ -92,19 +94,21 @@ function toSession({
       roles: access.roles,
       permissions: access.permissions,
     },
-    merchant: {
-      id: merchant?.id ?? access.merchantId,
-      name: merchantName(merchant, merchantFallback),
-      contactEmail:
-        merchant?.contactEmail ??
-        merchant?.email ??
-        access.merchant?.contactEmail ??
-        access.merchant?.email ??
-        null,
-      deliveryCost: merchant?.deliveryCost ?? null,
-      isOpen: merchant?.isOpen ?? null,
-      metadata: merchant?.metadata ?? null,
-    },
+    merchant: access.merchantId
+      ? {
+          id: merchant?.id ?? access.merchantId,
+          name: merchantName(merchant, merchantFallback),
+          contactEmail:
+            merchant?.contactEmail ??
+            merchant?.email ??
+            access.merchant?.contactEmail ??
+            access.merchant?.email ??
+            null,
+          deliveryCost: merchant?.deliveryCost ?? null,
+          isOpen: merchant?.isOpen ?? null,
+          metadata: merchant?.metadata ?? null,
+        }
+      : null,
   };
 }
 
@@ -157,7 +161,7 @@ export async function createCommerceSessionFromLogin(
     return { ok: false, reason: access.reason };
   }
 
-  const merchant = options.includeMerchantDetails
+  const merchant = options.includeMerchantDetails && access.merchantId
     ? await getMerchantSafely(access.merchantId, accessToken)
     : null;
 
@@ -206,7 +210,7 @@ export async function getCommerceSessionFromToken(
 
     if (!access.ok) return null;
 
-    const merchant = options.includeMerchantDetails
+    const merchant = options.includeMerchantDetails && access.merchantId
       ? await getMerchantSafely(access.merchantId, accessToken)
       : null;
 

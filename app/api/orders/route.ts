@@ -7,14 +7,15 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
   createOrderForMerchant,
+  listOrdersForAdminScope,
   listOrdersForMerchant,
 } from "@/app/lib/services/commerce-services";
 
 export async function GET(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
@@ -23,11 +24,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const orders = await listOrdersForMerchant({
-      accessToken: context.accessToken,
-      status: searchParams.get("status") ?? undefined,
-      limit: Number(searchParams.get("limit") ?? 30),
-    });
+    const status = searchParams.get("status") ?? undefined;
+    const orders = context.isAdmin
+      ? await listOrdersForAdminScope({
+          accessToken: context.accessToken,
+          merchantId: context.scope.merchantId ?? undefined,
+          status,
+        })
+      : await listOrdersForMerchant({
+          accessToken: context.accessToken,
+          status,
+          limit: Number(searchParams.get("limit") ?? 30),
+        });
 
     return NextResponse.json(orders);
   } catch (error) {
@@ -36,15 +44,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
   }
 
+  if (context.scope.mode !== "merchant") {
+    return badRequestResponse(
+      "Seleccioná un comercio antes de crear una orden."
+    );
+  }
+
   const payload = orderPayloadFromClient(
     await request.json().catch(() => null),
-    context.session.merchant.id
+    context.scope.merchantId
   );
 
   if (!payload?.items.length) {

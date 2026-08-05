@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { DashboardShell } from "../components/dashboard-shell";
-import { getCommerceSessionFromCookies } from "../lib/auth/session";
+import {
+  isAdminSession,
+  resolvePortalScope,
+} from "../lib/auth/portal-scope";
+import { getCommerceRequestContextFromCookies } from "../lib/auth/session";
+import { listMerchantDirectory } from "../lib/services/auth-service";
 
 export const dynamic = "force-dynamic";
 
@@ -10,18 +15,30 @@ export default async function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getCommerceSessionFromCookies({
+  const context = await getCommerceRequestContextFromCookies({
     includeMerchantDetails: true,
   });
 
-  if (!session) {
+  if (!context) {
     redirect("/login");
   }
 
+  const { accessToken, session } = context;
+  const isAdmin = isAdminSession(session);
+  const [scope, merchants] = await Promise.all([
+    resolvePortalScope(context),
+    isAdmin
+      ? listMerchantDirectory(accessToken).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
   return (
     <DashboardShell
-      merchantMetadata={session.merchant.metadata}
-      merchantName={session.merchant.name}
+      isAdmin={isAdmin}
+      merchantMetadata={session.merchant?.metadata}
+      merchantName={session.merchant?.name}
+      merchants={merchants}
+      scope={scope}
       userEmail={session.user.email}
     >
       {children}

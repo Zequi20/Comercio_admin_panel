@@ -39,7 +39,9 @@ export async function POST(request: Request) {
       data: {
         ...(parsed.payload.data ?? {}),
         source: "merchant_manual",
-        merchantId: String(context.session.merchant.id),
+        ...(context.session.merchant?.id
+          ? { merchantId: String(context.session.merchant.id) }
+          : {}),
       },
     });
 

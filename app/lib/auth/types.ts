@@ -103,15 +103,27 @@ export type CommerceSession = {
     deliveryCost?: number | string | null;
     isOpen?: boolean | null;
     metadata?: Record<string, unknown> | null;
-  };
+  } | null;
 };
+
+export type PortalScope =
+  | {
+      mode: "global";
+      merchantId: null;
+      merchant: null;
+    }
+  | {
+      mode: "merchant";
+      merchantId: number | string;
+      merchant: MerchantDetails;
+    };
 
 export type CommerceAccessResult =
   | {
       ok: true;
       roles: RoleName[];
       permissions: string[];
-      merchantId: number | string;
+      merchantId?: number | string;
       merchant?: MerchantReference | null;
       userId?: number | string;
       email?: string | null;

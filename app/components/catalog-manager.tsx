@@ -25,6 +25,10 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import {
+  AdminDataScopeNotice,
+  useAdminScope,
+} from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 
 type ProductType = "PRODUCT" | "SERVICE";
@@ -48,6 +52,10 @@ type MetadataField = {
 type CatalogProduct = {
   id: number | string;
   merchantId?: number | string;
+  merchant?: {
+    id?: number | string;
+    name?: string | null;
+  };
   type?: ProductType;
   sku?: string;
   name: string;
@@ -154,6 +162,13 @@ function availabilityStatusForProduct(
 ): ProductAvailabilityStatus {
   return product.availabilityStatus ??
     (product.available ? "AVAILABLE" : "PAUSED");
+}
+
+function productMerchantName(product: CatalogProduct) {
+  return (
+    product.merchant?.name ??
+    (product.merchantId ? `Comercio #${product.merchantId}` : "Sin comercio")
+  );
 }
 
 function availabilityLabel(status: ProductAvailabilityStatus) {
@@ -598,6 +613,7 @@ function metadataFieldsToObject(fields: MetadataField[]):
 }
 
 export function CatalogManager() {
+  const { canManage, isAdmin, scopeKey, scopeLabel } = useAdminScope();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [form, setForm] = useState<CatalogForm>(emptyForm);
   const [filters, setFilters] = useState<CatalogFilters>(initialFilters);
@@ -690,6 +706,7 @@ export function CatalogManager() {
     let ignore = false;
 
     async function loadInitialProducts() {
+      setIsLoading(true);
       try {
         const response = await fetch(buildProductsUrl(initialFilters), {
           credentials: "include",
@@ -734,7 +751,7 @@ export function CatalogManager() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [scopeKey]);
 
   useEffect(() => {
     document.body.classList.toggle("modal-open", hasOpenModal);
@@ -1085,7 +1102,7 @@ export function CatalogManager() {
 
   async function handleDelete(product: CatalogProduct) {
     const confirmed = window.confirm(
-      `¿Eliminar "${product.name}" del catálogo?`
+      `¿Eliminar "${product.name}" del catálogo de ${productMerchantName(product)}?`
     );
 
     if (!confirmed) return;
@@ -1190,7 +1207,13 @@ export function CatalogManager() {
           <div className="dashboard-actions">
             <button
               className="button-tonal"
+              disabled={!canManage}
               onClick={openCreateForm}
+              title={
+                canManage
+                  ? "Agregar producto"
+                  : "Seleccioná un comercio para agregar productos"
+              }
               type="button"
             >
               <PackagePlus size={17} />
@@ -1198,7 +1221,13 @@ export function CatalogManager() {
             </button>
             <button
               className="button-secondary"
+              disabled={!canManage}
               onClick={openImportModal}
+              title={
+                canManage
+                  ? "Importar catálogo"
+                  : "Seleccioná un comercio para importar productos"
+              }
               type="button"
             >
               <FileSpreadsheet size={17} />
@@ -1215,6 +1244,8 @@ export function CatalogManager() {
             </button>
           </div>
         </div>
+
+        <AdminDataScopeNotice />
 
         {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -1320,6 +1351,7 @@ export function CatalogManager() {
               <tr>
                 <th>Imagen</th>
                 <th>Nombre</th>
+                {isAdmin ? <th>Comercio</th> : null}
                 <th>Tipo</th>
                 <th>SKU</th>
                 <th>Precio</th>
@@ -1332,7 +1364,7 @@ export function CatalogManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={8}>
+                    <td colSpan={isAdmin ? 9 : 8}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -1355,6 +1387,14 @@ export function CatalogManager() {
                           </span>
                         ) : null}
                       </td>
+                      {isAdmin ? (
+                        <td>
+                          <strong>{productMerchantName(product)}</strong>
+                          <span className="table-muted">
+                            ID {product.merchant?.id ?? product.merchantId ?? "-"}
+                          </span>
+                        </td>
+                      ) : null}
                       <td>
                         <span className="pill">
                           {product.type === "SERVICE" ? "Servicio" : "Producto"}
@@ -1368,7 +1408,7 @@ export function CatalogManager() {
                           className={`catalog-status-select status-${availabilityStatusForProduct(
                             product
                           ).toLowerCase()}`}
-                          disabled={isPending}
+                          disabled={isPending || !canManage}
                           title={
                             availabilityOptions.find(
                               (option) =>
@@ -1412,18 +1452,18 @@ export function CatalogManager() {
                         <div className="table-actions">
                           <button
                             className="icon-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => openEditForm(product)}
-                            title="Editar"
+                            title={canManage ? "Editar" : "Seleccioná un comercio para editar"}
                             type="button"
                           >
                             <Edit3 size={17} />
                           </button>
                           <button
                             className="icon-button danger-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => void handleDelete(product)}
-                            title="Eliminar"
+                            title={canManage ? "Eliminar" : "Seleccioná un comercio para eliminar"}
                             type="button"
                           >
                             <Trash2 size={17} />
@@ -1435,7 +1475,7 @@ export function CatalogManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={isAdmin ? 9 : 8}>
                     <div className="empty-table-state">
                       <PackagePlus aria-hidden="true" size={26} />
                       <strong>Sin ítems en el catálogo</strong>
@@ -1485,7 +1525,7 @@ export function CatalogManager() {
                   {editingProduct ? "Editar ítem" : "Nuevo ítem"}
                 </h2>
                 <p className="muted">
-                  Producto o servicio visible en el catálogo.
+                  Producto o servicio visible en el catálogo de {scopeLabel}.
                 </p>
               </div>
               <button

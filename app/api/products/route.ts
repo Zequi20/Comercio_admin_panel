@@ -7,14 +7,15 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
   createProductForMerchant,
+  listProductsForAdminScope,
   listProductsForMerchant,
 } from "@/app/lib/services/commerce-services";
 
 export async function GET(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
@@ -23,16 +24,20 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const products = await listProductsForMerchant({
+    const filters = {
       accessToken: context.accessToken,
-      merchantId: context.session.merchant.id,
+      merchantId: context.scope.merchantId ?? undefined,
       type: searchParams.get("type") ?? undefined,
       q: searchParams.get("q") ?? undefined,
       available: searchParams.get("available") ?? undefined,
-      availabilityStatus:
-        searchParams.get("availabilityStatus") ?? undefined,
-      limit: Number(searchParams.get("limit") ?? 30),
-    });
+      availabilityStatus: searchParams.get("availabilityStatus") ?? undefined,
+    };
+    const products = context.isAdmin
+      ? await listProductsForAdminScope(filters)
+      : await listProductsForMerchant({
+          ...filters,
+          limit: Number(searchParams.get("limit") ?? 30),
+        });
 
     return NextResponse.json(products);
   } catch (error) {
@@ -41,10 +46,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
+  }
+
+  if (context.scope.mode !== "merchant") {
+    return badRequestResponse(
+      "Seleccioná un comercio antes de agregar un producto."
+    );
   }
 
   const payload = productPayloadFromClient(await request.json().catch(() => null));
@@ -60,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const product = await createProductForMerchant({
       accessToken: context.accessToken,
-      merchantId: context.session.merchant.id,
+      merchantId: context.scope.merchantId,
       payload,
       idempotencyKey: request.headers.get("Idempotency-Key") ?? randomUUID(),
     });

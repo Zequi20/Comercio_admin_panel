@@ -256,13 +256,14 @@ export function resolveCommerceAccess({
     ...permissionsFromJwt(jwtPayload),
   ]);
   const merchantId = resolveMerchantId(user, jwtPayload);
+  const isAdmin = roles.includes("ADMIN");
   const hasAcceptedRole =
     roles.length === 0 || roles.some((role) => acceptedRoles.has(role));
   const hasManagementPermission =
     permissions.length === 0 ||
     permissions.some((permission) => commerceManagementPermissions.has(permission));
 
-  if (!merchantId) {
+  if (!merchantId && !isAdmin) {
     return {
       ok: false,
       reason:
@@ -279,7 +280,7 @@ export function resolveCommerceAccess({
         "Tu cuenta no tiene rol MERCHANT ni ADMIN para ingresar al portal comercio.",
       roles,
       permissions,
-      merchantId,
+      ...(merchantId ? { merchantId } : {}),
     };
   }
 
@@ -290,7 +291,7 @@ export function resolveCommerceAccess({
         "Tu cuenta no tiene permisos para gestionar pedidos o catálogo del comercio.",
       roles,
       permissions,
-      merchantId,
+      ...(merchantId ? { merchantId } : {}),
     };
   }
 
@@ -298,7 +299,7 @@ export function resolveCommerceAccess({
     ok: true,
     roles,
     permissions,
-    merchantId,
+    ...(merchantId ? { merchantId } : {}),
     merchant: resolveMerchant(user),
     userId: firstValue(user?.id, user?.sub, jwtPayload?.sub) ?? undefined,
     email: firstValue(user?.email, jwtPayload?.email),

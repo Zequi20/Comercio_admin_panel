@@ -23,6 +23,10 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import {
+  AdminDataScopeNotice,
+  useAdminScope,
+} from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 import {
   assignmentBlockedReason,
@@ -69,6 +73,8 @@ type CommerceOrder = {
   id: number | string;
   version?: number;
   status?: OrderStatus;
+  merchantId?: number | string;
+  merchant?: EntityReference;
   customer?: EntityReference;
   courier?: CourierReference | null;
   fulfillmentType?: FulfillmentType;
@@ -432,6 +438,13 @@ function customerName(order: CommerceOrder) {
   );
 }
 
+function orderMerchantName(order: CommerceOrder) {
+  return (
+    order.merchant?.name ??
+    (order.merchantId ? `Comercio #${order.merchantId}` : "Sin comercio")
+  );
+}
+
 function customerDetail(order: CommerceOrder) {
   const customer = order.customer;
 
@@ -722,6 +735,8 @@ function orderMatchesQuery(order: CommerceOrder, query: string) {
 
   const searchable = [
     order.id,
+    order.merchantId,
+    order.merchant?.name,
     customerName(order),
     order.customer?.email,
     courierDisplayName(order.courier),
@@ -793,6 +808,7 @@ function itemLineTotal(item: OrderItem, currency: string) {
 }
 
 export function OrdersManager() {
+  const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
   const [orders, setOrders] = useState<CommerceOrder[]>([]);
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
@@ -1063,7 +1079,7 @@ export function OrdersManager() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [scopeKey]);
 
   useEffect(() => {
     document.body.classList.toggle("modal-open", hasOpenModal);
@@ -1130,7 +1146,13 @@ export function OrdersManager() {
           if (isClosed) return;
 
           if (refreshedOrders.length) {
-            const orders = refreshedOrders.map(({ order }) => order);
+            const orders = refreshedOrders
+              .map(({ order }) => order)
+              .filter(
+                (order) =>
+                  scope.mode === "global" ||
+                  String(order.merchantId ?? "") === String(scope.merchantId)
+              );
             const ordersById = new Map(
               orders.map((order) => [String(order.id), order] as const)
             );
@@ -1187,7 +1209,7 @@ export function OrdersManager() {
       pendingRealtimeOrderIds.clear();
       needsFullRealtimeRefresh = false;
     };
-  }, []);
+  }, [scope.mode, scope.merchantId, scopeKey]);
 
   useEffect(() => {
     return () => {
@@ -1731,7 +1753,7 @@ export function OrdersManager() {
 
   async function handleDelete(order: CommerceOrder) {
     const confirmed = window.confirm(
-      `¿Eliminar la orden ${orderCode(order)}?`
+      `¿Eliminar la orden ${orderCode(order)} de ${orderMerchantName(order)}?`
     );
 
     if (!confirmed) return;
@@ -1793,7 +1815,13 @@ export function OrdersManager() {
           <div className="dashboard-actions">
             <button
               className="button-tonal"
+              disabled={!canManage}
               onClick={openCreateForm}
+              title={
+                canManage
+                  ? "Agregar orden"
+                  : "Seleccioná un comercio para agregar órdenes"
+              }
               type="button"
             >
               <Plus size={17} />
@@ -1813,6 +1841,8 @@ export function OrdersManager() {
             </button>
           </div>
         </div>
+
+        <AdminDataScopeNotice />
 
         {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -1888,6 +1918,7 @@ export function OrdersManager() {
             <thead>
               <tr>
                 <th>Orden</th>
+                {isAdmin ? <th>Comercio</th> : null}
                 <th>Cliente</th>
                 <th>Descripción</th>
                 <th>Dirección</th>
@@ -1909,7 +1940,7 @@ export function OrdersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={11}>
+                    <td colSpan={isAdmin ? 12 : 11}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -1942,6 +1973,14 @@ export function OrdersManager() {
                           {formatDate(order.createdAt)}
                         </span>
                       </td>
+                      {isAdmin ? (
+                        <td>
+                          <strong>{orderMerchantName(order)}</strong>
+                          <span className="table-muted">
+                            ID {order.merchant?.id ?? order.merchantId ?? "-"}
+                          </span>
+                        </td>
+                      ) : null}
                       <td>
                         <strong>{customerName(order)}</strong>
                         <span className="table-muted">
@@ -2064,7 +2103,7 @@ export function OrdersManager() {
                                   ? "order-next-action-trigger assign"
                                   : "order-next-action-trigger"
                               }
-                              disabled={isPending}
+                              disabled={isPending || !canManage}
                               onClick={() => {
                                 if (nextAction.kind === "assign") {
                                   openAssignModal(order);
@@ -2077,9 +2116,11 @@ export function OrdersManager() {
                                 );
                               }}
                               title={
-                                nextAction.kind === "assign"
-                                  ? assignmentActionTitle(order)
-                                  : nextAction.title
+                                !canManage
+                                  ? "Seleccioná un comercio para operar"
+                                  : nextAction.kind === "assign"
+                                    ? assignmentActionTitle(order)
+                                    : nextAction.title
                               }
                               type="button"
                             >
@@ -2104,18 +2145,18 @@ export function OrdersManager() {
                           ) : null}
                           <button
                             className="icon-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => openEditFormFromRow(order)}
-                            title="Actualizar"
+                            title={canManage ? "Actualizar" : "Seleccioná un comercio para actualizar"}
                             type="button"
                           >
                             <Edit3 size={17} />
                           </button>
                           <button
                             className="icon-button danger-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => void handleDelete(order)}
-                            title="Eliminar"
+                            title={canManage ? "Eliminar" : "Seleccioná un comercio para eliminar"}
                             type="button"
                           >
                             <Trash2 size={17} />
@@ -2127,7 +2168,7 @@ export function OrdersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={11}>
+                  <td colSpan={isAdmin ? 12 : 11}>
                     <div className="empty-table-state">
                       <ReceiptText aria-hidden="true" size={26} />
                       <strong>Sin órdenes registradas</strong>
@@ -2180,8 +2221,8 @@ export function OrdersManager() {
                 </h2>
                 <p className="muted">
                   {editingOrder
-                    ? "Estado e ítems operativos del pedido."
-                    : "Pedido asociado al comercio actual."}
+                    ? `Estado e ítems operativos del pedido de ${orderMerchantName(editingOrder)}.`
+                    : `Pedido asociado a ${scopeLabel}.`}
                 </p>
               </div>
               <button

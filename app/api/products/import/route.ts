@@ -5,7 +5,7 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
   normalizeProductImportFile,
   ProductImportNormalizationError,
@@ -34,10 +34,25 @@ function isExcelFile(file: File) {
 }
 
 export async function POST(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
+  }
+
+  if (context.scope.mode !== "merchant") {
+    return badRequestResponse(
+      "Seleccioná un comercio antes de importar el catálogo."
+    );
+  }
+
+  if (
+    context.isAdmin &&
+    String(context.session.merchant?.id ?? "") !== String(context.scope.merchantId)
+  ) {
+    return badRequestResponse(
+      "La importación masiva todavía requiere que el administrador esté vinculado al comercio seleccionado. Podés crear y editar productos individualmente."
+    );
   }
 
   const incomingFormData = await request.formData().catch(() => null);

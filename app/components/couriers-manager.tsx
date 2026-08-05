@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -20,6 +21,10 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import {
+  AdminDataScopeNotice,
+  useAdminScope,
+} from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
@@ -36,6 +41,7 @@ type Courier = {
   id: number | string;
   name?: string | null;
   user?: EntityReference | null;
+  merchant?: EntityReference | null;
   isActive: boolean;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
@@ -161,6 +167,10 @@ function courierDisplayName(courier: Courier) {
   );
 }
 
+function courierMerchantName(courier: Courier) {
+  return courier.merchant?.name ?? "Sin comercio asignado";
+}
+
 function courierUserDetail(courier: Courier) {
   const user = courier.user;
 
@@ -198,6 +208,8 @@ function courierMatchesQuery(courier: Courier, query: string) {
     courier.user?.nickname,
     courier.user?.name,
     courier.user?.phone,
+    courier.merchant?.id,
+    courier.merchant?.name,
     metadataText(courier.metadata, "area"),
     metadataText(courier.metadata, "vehicle"),
     courierLicensePlate(courier),
@@ -244,7 +256,21 @@ function formMetadata(form: CourierForm) {
   return metadata;
 }
 
+function deactivateCourierModalLayers() {
+  if (typeof document === "undefined") return;
+
+  document
+    .querySelectorAll<HTMLElement>(".catalog-modal-layer")
+    .forEach((layer) => {
+      layer.dataset.modalState = "closed";
+      layer.setAttribute("aria-hidden", "true");
+      layer.inert = true;
+    });
+  document.body.classList.remove("modal-open");
+}
+
 export function CouriersManager() {
+  const { canManage, isAdmin, scopeKey, scopeLabel } = useAdminScope();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [form, setForm] = useState<CourierForm>(emptyForm);
   const [filters, setFilters] = useState<CourierFilters>(initialFilters);
@@ -332,6 +358,7 @@ export function CouriersManager() {
     let ignore = false;
 
     async function loadInitialCouriers() {
+      setIsLoading(true);
       try {
         const response = await fetch(buildCouriersUrl(), {
           credentials: "include",
@@ -379,13 +406,20 @@ export function CouriersManager() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [scopeKey]);
 
   useEffect(() => {
-    document.body.classList.toggle("modal-open", isFormOpen);
+    if (isFormOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      deactivateCourierModalLayers();
+    }
 
     return () => {
       document.body.classList.remove("modal-open");
+      if (isFormOpen) {
+        deactivateCourierModalLayers();
+      }
     };
   }, [isFormOpen]);
 
@@ -412,7 +446,13 @@ export function CouriersManager() {
     setForm(emptyForm);
   }
 
+  function hideFormModal() {
+    deactivateCourierModalLayers();
+    setIsFormOpen(false);
+  }
+
   function openCreateForm() {
+    deactivateCourierModalLayers();
     resetForm();
     setError(null);
     setSuccess(null);
@@ -420,6 +460,7 @@ export function CouriersManager() {
   }
 
   function openEditForm(courier: Courier) {
+    deactivateCourierModalLayers();
     setEditingCourier(courier);
     setForm(courierToForm(courier));
     setError(null);
@@ -433,7 +474,7 @@ export function CouriersManager() {
 
     resetForm();
     setError(null);
-    setIsFormOpen(false);
+    hideFormModal();
   }
 
   function validateForm() {
@@ -505,7 +546,7 @@ export function CouriersManager() {
       }
 
       resetForm();
-      setIsFormOpen(false);
+      hideFormModal();
       setSuccess(
         editingCourier
           ? "Repartidor actualizado correctamente."
@@ -528,7 +569,7 @@ export function CouriersManager() {
 
   async function handleDelete(courier: Courier) {
     const confirmed = window.confirm(
-      `¿Eliminar "${courierDisplayName(courier)}" de repartidores?`
+      `¿Eliminar "${courierDisplayName(courier)}" de ${courierMerchantName(courier)}?`
     );
 
     if (!confirmed) return;
@@ -555,7 +596,7 @@ export function CouriersManager() {
 
       if (editingCourier?.id === courier.id) {
         resetForm();
-        setIsFormOpen(false);
+        hideFormModal();
       }
 
       setSuccess("Repartidor eliminado correctamente.");
@@ -584,7 +625,13 @@ export function CouriersManager() {
           <div className="dashboard-actions">
             <button
               className="button-tonal"
+              disabled={!canManage}
               onClick={openCreateForm}
+              title={
+                canManage
+                  ? "Agregar repartidor"
+                  : "Seleccioná un comercio para agregar repartidores"
+              }
               type="button"
             >
               <Plus size={17} />
@@ -601,6 +648,8 @@ export function CouriersManager() {
             </button>
           </div>
         </div>
+
+        <AdminDataScopeNotice />
 
         {!isFormOpen && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -662,6 +711,7 @@ export function CouriersManager() {
             <thead>
               <tr>
                 <th>Repartidor</th>
+                {isAdmin ? <th>Comercio</th> : null}
                 <th>Usuario</th>
                 <th>Estado</th>
                 <th>Zona</th>
@@ -676,7 +726,7 @@ export function CouriersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={9}>
+                    <td colSpan={isAdmin ? 10 : 9}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -695,6 +745,16 @@ export function CouriersManager() {
                         <strong>{courierDisplayName(courier)}</strong>
                         <span className="table-muted">ID {courier.id}</span>
                       </td>
+                      {isAdmin ? (
+                        <td>
+                          <strong>{courierMerchantName(courier)}</strong>
+                          <span className="table-muted">
+                            {courier.merchant?.id
+                              ? `ID ${courier.merchant.id}`
+                              : "Sin afiliación"}
+                          </span>
+                        </td>
+                      ) : null}
                       <td>
                         <strong>
                           {courier.user?.nickname ??
@@ -723,18 +783,26 @@ export function CouriersManager() {
                         <div className="table-actions">
                           <button
                             className="icon-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => openEditForm(courier)}
-                            title="Editar"
+                            title={
+                              canManage
+                                ? "Editar"
+                                : "Seleccioná un comercio para editar"
+                            }
                             type="button"
                           >
                             <Edit3 size={17} />
                           </button>
                           <button
                             className="icon-button danger-button"
-                            disabled={isPending}
+                            disabled={isPending || !canManage}
                             onClick={() => void handleDelete(courier)}
-                            title="Eliminar"
+                            title={
+                              canManage
+                                ? "Eliminar"
+                                : "Seleccioná un comercio para eliminar"
+                            }
                             type="button"
                           >
                             <Trash2 size={17} />
@@ -746,7 +814,7 @@ export function CouriersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={isAdmin ? 10 : 9}>
                     <div className="empty-table-state">
                       <Truck aria-hidden="true" size={26} />
                       <strong>Sin repartidores registrados</strong>
@@ -775,8 +843,14 @@ export function CouriersManager() {
         />
       </section>
 
-      {isFormOpen ? (
-        <div className="catalog-modal-layer" role="presentation">
+      {isFormOpen && typeof document !== "undefined"
+        ? createPortal(
+          <div
+            className="catalog-modal-layer"
+            data-modal-owner="couriers"
+            data-modal-state="open"
+            role="presentation"
+          >
           <button
             aria-label="Cerrar formulario"
             className="catalog-modal-backdrop"
@@ -799,8 +873,8 @@ export function CouriersManager() {
                 </h2>
                 <p className="muted">
                   {editingCourier
-                    ? "Perfil operativo asociado a un usuario courier."
-                    : "Creá la cuenta courier y su perfil operativo."}
+                    ? `Perfil operativo asociado a ${courierMerchantName(editingCourier)}.`
+                    : `Creá la cuenta courier y su perfil operativo para ${scopeLabel}.`}
                 </p>
               </div>
               <button
@@ -977,8 +1051,10 @@ export function CouriersManager() {
               </div>
             </form>
           </section>
-        </div>
-      ) : null}
+          </div>,
+          document.body
+        )
+        : null}
     </div>
   );
 }

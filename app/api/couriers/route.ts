@@ -6,15 +6,16 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
   createCourierForMerchant,
   createCourierUser,
+  listCouriersForAdminScope,
   listCouriersForMerchant,
 } from "@/app/lib/services/commerce-services";
 
 export async function GET(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
@@ -23,10 +24,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const couriers = await listCouriersForMerchant({
-      accessToken: context.accessToken,
-      limit: Number(searchParams.get("limit") ?? 100),
-    });
+    const couriers = context.isAdmin
+      ? await listCouriersForAdminScope({
+          accessToken: context.accessToken,
+          merchantId: context.scope.merchantId ?? undefined,
+        })
+      : await listCouriersForMerchant({
+          accessToken: context.accessToken,
+          limit: Number(searchParams.get("limit") ?? 100),
+        });
 
     return NextResponse.json(couriers);
   } catch (error) {
@@ -38,10 +44,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
+  }
+
+  if (context.scope.mode !== "merchant") {
+    return badRequestResponse(
+      "Seleccioná un comercio antes de crear un repartidor."
+    );
   }
 
   const payload = courierPayloadFromClient(await request.json().catch(() => null));
@@ -64,6 +76,7 @@ export async function POST(request: Request) {
         email: payload.email,
         password: payload.password,
         nickname: payload.nickname ?? payload.name,
+        merchantId: context.scope.merchantId,
         ...(payload.phone ? { phone: payload.phone } : {}),
       },
     });

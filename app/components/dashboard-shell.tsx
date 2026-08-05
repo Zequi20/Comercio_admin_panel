@@ -14,10 +14,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
+import {
+  AdminScopeProvider,
+  AdminScopeSelector,
+} from "./admin-scope-context";
 import { LogoutButton } from "./logout-button";
 import { MerchantAvatar } from "./merchant-avatar";
 import { ThemeToggle } from "./theme-toggle";
 import { confirmDialogClose } from "../lib/confirm-dialog-close";
+import type { MerchantDetails, PortalScope } from "../lib/auth/types";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -85,13 +90,19 @@ function NavigationLinks({
 
 export function DashboardShell({
   children,
+  isAdmin,
   merchantMetadata,
   merchantName,
+  merchants,
+  scope,
   userEmail,
 }: Readonly<{
   children: ReactNode;
+  isAdmin: boolean;
   merchantMetadata?: Record<string, unknown> | null;
-  merchantName: string;
+  merchantName?: string;
+  merchants: MerchantDetails[];
+  scope: PortalScope;
   userEmail: string;
 }>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -175,94 +186,125 @@ export function DashboardShell({
     };
   }, [router]);
 
+  const accountName =
+    isAdmin && scope.mode === "global"
+      ? "Administración global"
+      : scope.mode === "merchant"
+        ? scope.merchant.name ?? `Comercio #${scope.merchantId}`
+        : merchantName ?? "Portal comercio";
+  const accountMetadata =
+    scope.mode === "merchant"
+      ? scope.merchant.metadata
+      : isAdmin
+        ? null
+        : merchantMetadata;
+
   return (
-    <div className="dashboard-shell">
-      <aside className="sidebar" aria-label="Navegación principal">
-        <BrandLockup />
-        <NavigationLinks />
-        <div className="sidebar-footer">
-          <div className="sidebar-account-panel">
-            <MerchantAvatar
-              className="sidebar-merchant-avatar"
-              iconSize={18}
-              metadata={merchantMetadata}
-              name={merchantName}
-            />
-            <div className="sidebar-account">
-              <strong>{merchantName}</strong>
-              <span>{userEmail}</span>
-            </div>
-          </div>
-          <ThemeToggle />
-          <LogoutButton />
-        </div>
-      </aside>
-
-      <div className="dashboard-content">
-        <header className="mobile-app-bar">
-          <button
-            aria-controls="mobile-dashboard-menu"
-            aria-expanded={isMenuOpen}
-            aria-label="Abrir menú"
-            className="icon-button menu-toggle"
-            onClick={() => setIsMenuOpen(true)}
-            type="button"
-          >
-            <Menu size={20} />
-          </button>
+    <AdminScopeProvider isAdmin={isAdmin} scope={scope}>
+      <div className="dashboard-shell">
+        <aside className="sidebar" aria-label="Navegación principal">
           <BrandLockup />
-          <ThemeToggle compact />
-        </header>
-
-        {children}
-      </div>
-
-      {isMenuOpen ? (
-        <>
-          <button
-            aria-label="Cerrar menú"
-            className="mobile-menu-backdrop"
-            onClick={closeMobileMenu}
-            type="button"
-          />
-          <aside
-            aria-label="Menú principal"
-            aria-modal="true"
-            className="mobile-drawer"
-            id="mobile-dashboard-menu"
-            role="dialog"
-          >
-            <div className="mobile-drawer-header">
-              <BrandLockup />
-              <button
-                aria-label="Cerrar menú"
-                className="icon-button"
-                onClick={closeMobileMenu}
-                type="button"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <NavigationLinks onNavigate={() => setIsMenuOpen(false)} />
-            <div className="sidebar-footer">
-              <div className="sidebar-account-panel">
-                <MerchantAvatar
-                  className="sidebar-merchant-avatar"
-                  iconSize={18}
-                  metadata={merchantMetadata}
-                  name={merchantName}
-                />
-                <div className="sidebar-account">
-                  <strong>{merchantName}</strong>
-                  <span>{userEmail}</span>
-                </div>
+          <NavigationLinks />
+          <div className="sidebar-footer">
+            <div className="sidebar-account-panel">
+              <MerchantAvatar
+                className="sidebar-merchant-avatar"
+                iconSize={18}
+                metadata={accountMetadata}
+                name={accountName}
+              />
+              <div className="sidebar-account">
+                <strong>{accountName}</strong>
+                <span>{userEmail}</span>
+                {isAdmin ? (
+                  <span className="pill assigned sidebar-role-label">ADMIN</span>
+                ) : null}
               </div>
-              <ThemeToggle />
-              <LogoutButton />
             </div>
-          </aside>
-        </>
-      ) : null}
-    </div>
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
+        </aside>
+
+        <div className="dashboard-content">
+          <header className="mobile-app-bar">
+            <button
+              aria-controls="mobile-dashboard-menu"
+              aria-expanded={isMenuOpen}
+              aria-label="Abrir menú"
+              className="icon-button menu-toggle"
+              onClick={() => setIsMenuOpen(true)}
+              type="button"
+            >
+              <Menu size={20} />
+            </button>
+            <BrandLockup />
+            <ThemeToggle compact />
+          </header>
+
+          {isAdmin ? (
+            <AdminScopeSelector
+              key={`${scope.mode}:${scope.merchantId ?? "all"}`}
+              merchants={merchants}
+              scope={scope}
+            />
+          ) : null}
+
+          {children}
+        </div>
+
+        {isMenuOpen ? (
+          <>
+            <button
+              aria-label="Cerrar menú"
+              className="mobile-menu-backdrop"
+              onClick={closeMobileMenu}
+              type="button"
+            />
+            <aside
+              aria-label="Menú principal"
+              aria-modal="true"
+              className="mobile-drawer"
+              id="mobile-dashboard-menu"
+              role="dialog"
+            >
+              <div className="mobile-drawer-header">
+                <BrandLockup />
+                <button
+                  aria-label="Cerrar menú"
+                  className="icon-button"
+                  onClick={closeMobileMenu}
+                  type="button"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <NavigationLinks onNavigate={() => setIsMenuOpen(false)} />
+              <div className="sidebar-footer">
+                <div className="sidebar-account-panel">
+                  <MerchantAvatar
+                    className="sidebar-merchant-avatar"
+                    iconSize={18}
+                    metadata={accountMetadata}
+                    name={accountName}
+                  />
+                  <div className="sidebar-account">
+                    <strong>{accountName}</strong>
+                    <span>{userEmail}</span>
+                    {isAdmin ? (
+                      <span className="pill assigned sidebar-role-label">
+                        ADMIN
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <ThemeToggle />
+                <LogoutButton />
+              </div>
+            </aside>
+          </>
+        ) : null}
+      </div>
+    </AdminScopeProvider>
   );
 }

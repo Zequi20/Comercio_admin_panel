@@ -6,7 +6,7 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import { updateMerchantDetails } from "@/app/lib/services/auth-service";
 
 type MerchantRouteContext = {
@@ -14,7 +14,7 @@ type MerchantRouteContext = {
 };
 
 export async function PATCH(request: Request, context: MerchantRouteContext) {
-  const sessionContext = await getCommerceRequestContextFromCookies();
+  const sessionContext = await getScopedCommerceRequestContextFromCookies();
 
   if (!sessionContext) {
     return unauthorizedCommerceResponse();
@@ -22,9 +22,12 @@ export async function PATCH(request: Request, context: MerchantRouteContext) {
 
   const { merchantId } = await context.params;
 
-  if (String(merchantId) !== String(sessionContext.session.merchant.id)) {
+  if (
+    sessionContext.scope.mode !== "merchant" ||
+    String(merchantId) !== String(sessionContext.scope.merchantId)
+  ) {
     return NextResponse.json(
-      { message: "No podés modificar otro comercio." },
+      { message: "Seleccioná el comercio antes de modificarlo." },
       { status: 403 }
     );
   }

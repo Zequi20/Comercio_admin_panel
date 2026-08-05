@@ -598,7 +598,10 @@ a {
   border-color: color-mix(in srgb, var(--primary) 28%, var(--border-soft));
 }
 
-.button-primary:disabled {
+.button-primary:disabled,
+.button-secondary:disabled,
+.button-tonal:disabled,
+.icon-button:disabled {
   opacity: 0.68;
 }
 
@@ -837,6 +840,15 @@ a {
   font-size: 12px;
 }
 
+.sidebar-account .sidebar-role-label {
+  width: fit-content;
+  min-height: 20px;
+  padding-inline: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
 .mobile-app-bar,
 .mobile-menu-backdrop,
 .mobile-drawer {
@@ -846,6 +858,269 @@ a {
 .dashboard-main {
   min-width: 0;
   padding: 18px 22px 32px;
+}
+
+.admin-scope-bar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 22px 0;
+  padding: 12px 14px;
+}
+
+.admin-scope-identity,
+.admin-scope-heading,
+.admin-scope-select-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.admin-scope-identity {
+  min-width: 0;
+  gap: 10px;
+}
+
+.admin-scope-identity > div,
+.admin-data-scope-notice > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.admin-data-scope-notice strong,
+.admin-data-scope-notice span {
+  display: block;
+}
+
+.admin-scope-heading {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.admin-scope-heading strong {
+  font-size: 13px;
+}
+
+.admin-scope-description,
+.admin-data-scope-notice span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.admin-scope-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.admin-scope-control {
+  width: min(100%, 360px);
+  flex: 0 1 360px;
+}
+
+.admin-scope-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.admin-scope-select-wrap {
+  position: relative;
+  width: 100%;
+  color: var(--text-secondary);
+}
+
+.admin-scope-select-wrap > svg:first-child {
+  position: absolute;
+  left: 10px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.admin-scope-select-wrap .field-control {
+  padding-right: 38px;
+  padding-left: 34px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-scope-select-wrap .field-control::placeholder {
+  color: var(--text-secondary);
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.admin-scope-toggle {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+}
+
+.admin-scope-toggle:hover {
+  background: var(--surface-secondary);
+  color: var(--text);
+}
+
+.admin-scope-loader {
+  position: absolute;
+  right: 10px;
+}
+
+.admin-scope-options-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-surface-strong);
+  box-shadow: var(--shadow-floating);
+  padding: 6px;
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.admin-scope-options {
+  display: grid;
+  max-height: 292px;
+  gap: 2px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-medium) transparent;
+}
+
+.admin-scope-option {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  gap: 8px;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 7px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-scope-option.is-active {
+  background: var(--surface-secondary);
+}
+
+.admin-scope-option.is-selected {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.admin-scope-option-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-surface-muted);
+  color: var(--text-secondary);
+}
+
+.admin-scope-option.is-selected .admin-scope-option-icon {
+  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.admin-scope-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.admin-scope-option-copy strong,
+.admin-scope-option-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-scope-option-copy strong {
+  font-size: 12px;
+}
+
+.admin-scope-option-copy span {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.admin-scope-option.is-selected .admin-scope-option-copy span {
+  color: color-mix(in srgb, var(--on-primary-container) 72%, transparent);
+}
+
+.admin-scope-option-check {
+  color: var(--primary);
+}
+
+.admin-scope-empty {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  padding: 18px 12px;
+}
+
+.admin-scope-empty > span {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.admin-scope-empty strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.admin-scope-results-note {
+  display: block;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  margin-top: 5px;
+  padding: 6px 7px 1px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.admin-scope-error {
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.admin-data-scope-notice {
+  margin-bottom: 10px;
+}
+
+.admin-data-scope-notice svg {
+  flex: 0 0 auto;
+}
+
+.admin-global-description {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .dashboard-topbar {
@@ -2660,6 +2935,12 @@ a {
   padding: 18px;
 }
 
+.catalog-modal-layer[data-modal-state="closed"] {
+  display: none;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .catalog-modal-backdrop {
   position: absolute;
   inset: 0;
@@ -3516,6 +3797,10 @@ a {
     padding: 20px 20px 40px;
   }
 
+  .admin-scope-bar {
+    margin: 14px 20px 0;
+  }
+
   .dashboard-topbar {
     display: block;
   }
@@ -3591,6 +3876,25 @@ a {
 
   .card-header {
     display: grid;
+  }
+
+  .admin-scope-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin: 12px 12px 0;
+  }
+
+  .admin-scope-control {
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+    justify-self: stretch;
+  }
+
+  .admin-scope-select-wrap {
+    width: 100%;
+    min-width: 0;
   }
 
   .notification-audience-grid,

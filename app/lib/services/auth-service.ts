@@ -10,6 +10,11 @@ import { serviceUrls } from "../env";
 
 const AUTH_BASE_URL = serviceUrls.auth;
 
+type MerchantListResponse = {
+  data?: MerchantDetails[];
+  cursor?: number | string | null;
+};
+
 async function requestJson<T>(
   input: string,
   init: RequestInit,
@@ -91,6 +96,61 @@ export async function fetchMerchantDetails(
       },
     },
     "No se pudo cargar el comercio."
+  );
+}
+
+export async function listMerchantDirectory(accessToken: string) {
+  const pageSize = 100;
+  const maxMerchants = 2_000;
+  const merchants: MerchantDetails[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+
+  while (merchants.length < maxMerchants) {
+    const params = new URLSearchParams({ limit: String(pageSize) });
+    if (cursor !== undefined) {
+      params.set("cursor", String(cursor));
+    }
+
+    const response = await requestJson<MerchantListResponse>(
+      `${AUTH_BASE_URL}/merchants?${params.toString()}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+      "No se pudo cargar la lista de comercios."
+    );
+
+    for (const merchant of response.data ?? []) {
+      const id = String(merchant.id);
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      merchants.push(merchant);
+    }
+
+    const nextCursor = response.cursor;
+    const cursorKey = nextCursor === null || nextCursor === undefined
+      ? ""
+      : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
+
+  return merchants.sort((first, second) =>
+    (first.name ?? `Comercio ${first.id}`).localeCompare(
+      second.name ?? `Comercio ${second.id}`,
+      "es"
+    )
   );
 }
 
