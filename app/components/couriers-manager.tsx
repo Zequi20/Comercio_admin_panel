@@ -20,6 +20,7 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 
@@ -428,6 +429,8 @@ export function CouriersManager() {
 
   function closeFormModal() {
     if (isSubmitting) return;
+    if (!confirmDialogClose("form")) return;
+
     resetForm();
     setError(null);
     setIsFormOpen(false);

@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { LogoutButton } from "./logout-button";
 import { MerchantAvatar } from "./merchant-avatar";
 import { ThemeToggle } from "./theme-toggle";
+import { confirmDialogClose } from "../lib/confirm-dialog-close";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -95,6 +96,12 @@ export function DashboardShell({
 }>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
+
+  function closeMobileMenu() {
+    if (!confirmDialogClose()) return;
+
+    setIsMenuOpen(false);
+  }
 
   useEffect(() => {
     document.body.classList.toggle("nav-open", isMenuOpen);
@@ -215,7 +222,7 @@ export function DashboardShell({
           <button
             aria-label="Cerrar menú"
             className="mobile-menu-backdrop"
-            onClick={() => setIsMenuOpen(false)}
+            onClick={closeMobileMenu}
             type="button"
           />
           <aside
@@ -230,7 +237,7 @@ export function DashboardShell({
               <button
                 aria-label="Cerrar menú"
                 className="icon-button"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMobileMenu}
                 type="button"
               >
                 <X size={20} />

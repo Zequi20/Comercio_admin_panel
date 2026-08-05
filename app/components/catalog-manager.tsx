@@ -25,6 +25,7 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 
 type ProductType = "PRODUCT" | "SERVICE";
 type ProductAvailabilityStatus =
@@ -800,6 +801,8 @@ export function CatalogManager() {
 
   function closeFormModal() {
     if (isFormBusy) return;
+    if (!confirmDialogClose("form")) return;
+
     resetForm();
     setError(null);
     setIsFormOpen(false);
@@ -884,6 +887,8 @@ export function CatalogManager() {
   }
 
   function closeMetadataModal() {
+    if (!confirmDialogClose()) return;
+
     setViewingMetadataProduct(null);
   }
 

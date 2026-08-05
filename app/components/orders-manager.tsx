@@ -23,6 +23,7 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 import {
   assignmentBlockedReason,
   availableOrderStatuses,
@@ -1315,6 +1316,8 @@ export function OrdersManager() {
 
   function closeFormModal() {
     if (isSubmitting || isFormLoading) return;
+    if (!confirmDialogClose("form")) return;
+
     resetForm();
     setIsFormLoading(false);
     setError(null);
@@ -1327,6 +1330,8 @@ export function OrdersManager() {
   }
 
   function closeItemsModal() {
+    if (!confirmDialogClose()) return;
+
     setViewingItemsOrder(null);
   }
 
@@ -1352,6 +1357,8 @@ export function OrdersManager() {
 
   function closeAssignModal() {
     if (isAssigning) return;
+    if (!confirmDialogClose("form")) return;
+
     setAssigningOrder(null);
     setSelectedCourierId("");
     setAssignmentError(null);
