@@ -86,6 +86,8 @@ export type MerchantDetails = {
   deliveryCost?: number | string | null;
   isOpen?: boolean | null;
   metadata?: Record<string, unknown> | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 export type CommerceSession = {

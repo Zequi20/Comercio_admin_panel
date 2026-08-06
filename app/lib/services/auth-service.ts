@@ -6,6 +6,7 @@ import type {
   AuthUser,
   MerchantDetails,
 } from "../auth/types";
+import type { AdminMerchantPayload } from "../api/merchants";
 import type {
   ManagedUser,
   ManagedUserRole,
@@ -190,7 +191,7 @@ export async function updateMerchantDetails({
 }: {
   accessToken: string;
   merchantId: number | string;
-  payload: Partial<Pick<MerchantDetails, "isOpen" | "metadata">>;
+  payload: AdminMerchantPayload;
 }) {
   return requestJson<MerchantDetails>(
     `${AUTH_BASE_URL}/merchants/${merchantId}`,
@@ -202,6 +203,41 @@ export async function updateMerchantDetails({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el comercio."
+  );
+}
+
+export async function createMerchant({
+  accessToken,
+  payload,
+}: {
+  accessToken: string;
+  payload: AdminMerchantPayload;
+}) {
+  return requestJson<MerchantDetails>(
+    `${AUTH_BASE_URL}/merchants`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    },
+    "No se pudo crear el comercio."
+  );
+}
+
+export async function deleteMerchant({
+  accessToken,
+  merchantId,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+}) {
+  await requestJson<unknown>(
+    `${AUTH_BASE_URL}/merchants/${encodeURIComponent(String(merchantId))}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+    "No se pudo eliminar el comercio."
   );
 }
 

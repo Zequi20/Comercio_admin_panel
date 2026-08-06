@@ -6,6 +6,7 @@ import {
   Menu,
   Package,
   ReceiptText,
+  ShoppingBag,
   Store,
   Truck,
   type LucideIcon,
@@ -42,6 +43,12 @@ const navItems: NavigationItem[] = [
     label: "Notificaciones",
     href: "/dashboard/notificaciones",
     icon: BellRing,
+  },
+  {
+    label: "Comercios",
+    href: "/dashboard/comercios",
+    icon: ShoppingBag,
+    adminOnly: true,
   },
   {
     label: "Usuarios y roles",
@@ -125,7 +132,8 @@ export function DashboardShell({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const isGlobalAdministrationRoute = pathname === "/dashboard/usuarios";
+  const isGlobalAdministrationRoute =
+    pathname === "/dashboard/usuarios" || pathname === "/dashboard/comercios";
 
   function closeMobileMenu() {
     if (!confirmDialogClose()) return;
