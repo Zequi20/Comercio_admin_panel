@@ -2926,6 +2926,142 @@ a {
   color: var(--text);
 }
 
+.users-manager {
+  display: grid;
+  gap: 14px;
+}
+
+.users-stats-grid {
+  margin-bottom: 0;
+}
+
+.users-directory-card,
+.users-data-table {
+  min-width: 0;
+}
+
+.users-filters {
+  grid-template-columns:
+    minmax(260px, 1fr) minmax(150px, 0.28fr)
+    minmax(140px, 0.24fr) auto;
+}
+
+.users-data-table {
+  min-width: 1160px;
+}
+
+.users-role-pills {
+  gap: 4px;
+}
+
+.users-role-pills .pill {
+  min-height: 21px;
+  padding-inline: 6px;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.catalog-modal.users-modal {
+  width: min(100%, 760px);
+}
+
+.users-access-grid {
+  align-items: start;
+}
+
+.user-merchant-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.user-merchant-options-panel {
+  z-index: 5;
+}
+
+.user-merchant-spinner {
+  position: absolute;
+  left: 11px;
+  z-index: 2;
+  width: 15px;
+  height: 15px;
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
+  border-top-color: var(--primary);
+}
+
+.users-form-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.users-role-manager {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  padding: 12px;
+}
+
+.users-role-manager-header,
+.users-role-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.users-role-manager-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.users-role-manager-header strong {
+  font-size: 13px;
+}
+
+.users-role-manager-header span:not(.pill) {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.users-role-option-pill {
+  opacity: 0.66;
+}
+
+.users-role-option-pill.assigned-role {
+  opacity: 1;
+}
+
+.users-role-actions {
+  justify-content: flex-start;
+}
+
+.users-role-actions .field-group {
+  width: min(100%, 220px);
+  margin-right: auto;
+}
+
+.users-remove-role-button:not(:disabled) {
+  border-color: color-mix(in srgb, var(--error) 30%, var(--border-soft));
+  color: var(--error);
+}
+
+.users-permissions-section .pill {
+  white-space: nowrap;
+}
+
+.users-permission-list {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: 1px solid var(--border-soft);
+  padding: 10px;
+}
+
+.users-permission-list .metadata-key-pill {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+}
+
 .catalog-modal-layer {
   position: fixed;
   inset: 0;
@@ -3900,6 +4036,26 @@ a {
   .notification-audience-grid,
   .notification-directory-tools {
     grid-template-columns: 1fr;
+  }
+
+  .users-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .users-role-manager-header,
+  .users-role-actions {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .users-role-actions .field-group {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .users-role-actions .button-tonal,
+  .users-role-actions .button-secondary {
+    width: 100%;
   }
 
   .notification-audience-option {

@@ -8,6 +8,8 @@ import {
   ReceiptText,
   Store,
   Truck,
+  type LucideIcon,
+  UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,7 +26,14 @@ import { ThemeToggle } from "./theme-toggle";
 import { confirmDialogClose } from "../lib/confirm-dialog-close";
 import type { MerchantDetails, PortalScope } from "../lib/auth/types";
 
-const navItems = [
+type NavigationItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+};
+
+const navItems: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Catálogo", href: "/dashboard/catalogo", icon: Package },
   { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
@@ -33,6 +42,12 @@ const navItems = [
     label: "Notificaciones",
     href: "/dashboard/notificaciones",
     icon: BellRing,
+  },
+  {
+    label: "Usuarios y roles",
+    href: "/dashboard/usuarios",
+    icon: UsersRound,
+    adminOnly: true,
   },
 ];
 
@@ -59,15 +74,17 @@ function BrandLockup() {
 }
 
 function NavigationLinks({
+  isAdmin,
   onNavigate,
 }: {
+  isAdmin: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
 
   return (
     <nav className="sidebar-nav" aria-label="Apartados principales">
-      {navItems.map((item) => {
+      {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
         const Icon = item.icon;
         const isActive = isActiveRoute(pathname, item.href);
 
@@ -107,6 +124,8 @@ export function DashboardShell({
 }>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const isGlobalAdministrationRoute = pathname === "/dashboard/usuarios";
 
   function closeMobileMenu() {
     if (!confirmDialogClose()) return;
@@ -187,24 +206,26 @@ export function DashboardShell({
   }, [router]);
 
   const accountName =
-    isAdmin && scope.mode === "global"
+    isAdmin && (scope.mode === "global" || isGlobalAdministrationRoute)
       ? "Administración global"
       : scope.mode === "merchant"
         ? scope.merchant.name ?? `Comercio #${scope.merchantId}`
         : merchantName ?? "Portal comercio";
   const accountMetadata =
-    scope.mode === "merchant"
-      ? scope.merchant.metadata
-      : isAdmin
-        ? null
-        : merchantMetadata;
+    isGlobalAdministrationRoute
+      ? null
+      : scope.mode === "merchant"
+        ? scope.merchant.metadata
+        : isAdmin
+          ? null
+          : merchantMetadata;
 
   return (
     <AdminScopeProvider isAdmin={isAdmin} scope={scope}>
       <div className="dashboard-shell">
         <aside className="sidebar" aria-label="Navegación principal">
           <BrandLockup />
-          <NavigationLinks />
+          <NavigationLinks isAdmin={isAdmin} />
           <div className="sidebar-footer">
             <div className="sidebar-account-panel">
               <MerchantAvatar
@@ -242,7 +263,7 @@ export function DashboardShell({
             <ThemeToggle compact />
           </header>
 
-          {isAdmin ? (
+          {isAdmin && !isGlobalAdministrationRoute ? (
             <AdminScopeSelector
               key={`${scope.mode}:${scope.merchantId ?? "all"}`}
               merchants={merchants}
@@ -279,7 +300,10 @@ export function DashboardShell({
                   <X size={20} />
                 </button>
               </div>
-              <NavigationLinks onNavigate={() => setIsMenuOpen(false)} />
+              <NavigationLinks
+                isAdmin={isAdmin}
+                onNavigate={() => setIsMenuOpen(false)}
+              />
               <div className="sidebar-footer">
                 <div className="sidebar-account-panel">
                   <MerchantAvatar
