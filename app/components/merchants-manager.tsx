@@ -6,6 +6,7 @@ import {
   CircleCheck,
   CirclePause,
   Edit3,
+  Image as ImageIcon,
   Mail,
   Plus,
   RefreshCw,
@@ -32,6 +33,7 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
+import { MerchantAvatar } from "@/app/components/merchant-avatar";
 import type { MerchantDetails } from "@/app/lib/auth/types";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 
@@ -39,6 +41,7 @@ type MerchantForm = {
   name: string;
   contactEmail: string;
   deliveryCost: string;
+  imageUrl: string;
   isOpen: boolean;
   metadata: string;
 };
@@ -50,6 +53,7 @@ const emptyForm: MerchantForm = {
   name: "",
   contactEmail: "",
   deliveryCost: "0",
+  imageUrl: "",
   isOpen: true,
   metadata: "",
 };
@@ -88,24 +92,36 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
-function formatMetadata(metadata?: Record<string, unknown> | null) {
-  if (!metadata || !Object.keys(metadata).length) return "";
-  return JSON.stringify(metadata, null, 2);
+function metadataText(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
-function metadataSummary(metadata?: Record<string, unknown> | null) {
-  const entries = Object.entries(metadata ?? {});
-  if (!entries.length) return "Sin metadata";
-  return entries
-    .slice(0, 3)
-    .map(([key, value]) => {
-      const text =
-        typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-          ? String(value)
-          : JSON.stringify(value);
-      return `${key}: ${text}`;
-    })
-    .join(" · ");
+function technicalMetadata(metadata?: Record<string, unknown> | null) {
+  const technical = { ...(metadata ?? {}) };
+  delete technical.imageUrl;
+  return technical;
+}
+
+function formatTechnicalMetadata(metadata?: Record<string, unknown> | null) {
+  const technical = technicalMetadata(metadata);
+  if (!Object.keys(technical).length) return "";
+  return JSON.stringify(technical, null, 2);
+}
+
+function isImageUrl(value: string) {
+  if (!value) return true;
+  if (value.startsWith("/") || value.startsWith("data:image/")) return true;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function merchantToForm(merchant: MerchantDetails): MerchantForm {
@@ -116,8 +132,9 @@ function merchantToForm(merchant: MerchantDetails): MerchantForm {
       merchant.deliveryCost === undefined || merchant.deliveryCost === null
         ? "0"
         : String(merchant.deliveryCost),
+    imageUrl: metadataText(merchant.metadata, "imageUrl"),
     isOpen: merchant.isOpen !== false,
-    metadata: formatMetadata(merchant.metadata),
+    metadata: formatTechnicalMetadata(merchant.metadata),
   };
 }
 
@@ -133,6 +150,10 @@ function buildPayload(form: MerchantForm) {
   if (!Number.isFinite(deliveryCost) || deliveryCost < 0) {
     throw new Error("Ingresá un costo de envío válido.");
   }
+  const imageUrl = form.imageUrl.trim();
+  if (!isImageUrl(imageUrl)) {
+    throw new Error("Ingresá una URL de imagen válida.");
+  }
 
   let metadata: Record<string, unknown> = {};
   if (form.metadata.trim()) {
@@ -140,13 +161,16 @@ function buildPayload(form: MerchantForm) {
     try {
       parsed = JSON.parse(form.metadata);
     } catch {
-      throw new Error("La metadata debe ser un JSON válido.");
+      throw new Error("La metadata técnica debe ser un JSON válido.");
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("La metadata debe ser un objeto JSON.");
+      throw new Error("La metadata técnica debe ser un objeto JSON.");
     }
     metadata = parsed as Record<string, unknown>;
   }
+
+  delete metadata.imageUrl;
+  if (imageUrl) metadata.imageUrl = imageUrl;
 
   return { name, contactEmail, deliveryCost, isOpen: form.isOpen, metadata };
 }
@@ -183,6 +207,7 @@ export function MerchantsManager() {
   const [editingMerchant, setEditingMerchant] = useState<MerchantDetails | null>(null);
   const [form, setForm] = useState<MerchantForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -262,9 +287,16 @@ export function MerchantsManager() {
   const closedMerchants = merchants.length - openMerchants;
   const merchantsWithMetadata = useMemo(
     () =>
-      merchants.filter((merchant) => Object.keys(merchant.metadata ?? {}).length > 0)
-        .length,
+      merchants.filter(
+        (merchant) => Object.keys(technicalMetadata(merchant.metadata)).length > 0
+      ).length,
     [merchants]
+  );
+  const previewImageUrl = form.imageUrl.trim();
+  const hasPreviewImage = Boolean(
+    previewImageUrl &&
+      isImageUrl(previewImageUrl) &&
+      failedImageUrl !== previewImageUrl
   );
 
   function resetPage() {
@@ -274,6 +306,7 @@ export function MerchantsManager() {
   function openCreateModal() {
     setEditingMerchant(null);
     setForm(emptyForm);
+    setFailedImageUrl(null);
     setFormError(null);
     setSuccess(null);
     setActiveModal("create");
@@ -282,6 +315,7 @@ export function MerchantsManager() {
   function openEditModal(merchant: MerchantDetails) {
     setEditingMerchant(merchant);
     setForm(merchantToForm(merchant));
+    setFailedImageUrl(null);
     setFormError(null);
     setSuccess(null);
     setActiveModal("edit");
@@ -402,7 +436,7 @@ export function MerchantsManager() {
           { label: "Abiertos", value: openMerchants, icon: ShoppingBag, pill: "Operando" },
           { label: "Cerrados", value: closedMerchants, icon: CirclePause, pill: "Pausados" },
           {
-            label: "Con metadata",
+            label: "Config. técnica",
             value: merchantsWithMetadata,
             icon: Braces,
             pill: "Configurados",
@@ -508,7 +542,7 @@ export function MerchantsManager() {
                 <th>Contacto</th>
                 <th>Envío</th>
                 <th>Estado</th>
-                <th>Metadata</th>
+                <th>Campos técnicos</th>
                 <th>Actualizado</th>
                 <th>Acciones</th>
               </tr>
@@ -525,12 +559,24 @@ export function MerchantsManager() {
               ) : merchantsPage.rows.length ? (
                 merchantsPage.rows.map((merchant) => {
                   const isDeleting = deletingId === String(merchant.id);
-                  const metadataCount = Object.keys(merchant.metadata ?? {}).length;
+                  const metadataCount = Object.keys(
+                    technicalMetadata(merchant.metadata)
+                  ).length;
                   return (
                     <tr key={merchant.id}>
                       <td>
-                        <strong>{merchantName(merchant)}</strong>
-                        <span className="table-muted">ID {merchant.id}</span>
+                        <div className="merchants-commerce-cell">
+                          <MerchantAvatar
+                            className="merchants-table-avatar"
+                            iconSize={17}
+                            metadata={merchant.metadata}
+                            name={merchantName(merchant)}
+                          />
+                          <div>
+                            <strong>{merchantName(merchant)}</strong>
+                            <span className="table-muted">ID {merchant.id}</span>
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <strong>{merchantEmail(merchant)}</strong>
@@ -545,9 +591,11 @@ export function MerchantsManager() {
                         </span>
                       </td>
                       <td>
-                        <strong>{metadataCount} campos</strong>
-                        <span className="table-muted" title={metadataSummary(merchant.metadata)}>
-                          {metadataSummary(merchant.metadata)}
+                        <strong>
+                          {metadataCount} {metadataCount === 1 ? "campo" : "campos"}
+                        </strong>
+                        <span className="table-muted">
+                          {metadataCount ? "Configuración avanzada" : "Sin datos técnicos"}
                         </span>
                       </td>
                       <td>{formatDate(merchant.updatedAt ?? merchant.createdAt)}</td>
@@ -720,22 +768,82 @@ export function MerchantsManager() {
                       />
                     </label>
                   </div>
-                  <label className="field-group">
-                    <span className="field-label">Metadata (JSON)</span>
-                    <textarea
-                      className="field-control textarea-control metadata-control"
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, metadata: event.target.value }))
-                      }
-                      placeholder={'{"category": "restaurant", "city": "Asunción"}'}
-                      spellCheck={false}
-                      value={form.metadata}
-                    />
-                  </label>
-                  <p className="muted merchants-form-note">
-                    Usá metadata para configuraciones adicionales como categoría, ciudad, logo o imagen.
-                  </p>
+
+                  <div className="merchants-image-field">
+                    <span
+                      className={`merchants-image-preview${hasPreviewImage ? " has-image" : ""}`}
+                    >
+                      {hasPreviewImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt="Previsualización del comercio"
+                          referrerPolicy="no-referrer"
+                          src={previewImageUrl}
+                          onError={() => setFailedImageUrl(previewImageUrl)}
+                        />
+                      ) : (
+                        <ImageIcon aria-hidden="true" size={24} />
+                      )}
+                    </span>
+                    <label className="field-group">
+                      <span className="field-label">URL de imagen</span>
+                      <input
+                        className="field-control"
+                        disabled={isSaving}
+                        inputMode="url"
+                        onChange={(event) => {
+                          setFailedImageUrl(null);
+                          setForm((current) => ({
+                            ...current,
+                            imageUrl: event.target.value,
+                          }));
+                        }}
+                        placeholder="https://..."
+                        value={form.imageUrl}
+                      />
+                      <span className="muted merchants-image-hint">
+                        {previewImageUrl
+                          ? hasPreviewImage
+                            ? "Previsualización disponible."
+                            : "No se pudo previsualizar esta imagen."
+                          : "Se mostrará como imagen principal del comercio."}
+                      </span>
+                    </label>
+                  </div>
+
+                  <details className="advanced-section merchants-technical-section">
+                    <summary>
+                      <span>
+                        <strong>Metadata técnica</strong>
+                        <span>Configuración avanzada en formato JSON.</span>
+                      </span>
+                      <span className="pill">
+                        <Braces aria-hidden="true" size={13} />
+                        Campo técnico
+                      </span>
+                    </summary>
+                    <div className="advanced-section-content">
+                      <label className="field-group">
+                        <span className="field-label">Objeto JSON</span>
+                        <textarea
+                          className="field-control textarea-control metadata-control"
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              metadata: event.target.value,
+                            }))
+                          }
+                          placeholder={'{"category": "restaurant", "city": "Asunción"}'}
+                          spellCheck={false}
+                          value={form.metadata}
+                        />
+                      </label>
+                      <p className="muted merchants-form-note">
+                        Reservado para integraciones y configuraciones avanzadas. La imagen se gestiona arriba.
+                      </p>
+                    </div>
+                  </details>
 
                   {formError ? (
                     <div className="error-box" role="alert">

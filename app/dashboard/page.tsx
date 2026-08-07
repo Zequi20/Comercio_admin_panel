@@ -420,6 +420,7 @@ async function DashboardContent({
           <section className="card card-lg">
             <div className="merchant-summary">
               <MerchantAvatar
+                key={`dashboard-avatar-${dashboardMerchant.id}`}
                 metadata={dashboardMerchant.metadata}
                 name={
                   dashboardMerchant.name ??
@@ -435,10 +436,12 @@ async function DashboardContent({
               </div>
             </div>
             <MerchantOpenSwitch
+              key={`dashboard-open-${dashboardMerchant.id}`}
               initialIsOpen={dashboardMerchant.isOpen}
               merchantId={dashboardMerchant.id}
             />
             <MerchantMetadataEditor
+              key={`dashboard-metadata-${dashboardMerchant.id}`}
               initialMetadata={dashboardMerchant.metadata}
               merchantId={dashboardMerchant.id}
             />

@@ -227,6 +227,11 @@ export function DashboardShell({
         : isAdmin
           ? null
           : merchantMetadata;
+  const accountScopeKey = isGlobalAdministrationRoute
+    ? "global-administration"
+    : scope.mode === "merchant"
+      ? `merchant-${scope.merchantId}`
+      : "global";
 
   return (
     <AdminScopeProvider isAdmin={isAdmin} scope={scope}>
@@ -237,6 +242,7 @@ export function DashboardShell({
           <div className="sidebar-footer">
             <div className="sidebar-account-panel">
               <MerchantAvatar
+                key={`sidebar-${accountScopeKey}`}
                 className="sidebar-merchant-avatar"
                 iconSize={18}
                 metadata={accountMetadata}
@@ -315,6 +321,7 @@ export function DashboardShell({
               <div className="sidebar-footer">
                 <div className="sidebar-account-panel">
                   <MerchantAvatar
+                    key={`drawer-${accountScopeKey}`}
                     className="sidebar-merchant-avatar"
                     iconSize={18}
                     metadata={accountMetadata}

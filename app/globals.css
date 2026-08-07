@@ -2954,6 +2954,26 @@ a {
   vertical-align: -1px;
 }
 
+.merchants-commerce-cell {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 180px;
+}
+
+.merchants-table-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--primary-container);
+  color: var(--primary);
+}
+
 .catalog-modal.merchants-modal {
   width: min(100%, 720px);
 }
@@ -2964,6 +2984,48 @@ a {
 
 .merchants-open-toggle {
   min-height: 66px;
+}
+
+.merchants-image-field {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  padding: 10px;
+}
+
+.merchants-image-preview {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--background-alt);
+  color: var(--text-secondary);
+}
+
+.merchants-image-preview.has-image {
+  background: var(--surface);
+}
+
+.merchants-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.merchants-image-hint {
+  min-height: 15px;
+  font-size: 11px;
+}
+
+.merchants-technical-section .advanced-section-content {
+  gap: 8px;
 }
 
 .merchants-form-note {
@@ -4097,6 +4159,15 @@ a {
 
   .merchants-filters {
     grid-template-columns: 1fr;
+  }
+
+  .merchants-image-field {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .merchants-image-preview {
+    width: 56px;
+    height: 56px;
   }
 
   .users-role-manager-header,
