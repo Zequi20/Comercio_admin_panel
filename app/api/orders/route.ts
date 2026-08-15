@@ -8,6 +8,7 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
+import { validateOrderItemsFulfillment } from "@/app/lib/orders/validate-order-fulfillment";
 import {
   createOrderForMerchant,
   listOrdersForAdminScope,
@@ -70,6 +71,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    const fulfillmentError = await validateOrderItemsFulfillment({
+      accessToken: context.accessToken,
+      fulfillmentType: payload.fulfillmentType ?? "DELIVERY",
+      items: payload.items,
+    });
+
+    if (fulfillmentError) {
+      return badRequestResponse(fulfillmentError);
+    }
+
     const order = await createOrderForMerchant({
       accessToken: context.accessToken,
       payload,

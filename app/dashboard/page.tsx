@@ -20,6 +20,11 @@ import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
 import { orderStatusLabel } from "../lib/order-status";
 import {
+  orderContainsService,
+  orderFulfillmentLabel,
+  serviceProductIdSet,
+} from "../lib/orders/order-fulfillment";
+import {
   listCouriersForAdminScope,
   listCouriersForMerchant,
   listOrdersForAdminScope,
@@ -266,6 +271,7 @@ async function DashboardContent({
     .slice(0, 5);
   const activeProducts = products.filter((product) => product.available).length;
   const activeCouriers = couriers.filter((courier) => courier.isActive).length;
+  const serviceProductIds = serviceProductIdSet(products);
 
   const stats = [
     {
@@ -355,7 +361,10 @@ async function DashboardContent({
                       {isAdmin && order.merchant?.name
                         ? `${order.merchant.name} · `
                         : ""}
-                      {order.fulfillmentType === "PICKUP" ? "Retiro" : "Delivery"}
+                      {orderFulfillmentLabel(
+                        order.fulfillmentType,
+                        orderContainsService(order.items, serviceProductIds),
+                      )}
                     </div>
                   </div>
                   <span
@@ -541,7 +550,9 @@ async function DashboardContent({
 }
 
 export default async function DashboardPage() {
-  const context = await getScopedCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies({
+    includeMerchantDetails: true,
+  });
 
   if (!context) {
     redirect("/login");

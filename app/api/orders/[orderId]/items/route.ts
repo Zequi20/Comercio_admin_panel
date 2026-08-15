@@ -7,7 +7,11 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
-import { updateOrderItemsForMerchant } from "@/app/lib/services/commerce-services";
+import { validateOrderItemsFulfillment } from "@/app/lib/orders/validate-order-fulfillment";
+import {
+  getOrderForMerchant,
+  updateOrderItemsForMerchant,
+} from "@/app/lib/services/commerce-services";
 
 type OrderItemsRouteContext = {
   params: Promise<{ orderId: string }>;
@@ -33,6 +37,31 @@ export async function PATCH(request: Request, context: OrderItemsRouteContext) {
   const { orderId } = await context.params;
 
   try {
+    const currentOrder = await getOrderForMerchant({
+      accessToken: sessionContext.accessToken,
+      orderId,
+    });
+    const currentVersion = Number(currentOrder.version);
+
+    if (
+      !Number.isInteger(currentVersion) ||
+      currentVersion !== body.expectedVersion
+    ) {
+      return badRequestResponse(
+        "El pedido fue actualizado. Recargá la tabla antes de agregar ítems."
+      );
+    }
+
+    const fulfillmentError = await validateOrderItemsFulfillment({
+      accessToken: sessionContext.accessToken,
+      fulfillmentType: currentOrder.fulfillmentType ?? "DELIVERY",
+      items: [...(currentOrder.items ?? []), ...body.items],
+    });
+
+    if (fulfillmentError) {
+      return badRequestResponse(fulfillmentError);
+    }
+
     const order = await updateOrderItemsForMerchant({
       accessToken: sessionContext.accessToken,
       orderId,

@@ -29,6 +29,17 @@ import {
 } from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
 import {
+  orderBelongsToMerchant,
+  orderMerchantId,
+} from "@/app/lib/orders/order-merchant";
+import {
+  orderContainsService,
+  orderFulfillmentCompatibility,
+  orderFulfillmentLabel,
+  orderFulfillmentValidationMessage,
+  serviceProductIdSet,
+} from "@/app/lib/orders/order-fulfillment";
+import {
   assignmentBlockedReason,
   availableOrderStatuses,
   canAssignCourierToOrder,
@@ -89,11 +100,13 @@ type CommerceOrder = {
 
 type CatalogProduct = {
   id: number | string;
+  type?: "PRODUCT" | "SERVICE";
   sku?: string;
   name: string;
   price: number | string;
   currency: string;
   available: boolean;
+  metadata?: Record<string, unknown> | null;
 };
 
 type Courier = {
@@ -423,10 +436,6 @@ function orderCode(order: CommerceOrder) {
   return `#${order.id}`;
 }
 
-function fulfillmentLabel(value?: FulfillmentType) {
-  return value === "PICKUP" ? "Retiro" : "Delivery";
-}
-
 function customerName(order: CommerceOrder) {
   const customer = order.customer;
 
@@ -439,9 +448,11 @@ function customerName(order: CommerceOrder) {
 }
 
 function orderMerchantName(order: CommerceOrder) {
+  const merchantId = orderMerchantId(order);
+
   return (
     order.merchant?.name ??
-    (order.merchantId ? `Comercio #${order.merchantId}` : "Sin comercio")
+    (merchantId ? `Comercio #${merchantId}` : "Sin comercio")
   );
 }
 
@@ -502,7 +513,34 @@ function readVersion(order: CommerceOrder) {
 
 function productOptionLabel(product: CatalogProduct) {
   const sku = product.sku ? ` · ${product.sku}` : "";
-  return `${product.name}${sku} · ${formatPrice(product.price, product.currency)}`;
+  const type = product.type === "SERVICE" ? "Servicio" : "Producto";
+  return `${product.name} · ${type}${sku} · ${formatPrice(
+    product.price,
+    product.currency
+  )}`;
+}
+
+function catalogProductsForItems(
+  items: Array<{ productId?: number | string | null }>,
+  productsById: ReadonlyMap<string, CatalogProduct>
+) {
+  const selectedProducts: CatalogProduct[] = [];
+  const seenProductIds = new Set<string>();
+
+  for (const item of items) {
+    if (item.productId === null || item.productId === undefined) continue;
+
+    const productId = String(item.productId);
+    if (!productId || seenProductIds.has(productId)) continue;
+
+    const product = productsById.get(productId);
+    if (!product) continue;
+
+    seenProductIds.add(productId);
+    selectedProducts.push(product);
+  }
+
+  return selectedProducts;
 }
 
 function metadataText(
@@ -735,7 +773,7 @@ function orderMatchesQuery(order: CommerceOrder, query: string) {
 
   const searchable = [
     order.id,
-    order.merchantId,
+    orderMerchantId(order),
     order.merchant?.name,
     customerName(order),
     order.customer?.email,
@@ -892,6 +930,37 @@ export function OrdersManager() {
       ) ?? null,
     [activeCouriers, selectedCourierId]
   );
+  const availableProducts = useMemo(
+    () => products.filter((product) => product.available),
+    [products]
+  );
+  const productsById = useMemo(
+    () =>
+      new Map(products.map((product) => [String(product.id), product] as const)),
+    [products]
+  );
+  const serviceProductIds = useMemo(
+    () => serviceProductIdSet(products),
+    [products]
+  );
+  const formProducts = useMemo(
+    () =>
+      catalogProductsForItems(
+        [...(editingOrder?.items ?? []), ...form.items],
+        productsById
+      ),
+    [editingOrder, form.items, productsById]
+  );
+  const formFulfillmentCompatibility = useMemo(
+    () => orderFulfillmentCompatibility(formProducts),
+    [formProducts]
+  );
+  const formContainsService = useMemo(
+    () =>
+      formFulfillmentCompatibility.containsService ||
+      orderContainsService(editingOrder?.items, serviceProductIds),
+    [editingOrder, formFulfillmentCompatibility, serviceProductIds]
+  );
   const assignmentBlocker = assigningOrder
     ? assignmentBlockedReason(assigningOrder)
     : null;
@@ -904,7 +973,7 @@ export function OrdersManager() {
 
   async function loadProducts() {
     try {
-      const response = await fetch("/api/products?limit=100&available=true", {
+      const response = await fetch("/api/products?limit=100", {
         credentials: "include",
       });
       const payload = await response.json().catch(() => null);
@@ -1091,7 +1160,10 @@ export function OrdersManager() {
 
   useEffect(() => {
     const events = new EventSource("/api/orders/events");
-    const pendingRealtimeOrderIds = new Map<string, boolean>();
+    const pendingRealtimeOrderIds = new Map<
+      string,
+      { wasCreated: boolean; wasDeleted: boolean }
+    >();
     let isClosed = false;
     let needsFullRealtimeRefresh = false;
     let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1100,10 +1172,16 @@ export function OrdersManager() {
       const change = readRealtimeOrdersChanged(event);
 
       if (change?.orderId) {
+        const previous = pendingRealtimeOrderIds.get(change.orderId);
         const wasCreated =
           change.event === "order.created" ||
-          pendingRealtimeOrderIds.get(change.orderId) === true;
-        pendingRealtimeOrderIds.set(change.orderId, wasCreated);
+          previous?.wasCreated === true;
+        const wasDeleted =
+          change.event === "order.deleted" || previous?.wasDeleted === true;
+        pendingRealtimeOrderIds.set(change.orderId, {
+          wasCreated,
+          wasDeleted,
+        });
       } else {
         needsFullRealtimeRefresh = true;
       }
@@ -1115,6 +1193,14 @@ export function OrdersManager() {
       refreshTimeout = setTimeout(() => {
         refreshTimeout = null;
         const pendingOrders = Array.from(pendingRealtimeOrderIds.entries());
+        const deletedOrderIds = new Set(
+          pendingOrders.flatMap(([orderId, change]) =>
+            change.wasDeleted ? [orderId] : []
+          )
+        );
+        const refreshableOrders = pendingOrders.filter(
+          ([, change]) => !change.wasDeleted
+        );
         const needsFullRefresh = needsFullRealtimeRefresh;
 
         pendingRealtimeOrderIds.clear();
@@ -1122,7 +1208,7 @@ export function OrdersManager() {
 
         void (async () => {
           const results = await Promise.allSettled(
-            pendingOrders.map(async ([orderId, wasCreated]) => {
+            refreshableOrders.map(async ([orderId, change]) => {
               const response = await fetch(
                 `/api/orders/${encodeURIComponent(orderId)}`,
                 {
@@ -1136,7 +1222,7 @@ export function OrdersManager() {
                 throw new Error("No se pudo actualizar el pedido en tiempo real.");
               }
 
-              return { order: payload, wasCreated };
+              return { order: payload, wasCreated: change.wasCreated };
             })
           );
           const refreshedOrders = results.flatMap((result) =>
@@ -1145,13 +1231,37 @@ export function OrdersManager() {
 
           if (isClosed) return;
 
+          if (deletedOrderIds.size) {
+            ordersMutationRevisionRef.current += 1;
+            setOrders((current) =>
+              current.filter(
+                (order) => !deletedOrderIds.has(String(order.id))
+              )
+            );
+            setEditingOrder((current) =>
+              current && deletedOrderIds.has(String(current.id))
+                ? null
+                : current
+            );
+            setViewingItemsOrder((current) =>
+              current && deletedOrderIds.has(String(current.id))
+                ? null
+                : current
+            );
+            setAssigningOrder((current) =>
+              current && deletedOrderIds.has(String(current.id))
+                ? null
+                : current
+            );
+          }
+
           if (refreshedOrders.length) {
             const orders = refreshedOrders
               .map(({ order }) => order)
               .filter(
                 (order) =>
                   scope.mode === "global" ||
-                  String(order.merchantId ?? "") === String(scope.merchantId)
+                  orderBelongsToMerchant(order, scope.merchantId)
               );
             const ordersById = new Map(
               orders.map((order) => [String(order.id), order] as const)
@@ -1187,7 +1297,7 @@ export function OrdersManager() {
           ) {
             await loadOrdersRef.current(filtersRef.current, {
               background: true,
-              merge: true,
+              merge: false,
             });
           }
         })();
@@ -1405,6 +1515,74 @@ export function OrdersManager() {
     }));
   }
 
+  function updateItemProduct(id: string, productId: string) {
+    const nextItems = form.items.map((item) =>
+      item.id === id ? { ...item, productId } : item
+    );
+    const nextProducts = catalogProductsForItems(
+      [...(editingOrder?.items ?? []), ...nextItems],
+      productsById
+    );
+    const compatibility = orderFulfillmentCompatibility(nextProducts);
+    const fixedFulfillmentType = editingOrder?.fulfillmentType;
+
+    if (!compatibility.allowedFulfillmentTypes.length) {
+      setError(
+        "Este ítem no comparte una modalidad con el resto del pedido. Creá un pedido separado."
+      );
+      return;
+    }
+
+    if (
+      fixedFulfillmentType &&
+      !compatibility.allowedFulfillmentTypes.includes(fixedFulfillmentType)
+    ) {
+      setError(
+        orderFulfillmentValidationMessage(
+          nextProducts,
+          fixedFulfillmentType
+        )
+      );
+      return;
+    }
+
+    const nextFulfillmentType = compatibility.allowedFulfillmentTypes.includes(
+      form.fulfillmentType
+    )
+      ? form.fulfillmentType
+      : compatibility.allowedFulfillmentTypes[0];
+
+    setError(null);
+    setForm((current) => ({
+      ...current,
+      fulfillmentType: nextFulfillmentType,
+      items: current.items.map((item) =>
+        item.id === id ? { ...item, productId } : item
+      ),
+    }));
+  }
+
+  function productIsCompatibleWithForm(
+    itemId: string,
+    productId: number | string
+  ) {
+    const nextItems = form.items.map((item) =>
+      item.id === itemId ? { ...item, productId: String(productId) } : item
+    );
+    const nextProducts = catalogProductsForItems(
+      [...(editingOrder?.items ?? []), ...nextItems],
+      productsById
+    );
+    const compatibility = orderFulfillmentCompatibility(nextProducts);
+    const fixedFulfillmentType = editingOrder?.fulfillmentType;
+
+    return (
+      compatibility.allowedFulfillmentTypes.length > 0 &&
+      (!fixedFulfillmentType ||
+        compatibility.allowedFulfillmentTypes.includes(fixedFulfillmentType))
+    );
+  }
+
   function removeItemField(id: string) {
     setForm((current) => {
       const nextItems = current.items.filter((item) => item.id !== id);
@@ -1431,6 +1609,15 @@ export function OrdersManager() {
       return "Agregá al menos un ítem al pedido.";
     }
 
+    const fulfillmentError = orderFulfillmentValidationMessage(
+      formProducts,
+      form.fulfillmentType
+    );
+
+    if (fulfillmentError) {
+      return fulfillmentError;
+    }
+
     return null;
   }
 
@@ -1449,6 +1636,17 @@ export function OrdersManager() {
 
     if (form.status === order.status && !itemsResult.items.length) {
       return "Cambiá el estado o agregá un ítem para actualizar.";
+    }
+
+    if (itemsResult.items.length) {
+      const fulfillmentError = orderFulfillmentValidationMessage(
+        formProducts,
+        order.fulfillmentType ?? "DELIVERY"
+      );
+
+      if (fulfillmentError) {
+        return fulfillmentError;
+      }
     }
 
     return null;
@@ -1955,6 +2153,10 @@ export function OrdersManager() {
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
                   const items = order.items ?? [];
+                  const containsService = orderContainsService(
+                    items,
+                    serviceProductIds
+                  );
                   const canAssign = canAssignDelivery(order);
                   const assignmentReason = assignmentBlockedReason(order);
                   const nextAction = nextPrimaryOrderAction(order);
@@ -2011,7 +2213,10 @@ export function OrdersManager() {
                       </td>
                       <td>
                         <span className="pill">
-                          {fulfillmentLabel(order.fulfillmentType)}
+                          {orderFulfillmentLabel(
+                            order.fulfillmentType,
+                            containsService
+                          )}
                         </span>
                       </td>
                       <td>
@@ -2306,7 +2511,7 @@ export function OrdersManager() {
                   <div className="form-grid">
                     <div className="field-group">
                       <label className="field-label" htmlFor="order-type">
-                        Tipo
+                        Modalidad
                       </label>
                       <select
                         className="field-control"
@@ -2320,8 +2525,19 @@ export function OrdersManager() {
                           )
                         }
                       >
-                        <option value="DELIVERY">Delivery</option>
-                        <option value="PICKUP">Retiro</option>
+                        {formFulfillmentCompatibility.allowedFulfillmentTypes.map(
+                          (fulfillmentType) => (
+                            <option
+                              key={fulfillmentType}
+                              value={fulfillmentType}
+                            >
+                              {orderFulfillmentLabel(
+                                fulfillmentType,
+                                formContainsService
+                              )}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
 
@@ -2401,24 +2617,34 @@ export function OrdersManager() {
                 <div className="order-item-field-list">
                   {form.items.map((item) => (
                     <div className="order-item-field-row" key={item.id}>
-                      {products.length ? (
+                      {availableProducts.length ? (
                         <select
                           aria-label="Producto"
                           className="field-control order-item-product-control"
                           disabled={isSubmitting}
                           value={item.productId}
                           onChange={(event) =>
-                            updateItemField(item.id, {
-                              productId: event.target.value,
-                            })
+                            updateItemProduct(item.id, event.target.value)
                           }
                         >
                           <option value="">Seleccionar producto</option>
-                          {products.map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {productOptionLabel(product)}
-                            </option>
-                          ))}
+                          {availableProducts.map((product) => {
+                            const isCompatible = productIsCompatibleWithForm(
+                              item.id,
+                              product.id
+                            );
+
+                            return (
+                              <option
+                                disabled={!isCompatible}
+                                key={product.id}
+                                value={product.id}
+                              >
+                                {productOptionLabel(product)}
+                                {isCompatible ? "" : " · No compatible"}
+                              </option>
+                            );
+                          })}
                         </select>
                       ) : (
                         <input
@@ -2429,9 +2655,7 @@ export function OrdersManager() {
                           placeholder="ID de producto"
                           value={item.productId}
                           onChange={(event) =>
-                            updateItemField(item.id, {
-                              productId: event.target.value,
-                            })
+                            updateItemProduct(item.id, event.target.value)
                           }
                         />
                       )}
@@ -2464,6 +2688,18 @@ export function OrdersManager() {
                     </div>
                   ))}
                 </div>
+                {formFulfillmentCompatibility.isMixed ? (
+                  <div className="metadata-empty-state" role="status">
+                    Pedido mixto compatible: los productos y servicios comparten
+                    {" "}
+                    {formFulfillmentCompatibility.allowedFulfillmentTypes
+                      .map((fulfillmentType) =>
+                        orderFulfillmentLabel(fulfillmentType, true)
+                      )
+                      .join(" o ")}
+                    .
+                  </div>
+                ) : null}
               </div>
 
               {error ? (

@@ -187,9 +187,9 @@ const productImageMetadataKey = "imageUrl";
 
 const serviceModeOptions = [
   { value: "", label: "Seleccionar" },
-  { value: "DELIVERY", label: "Delivery" },
-  { value: "PICKUP", label: "Retiro" },
-  { value: "DELIVERY_PICKUP", label: "Delivery y retiro" },
+  { value: "DELIVERY", label: "A domicilio" },
+  { value: "PICKUP", label: "En local" },
+  { value: "DELIVERY_PICKUP", label: "A domicilio y en local" },
 ];
 
 let metadataFieldCounter = 0;
@@ -1356,7 +1356,7 @@ export function CatalogManager() {
                 <th>SKU</th>
                 <th>Precio</th>
                 <th>Estado</th>
-                <th>Detalles</th>
+                <th>Campos avanzados</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -1445,7 +1445,7 @@ export function CatalogManager() {
                             <span>{metadataCountLabel(metadata.length)}</span>
                           </button>
                         ) : (
-                          <span className="table-muted">Sin detalles</span>
+                          <span className="table-muted">Sin campos</span>
                         )}
                       </td>
                       <td>

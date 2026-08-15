@@ -1,9 +1,10 @@
 import { io, type Socket } from "socket.io-client";
 
 import { decodeJwtPayload } from "@/app/lib/auth/access";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import { ordersSocketConfig } from "@/app/lib/env";
 import {
+  listOrdersForAdminScope,
   listOrdersForMerchant,
   type Order,
 } from "@/app/lib/services/commerce-services";
@@ -21,6 +22,7 @@ const ORDER_EVENTS = [
   "order.updated",
   "order.price_confirmed",
   "order.items_updated",
+  "order.deleted",
 ] as const;
 
 type RealtimeOrderPayload = {
@@ -67,7 +69,7 @@ function streamLifetime(accessToken: string) {
 }
 
 export async function GET(request: Request) {
-  const context = await getCommerceRequestContextFromCookies();
+  const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return Response.json(
@@ -76,13 +78,20 @@ export async function GET(request: Request) {
     );
   }
 
+  const listScopedOrders = () =>
+    context.isAdmin
+      ? listOrdersForAdminScope({
+          accessToken: context.accessToken,
+          merchantId: context.scope.merchantId ?? undefined,
+        })
+      : listOrdersForMerchant({
+          accessToken: context.accessToken,
+          limit: 100,
+        });
   let initialOrders: Order[] = [];
 
   try {
-    const response = await listOrdersForMerchant({
-      accessToken: context.accessToken,
-      limit: 100,
-    });
+    const response = await listScopedOrders();
     initialOrders = response.data ?? [];
   } catch {
     // El socket puede conectarse aunque la carga inicial falle temporalmente.
@@ -116,6 +125,11 @@ export async function GET(request: Request) {
         socket.emit("orders.join", { orderId });
       };
 
+      const leaveOrder = (orderId: string) => {
+        if (!socket?.connected) return;
+        socket.emit("orders.leave", { orderId });
+      };
+
       const joinKnownOrders = () => {
         orderIds.forEach(joinOrder);
       };
@@ -134,6 +148,7 @@ export async function GET(request: Request) {
       socket.on("connect", () => {
         joinKnownOrders();
         writeEvent("orders.connected", { connected: true });
+        writeEvent("orders.changed", { source: "socket-connect" });
       });
 
       socket.on("disconnect", () => {
@@ -152,7 +167,10 @@ export async function GET(request: Request) {
         socket?.on(eventName, (payload: unknown) => {
           const orderId = readPayloadOrderId(payload);
 
-          if (orderId && !orderIds.has(orderId)) {
+          if (orderId && eventName === "order.deleted") {
+            orderIds.delete(orderId);
+            leaveOrder(orderId);
+          } else if (orderId && !orderIds.has(orderId)) {
             orderIds.add(orderId);
             joinOrder(orderId);
           }
@@ -177,10 +195,7 @@ export async function GET(request: Request) {
         isReconciling = true;
 
         try {
-          const response = await listOrdersForMerchant({
-            accessToken: context.accessToken,
-            limit: 100,
-          });
+          const response = await listScopedOrders();
           const nextOrders = response.data ?? [];
           const nextOrderIds = readOrderIds(nextOrders);
           const nextFingerprint = ordersFingerprint(nextOrders);

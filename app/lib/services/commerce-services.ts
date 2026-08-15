@@ -1,6 +1,7 @@
 import "server-only";
 
 import { serviceUrls } from "../env";
+import { orderBelongsToMerchant } from "../orders/order-merchant";
 import { extractErrorMessage, parseJsonSafely } from "../problem-details";
 
 export type ListResponse<T> = {
@@ -876,9 +877,7 @@ export async function listOrdersForAdminScope({
 
   return {
     data: merchantId
-      ? orders.filter(
-          (order) => String(order.merchantId ?? "") === String(merchantId)
-        )
+      ? orders.filter((order) => orderBelongsToMerchant(order, merchantId))
       : orders,
     cursor: null,
     truncated,

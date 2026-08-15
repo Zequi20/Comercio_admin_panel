@@ -62,8 +62,14 @@ export async function resolvePortalScope({
   }
 }
 
-export async function getScopedCommerceRequestContextFromCookies() {
-  const context = await getCommerceRequestContextFromCookies();
+export async function getScopedCommerceRequestContextFromCookies({
+  includeMerchantDetails = false,
+}: {
+  includeMerchantDetails?: boolean;
+} = {}) {
+  const context = await getCommerceRequestContextFromCookies({
+    includeMerchantDetails,
+  });
   if (!context) return null;
 
   const scope = await resolvePortalScope(context);
