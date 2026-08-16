@@ -757,49 +757,6 @@ function OrderWorkflowSequence({
   );
 }
 
-function OrderWorkflowGuide() {
-  return (
-    <section
-      aria-labelledby="order-workflow-guide-title"
-      className="order-workflow-guide"
-    >
-      <div className="order-workflow-guide-heading">
-        <strong id="order-workflow-guide-title">
-          Cómo avanza cada modalidad
-        </strong>
-        <span>La acción disponible cambia según quién entrega el pedido.</span>
-      </div>
-      <div className="order-workflow-guide-list">
-        <article className="order-workflow-card delivery">
-          <div className="order-workflow-card-heading">
-            <span aria-hidden="true" className="order-workflow-card-icon">
-              <Truck size={18} />
-            </span>
-            <div>
-              <strong>Delivery a domicilio</strong>
-              <span>El repartidor retira y lleva el pedido.</span>
-            </div>
-          </div>
-          <OrderWorkflowSequence fulfillmentType="DELIVERY" />
-        </article>
-        <article className="order-workflow-card pickup">
-          <div className="order-workflow-card-heading">
-            <span aria-hidden="true" className="order-workflow-card-icon">
-              <Store size={18} />
-            </span>
-            <div>
-              <strong>Retiro en local</strong>
-              <span>
-                El cliente retira; no usa repartidor ni pasa por En camino.
-              </span>
-            </div>
-          </div>
-          <OrderWorkflowSequence fulfillmentType="PICKUP" />
-        </article>
-      </div>
-    </section>
-  );
-}
 
 function OrderStatusStepper({ order }: { order: CommerceOrder }) {
   const currentStatus = order.status ?? "PLACED";
@@ -2177,8 +2134,6 @@ export function OrdersManager() {
             <span>{success}</span>
           </div>
         ) : null}
-
-        <OrderWorkflowGuide />
 
         <form
           className="catalog-filters orders-filters"
