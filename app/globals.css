@@ -2155,6 +2155,37 @@ a {
   max-width: 260px;
 }
 
+.order-address-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: visible;
+  color: var(--tertiary);
+  text-decoration: none;
+}
+
+.order-address-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-address-link svg {
+  flex: 0 0 auto;
+}
+
+.order-address-link:hover {
+  text-decoration: underline;
+}
+
+.order-address-link:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid color-mix(in srgb, var(--tertiary) 58%, transparent);
+  outline-offset: 2px;
+}
+
 .table-actions .icon-button {
   width: 32px;
   height: 32px;

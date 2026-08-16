@@ -5,6 +5,7 @@ import {
   CircleAlert,
   CircleCheck,
   Edit3,
+  MapPin,
   Pin,
   Plus,
   ReceiptText,
@@ -32,6 +33,7 @@ import {
   orderBelongsToMerchant,
   orderMerchantId,
 } from "@/app/lib/orders/order-merchant";
+import { googleMapsUrlForAddress } from "@/app/lib/orders/order-address";
 import {
   orderContainsService,
   orderFulfillmentCompatibility,
@@ -240,6 +242,34 @@ function createEmptyForm(): OrderForm {
     status: "PLACED",
     items: [createItemField()],
   };
+}
+
+function OrderAddress({
+  address,
+  className,
+}: {
+  address: string;
+  className?: string;
+}) {
+  const googleMapsUrl = googleMapsUrlForAddress(address);
+
+  if (!googleMapsUrl) {
+    return <span className={className}>{address}</span>;
+  }
+
+  return (
+    <a
+      aria-label={`Abrir ${address} en Google Maps`}
+      className={[className, "order-address-link"].filter(Boolean).join(" ")}
+      href={googleMapsUrl}
+      rel="noopener noreferrer"
+      target="_blank"
+      title="Abrir en Google Maps"
+    >
+      <span>{address}</span>
+      <MapPin aria-hidden="true" size={13} />
+    </a>
+  );
 }
 
 function messageFromPayload(payload: unknown, fallback: string) {
@@ -2200,9 +2230,10 @@ export function OrdersManager() {
                       </td>
                       <td>
                         {order.address ? (
-                          <span className="table-muted order-address-cell">
-                            {order.address}
-                          </span>
+                          <OrderAddress
+                            address={order.address}
+                            className="table-muted order-address-cell"
+                          />
                         ) : (
                           <span className="table-muted">
                             {order.fulfillmentType === "PICKUP"
@@ -2821,7 +2852,13 @@ export function OrdersManager() {
                 </div>
                 <div>
                   <span>Dirección</span>
-                  <strong>{assigningOrder.address ?? "Sin dirección"}</strong>
+                  <strong>
+                    {assigningOrder.address ? (
+                      <OrderAddress address={assigningOrder.address} />
+                    ) : (
+                      "Sin dirección"
+                    )}
+                  </strong>
                 </div>
                 <div>
                   <span>Ítems</span>
