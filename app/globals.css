@@ -2011,6 +2011,120 @@ a {
   min-width: 1680px;
 }
 
+.order-workflow-guide {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: stretch;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary);
+  padding: 12px;
+}
+
+.order-workflow-guide-heading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 2px 4px;
+}
+
+.order-workflow-guide-heading strong {
+  font-size: 13px;
+}
+
+.order-workflow-guide-heading span,
+.order-workflow-card-heading span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.order-workflow-guide-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.order-workflow-card {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 10px;
+}
+
+.order-workflow-card.delivery {
+  border-left: 3px solid var(--tertiary);
+}
+
+.order-workflow-card.pickup {
+  border-left: 3px solid var(--primary);
+}
+
+.order-workflow-card-heading {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+}
+
+.order-workflow-card-heading div,
+.order-workflow-card-heading span {
+  min-width: 0;
+}
+
+.order-workflow-card-heading strong,
+.order-workflow-card-heading span {
+  display: block;
+}
+
+.order-workflow-card-icon {
+  display: grid !important;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.order-workflow-card.delivery .order-workflow-card-icon {
+  background: var(--tertiary-container);
+  color: var(--tertiary);
+}
+
+.order-workflow-card.pickup .order-workflow-card-icon {
+  background: var(--primary-container);
+  color: var(--primary);
+}
+
+.order-workflow-sequence {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-workflow-sequence li {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.order-workflow-sequence li:not(:first-child)::before {
+  color: var(--border-medium);
+  content: "→";
+}
+
 .orders-table-guide {
   display: flex;
   flex-wrap: wrap;
@@ -2195,6 +2309,25 @@ a {
   display: grid;
   min-width: 236px;
   gap: 7px;
+}
+
+.order-fulfillment-cell {
+  display: grid;
+  min-width: 150px;
+  gap: 4px;
+  justify-items: start;
+}
+
+.order-fulfillment-pill.delivery {
+  border-color: color-mix(in srgb, var(--tertiary) 24%, var(--border-soft));
+  background: var(--tertiary-container);
+  color: var(--tertiary);
+}
+
+.order-fulfillment-pill.pickup {
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border-soft));
+  background: var(--primary-container);
+  color: var(--primary);
 }
 
 .order-status-head,
@@ -4100,6 +4233,10 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .order-workflow-guide {
+    grid-template-columns: 1fr;
+  }
+
   .orders-filters,
   .couriers-filters {
     grid-template-columns: minmax(0, 1fr) minmax(140px, 0.5fr);
@@ -4158,6 +4295,10 @@ a {
   }
 
   .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-workflow-guide-list {
     grid-template-columns: 1fr;
   }
 

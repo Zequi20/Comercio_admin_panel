@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Store,
   Truck,
   Trash2,
   X,
@@ -201,7 +202,6 @@ const deliveryWorkflowStatuses: OrderStatus[] = [
 const pickupWorkflowStatuses: OrderStatus[] = [
   "PLACED",
   "CONFIRMED",
-  "PICKED_UP",
   "DELIVERED",
 ];
 
@@ -659,7 +659,12 @@ function statusOptionsForOrder(order: CommerceOrder | null) {
   }
 
   const allowedStatuses = new Set(availableOrderStatuses(order));
-  return statusOptions.filter((status) => allowedStatuses.has(status.value));
+  return statusOptions
+    .filter((status) => allowedStatuses.has(status.value))
+    .map((status) => ({
+      ...status,
+      label: statusLabelForFulfillment(status.value, order.fulfillmentType),
+    }));
 }
 
 function canAssignDelivery(order: CommerceOrder) {
@@ -676,13 +681,29 @@ function workflowStatusesForOrder(order: CommerceOrder) {
     : deliveryWorkflowStatuses;
 }
 
-function primaryStatusActionLabel(status: OrderStatus) {
+function statusLabelForFulfillment(
+  status: OrderStatus,
+  fulfillmentType?: FulfillmentType
+) {
+  return status === "DELIVERED" && fulfillmentType === "PICKUP"
+    ? "Retirado"
+    : statusConfig[status].label;
+}
+
+function primaryStatusActionLabel(
+  status: OrderStatus,
+  fulfillmentType?: FulfillmentType
+) {
   const labels: Partial<Record<OrderStatus, string>> = {
     CONFIRMED: "Confirmar",
     ASSIGNED: "Marcar asignado",
     PICKED_UP: "Marcar en camino",
     DELIVERED: "Marcar entregado",
   };
+
+  if (status === "DELIVERED" && fulfillmentType === "PICKUP") {
+    return "Marcar retirado";
+  }
 
   return labels[status] ?? statusConfig[status].label;
 }
@@ -706,10 +727,78 @@ function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
 
   return {
     kind: "status",
-    label: primaryStatusActionLabel(nextStatus),
-    title: `Avanzar a ${statusConfig[nextStatus].label}`,
+    label: primaryStatusActionLabel(nextStatus, order.fulfillmentType),
+    title: `Avanzar a ${statusLabelForFulfillment(
+      nextStatus,
+      order.fulfillmentType
+    )}`,
     toStatus: nextStatus,
   };
+}
+
+function OrderWorkflowSequence({
+  fulfillmentType,
+}: {
+  fulfillmentType: FulfillmentType;
+}) {
+  const statuses =
+    fulfillmentType === "PICKUP"
+      ? pickupWorkflowStatuses
+      : deliveryWorkflowStatuses;
+
+  return (
+    <ol className="order-workflow-sequence">
+      {statuses.map((status) => (
+        <li key={status}>
+          {statusLabelForFulfillment(status, fulfillmentType)}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function OrderWorkflowGuide() {
+  return (
+    <section
+      aria-labelledby="order-workflow-guide-title"
+      className="order-workflow-guide"
+    >
+      <div className="order-workflow-guide-heading">
+        <strong id="order-workflow-guide-title">
+          Cómo avanza cada modalidad
+        </strong>
+        <span>La acción disponible cambia según quién entrega el pedido.</span>
+      </div>
+      <div className="order-workflow-guide-list">
+        <article className="order-workflow-card delivery">
+          <div className="order-workflow-card-heading">
+            <span aria-hidden="true" className="order-workflow-card-icon">
+              <Truck size={18} />
+            </span>
+            <div>
+              <strong>Delivery a domicilio</strong>
+              <span>El repartidor retira y lleva el pedido.</span>
+            </div>
+          </div>
+          <OrderWorkflowSequence fulfillmentType="DELIVERY" />
+        </article>
+        <article className="order-workflow-card pickup">
+          <div className="order-workflow-card-heading">
+            <span aria-hidden="true" className="order-workflow-card-icon">
+              <Store size={18} />
+            </span>
+            <div>
+              <strong>Retiro en local</strong>
+              <span>
+                El cliente retira; no usa repartidor ni pasa por En camino.
+              </span>
+            </div>
+          </div>
+          <OrderWorkflowSequence fulfillmentType="PICKUP" />
+        </article>
+      </div>
+    </section>
+  );
 }
 
 function OrderStatusStepper({ order }: { order: CommerceOrder }) {
@@ -741,11 +830,11 @@ function OrderStatusStepper({ order }: { order: CommerceOrder }) {
           <li
             className={`order-status-step ${stepState}`}
             key={status}
-            title={statusConfig[status].label}
+            title={statusLabelForFulfillment(status, order.fulfillmentType)}
           >
             <span className="order-status-step-dot" />
             <span className="order-status-step-label">
-              {statusConfig[status].label}
+              {statusLabelForFulfillment(status, order.fulfillmentType)}
             </span>
           </li>
         );
@@ -1918,7 +2007,10 @@ export function OrdersManager() {
       updateOrderInTable(updatedOrder);
       markOrderAsRecentlyUpdated(String(updatedOrder.id));
       setSuccess(
-        `${orderCode(updatedOrder)} avanzó a ${statusConfig[toStatus].label}.`
+        `${orderCode(updatedOrder)} avanzó a ${statusLabelForFulfillment(
+          toStatus,
+          updatedOrder.fulfillmentType ?? order.fulfillmentType
+        )}.`
       );
     } catch (err) {
       setError(
@@ -2086,6 +2178,8 @@ export function OrdersManager() {
           </div>
         ) : null}
 
+        <OrderWorkflowGuide />
+
         <form
           className="catalog-filters orders-filters"
           onSubmit={handleFilterSubmit}
@@ -2182,6 +2276,10 @@ export function OrdersManager() {
                     recentlyUpdatedOrderId === String(order.id);
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
+                  const statusLabel = statusLabelForFulfillment(
+                    status,
+                    order.fulfillmentType
+                  );
                   const items = order.items ?? [];
                   const containsService = orderContainsService(
                     items,
@@ -2243,18 +2341,31 @@ export function OrdersManager() {
                         )}
                       </td>
                       <td>
-                        <span className="pill">
-                          {orderFulfillmentLabel(
-                            order.fulfillmentType,
-                            containsService
-                          )}
-                        </span>
+                        <div className="order-fulfillment-cell">
+                          <span
+                            className={`pill order-fulfillment-pill ${
+                              order.fulfillmentType === "PICKUP"
+                                ? "pickup"
+                                : "delivery"
+                            }`}
+                          >
+                            {orderFulfillmentLabel(
+                              order.fulfillmentType,
+                              containsService
+                            )}
+                          </span>
+                          <span className="table-muted">
+                            {order.fulfillmentType === "PICKUP"
+                              ? "Cliente retira en el local"
+                              : "Entrega con repartidor"}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         <div className="order-status-cell">
                           <div className="order-status-head">
                             <span className={`pill ${config.pillClass}`}>
-                              {config.label}
+                              {statusLabel}
                             </span>
                             {isUpdatingStatus ? (
                               <span

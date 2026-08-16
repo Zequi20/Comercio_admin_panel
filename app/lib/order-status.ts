@@ -85,11 +85,11 @@ export function nextOrderStatuses(order: OrderWorkflowShape): OrderStatus[] {
 
   if (status === "CONFIRMED") {
     if (order.fulfillmentType === "PICKUP") {
-      return ["PICKED_UP", "CANCELED"];
+      return ["DELIVERED", "CANCELED"];
     }
 
     if (hasAssignedCourier(order)) {
-      return ["ASSIGNED", "PICKED_UP", "CANCELED"];
+      return ["ASSIGNED", "CANCELED"];
     }
 
     return ["CANCELED"];
@@ -100,7 +100,7 @@ export function nextOrderStatuses(order: OrderWorkflowShape): OrderStatus[] {
   }
 
   if (status === "PICKED_UP") {
-    return ["DELIVERED", "CANCELED"];
+    return order.fulfillmentType === "PICKUP" ? [] : ["DELIVERED"];
   }
 
   return [];
