@@ -3090,7 +3090,12 @@ a {
 }
 
 .user-merchant-options-panel {
-  z-index: 5;
+  position: fixed;
+  z-index: 90;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  overflow: hidden;
 }
 
 .user-merchant-spinner {

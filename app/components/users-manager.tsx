@@ -23,8 +23,11 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
+  type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -176,27 +179,35 @@ function merchantLabel(merchant: MerchantDetails) {
 
 function MerchantCombobox({
   disabled,
+  inputId,
   isLoading,
   merchants,
   onChange,
   value,
 }: {
   disabled: boolean;
+  inputId: string;
   isLoading: boolean;
   merchants: MerchantDetails[];
   onChange: (merchantId: string) => void;
   value: string;
 }) {
+  const comboboxRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
   const selectedMerchant =
     merchants.find((merchant) => String(merchant.id) === value) ?? null;
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [optionsStyle, setOptionsStyle] = useState<CSSProperties>({});
   const [query, setQuery] = useState(
     selectedMerchant ? merchantLabel(selectedMerchant) : ""
   );
   const normalizedQuery = query.trim().toLocaleLowerCase("es");
+  const selectedLabel = selectedMerchant ? merchantLabel(selectedMerchant) : "";
+  const isShowingSelectedValue =
+    Boolean(value) && normalizedQuery === selectedLabel.toLocaleLowerCase("es");
   const visibleMerchants = useMemo(() => {
-    const matches = normalizedQuery
+    const matches = normalizedQuery && !isShowingSelectedValue
       ? merchants.filter((merchant) =>
           [merchant.id, merchant.name, merchant.contactEmail, merchant.email]
             .filter(Boolean)
@@ -206,16 +217,180 @@ function MerchantCombobox({
         )
       : merchants;
     return matches.slice(0, 30);
-  }, [merchants, normalizedQuery]);
+  }, [isShowingSelectedValue, merchants, normalizedQuery]);
+
+  const updateOptionsPosition = useCallback(() => {
+    const combobox = comboboxRef.current;
+    if (!combobox) return;
+
+    const rect = combobox.getBoundingClientRect();
+    const viewportPadding = 12;
+    const panelGap = 6;
+    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const availableAbove = rect.top - viewportPadding;
+    const opensAbove = availableBelow < 220 && availableAbove > availableBelow;
+    const availableHeight = opensAbove ? availableAbove : availableBelow;
+    const maxHeight = Math.min(300, Math.max(120, availableHeight - panelGap));
+    const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(viewportPadding, rect.left),
+      window.innerWidth - viewportPadding - width
+    );
+
+    setOptionsStyle({
+      bottom: opensAbove
+        ? window.innerHeight - rect.top + panelGap
+        : undefined,
+      left,
+      maxHeight,
+      right: "auto",
+      top: opensAbove ? undefined : rect.bottom + panelGap,
+      width,
+    });
+  }, [setOptionsStyle]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateOptionsPosition();
+    window.addEventListener("resize", updateOptionsPosition);
+    window.addEventListener("scroll", updateOptionsPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateOptionsPosition);
+      window.removeEventListener("scroll", updateOptionsPosition, true);
+    };
+  }, [isOpen, updateOptionsPosition]);
+
+  function openOptions() {
+    if (disabled || isLoading) return;
+    updateOptionsPosition();
+    setActiveIndex(
+      Math.max(
+        0,
+        visibleMerchants.findIndex(
+          (merchant) => String(merchant.id) === value
+        )
+      )
+    );
+    setIsOpen(true);
+  }
 
   function closeOptions() {
     setIsOpen(false);
     setQuery(selectedMerchant ? merchantLabel(selectedMerchant) : "");
   }
 
+  function selectMerchant(merchant: MerchantDetails) {
+    onChange(String(merchant.id));
+    setQuery(merchantLabel(merchant));
+    setIsOpen(false);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      if (!isOpen) return;
+      event.preventDefault();
+      closeOptions();
+      return;
+    }
+
+    if (event.key === "Tab") {
+      closeOptions();
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isOpen) {
+        openOptions();
+        return;
+      }
+
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((current) => {
+        if (!visibleMerchants.length) return 0;
+        return (current + direction + visibleMerchants.length) % visibleMerchants.length;
+      });
+      return;
+    }
+
+    if (event.key === "Enter" && isOpen && visibleMerchants[activeIndex]) {
+      event.preventDefault();
+      selectMerchant(visibleMerchants[activeIndex]);
+    }
+  }
+
+  const optionsListMaxHeight =
+    typeof optionsStyle.maxHeight === "number"
+      ? Math.max(100, optionsStyle.maxHeight - 12)
+      : optionsStyle.maxHeight;
+  const optionsPanel = isOpen && !disabled && !isLoading ? (
+    <div
+      className="admin-scope-options-panel user-merchant-options-panel"
+      style={optionsStyle}
+    >
+      {visibleMerchants.length ? (
+        <ul
+          aria-label="Comercios disponibles"
+          className="admin-scope-options"
+          id={listboxId}
+          role="listbox"
+          style={{ maxHeight: optionsListMaxHeight }}
+        >
+          {visibleMerchants.map((merchant, index) => {
+            const isSelected = String(merchant.id) === value;
+            const isActive = index === activeIndex;
+            return (
+              <li
+                aria-selected={isSelected}
+                className={`admin-scope-option${
+                  isSelected ? " is-selected" : ""
+                }${isActive ? " is-active" : ""}`}
+                id={`${listboxId}-option-${index}`}
+                key={merchant.id}
+                onClick={() => selectMerchant(merchant)}
+                onMouseEnter={() => setActiveIndex(index)}
+                onPointerDown={(event) => event.preventDefault()}
+                role="option"
+              >
+                <span className="admin-scope-option-icon" aria-hidden="true">
+                  <Store size={15} />
+                </span>
+                <span className="admin-scope-option-copy">
+                  <strong>{merchantLabel(merchant)}</strong>
+                  <span>
+                    ID {merchant.id}
+                    {merchant.contactEmail ? ` · ${merchant.contactEmail}` : ""}
+                  </span>
+                </span>
+                {isSelected ? (
+                  <Check
+                    aria-hidden="true"
+                    className="admin-scope-option-check"
+                    size={16}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="admin-scope-empty" role="status">
+          <Search aria-hidden="true" size={18} />
+          <span>
+            <strong>Sin coincidencias</strong>
+            Probá con otro nombre, correo o ID.
+          </span>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div
       className="user-merchant-combobox"
+      ref={comboboxRef}
       onBlur={(event) => {
         const nextTarget = event.relatedTarget;
         if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
@@ -231,19 +406,29 @@ function MerchantCombobox({
           <Search aria-hidden="true" size={17} />
         )}
         <input
+          aria-activedescendant={
+            isOpen && visibleMerchants[activeIndex]
+              ? `${listboxId}-option-${activeIndex}`
+              : undefined
+          }
+          aria-autocomplete="list"
           aria-controls={listboxId}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           autoComplete="off"
           className="field-control"
           disabled={disabled || isLoading}
+          id={inputId}
           onChange={(event) => {
             setQuery(event.target.value);
             onChange("");
+            setActiveIndex(0);
+            updateOptionsPosition();
             setIsOpen(true);
           }}
-          onClick={() => setIsOpen(true)}
-          onFocus={() => setIsOpen(true)}
+          onClick={openOptions}
+          onFocus={openOptions}
+          onKeyDown={handleKeyDown}
           placeholder={isLoading ? "Cargando comercios…" : "Buscar comercio"}
           role="combobox"
           type="text"
@@ -251,64 +436,9 @@ function MerchantCombobox({
         />
       </span>
 
-      {isOpen && !disabled && !isLoading ? (
-        <div className="admin-scope-options-panel user-merchant-options-panel">
-          {visibleMerchants.length ? (
-            <ul
-              aria-label="Comercios disponibles"
-              className="admin-scope-options"
-              id={listboxId}
-              role="listbox"
-            >
-              {visibleMerchants.map((merchant) => {
-                const isSelected = String(merchant.id) === value;
-                return (
-                  <li
-                    aria-selected={isSelected}
-                    className={`admin-scope-option${
-                      isSelected ? " is-selected" : ""
-                    }`}
-                    key={merchant.id}
-                    onClick={() => {
-                      onChange(String(merchant.id));
-                      setQuery(merchantLabel(merchant));
-                      setIsOpen(false);
-                    }}
-                    onMouseDown={(event) => event.preventDefault()}
-                    role="option"
-                  >
-                    <span className="admin-scope-option-icon" aria-hidden="true">
-                      <Store size={15} />
-                    </span>
-                    <span className="admin-scope-option-copy">
-                      <strong>{merchantLabel(merchant)}</strong>
-                      <span>
-                        ID {merchant.id}
-                        {merchant.contactEmail ? ` · ${merchant.contactEmail}` : ""}
-                      </span>
-                    </span>
-                    {isSelected ? (
-                      <Check
-                        aria-hidden="true"
-                        className="admin-scope-option-check"
-                        size={16}
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="admin-scope-empty" role="status">
-              <Search aria-hidden="true" size={18} />
-              <span>
-                <strong>Sin coincidencias</strong>
-                Probá con otro nombre, correo o ID.
-              </span>
-            </div>
-          )}
-        </div>
-      ) : null}
+      {optionsPanel && typeof document !== "undefined"
+        ? createPortal(optionsPanel, document.body)
+        : null}
     </div>
   );
 }
@@ -1199,10 +1329,16 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                           ))}
                         </select>
                       </label>
-                      <label className="field-group">
-                        <span className="field-label">Comercio asociado</span>
+                      <div className="field-group">
+                        <label
+                          className="field-label"
+                          htmlFor="create-user-merchant"
+                        >
+                          Comercio asociado
+                        </label>
                         <MerchantCombobox
                           disabled={isSaving}
+                          inputId="create-user-merchant"
                           isLoading={isLoadingMerchants}
                           merchants={merchants}
                           onChange={(merchantId) =>
@@ -1210,7 +1346,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                           }
                           value={createForm.merchantId}
                         />
-                      </label>
+                      </div>
                     </div>
                     <p className="muted users-form-note">
                       El comercio es opcional. Vinculalo cuando la cuenta operará como comercio o repartidor.
