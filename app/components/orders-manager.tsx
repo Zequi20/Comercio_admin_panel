@@ -2290,7 +2290,7 @@ export function OrdersManager() {
                         ) : (
                           <span className="table-muted">
                             {order.fulfillmentType === "PICKUP"
-                              ? "Retiro en local"
+                              ? "Retiro/asistencia al local"
                               : "Sin dirección"}
                           </span>
                         )}
@@ -2311,7 +2311,7 @@ export function OrdersManager() {
                           </span>
                           <span className="table-muted">
                             {order.fulfillmentType === "PICKUP"
-                              ? "Cliente retira en el local"
+                              ? "Cliente retira/asiste al local"
                               : "Entrega con repartidor"}
                           </span>
                         </div>
