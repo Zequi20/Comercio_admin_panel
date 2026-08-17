@@ -686,7 +686,7 @@ function statusLabelForFulfillment(
   fulfillmentType?: FulfillmentType
 ) {
   return status === "DELIVERED" && fulfillmentType === "PICKUP"
-    ? "Retirado"
+    ? "Retirado/Atendido"
     : statusConfig[status].label;
 }
 
@@ -702,7 +702,7 @@ function primaryStatusActionLabel(
   };
 
   if (status === "DELIVERED" && fulfillmentType === "PICKUP") {
-    return "Marcar retirado";
+    return "Marcar retirado/atendido";
   }
 
   return labels[status] ?? statusConfig[status].label;

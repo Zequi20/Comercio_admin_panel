@@ -40,7 +40,7 @@ const navItems: NavigationItem[] = [
   { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
   { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
   {
-    label: "Notificaciones",
+    label: "Difusión",
     href: "/dashboard/notificaciones",
     icon: BellRing,
   },

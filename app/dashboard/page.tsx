@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { DashboardContentShimmer } from "../components/dashboard-shimmer";
+import { DashboardOrdersRealtime } from "../components/dashboard-orders-realtime";
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
@@ -563,9 +564,11 @@ export default async function DashboardPage() {
     scope.mode === "global"
       ? "Todos los comercios"
       : scope.merchant.name ?? `Comercio #${scope.merchantId}`;
+  const scopeKey = `${scope.mode}:${scope.merchantId ?? "all"}`;
 
   return (
     <main className="dashboard-main">
+      <DashboardOrdersRealtime scopeKey={scopeKey} />
       <div className="dashboard-topbar">
         <div>
           <p className="eyebrow">Dashboard</p>
