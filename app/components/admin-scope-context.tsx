@@ -117,7 +117,11 @@ export function useAdminScope() {
   return context;
 }
 
-export function AdminDataScopeNotice() {
+export function AdminDataScopeNotice({
+  globalDescription,
+}: Readonly<{
+  globalDescription?: string;
+}> = {}) {
   const { canManage, isAdmin, scope, scopeLabel } = useAdminScope();
 
   if (!isAdmin) return null;
@@ -137,7 +141,8 @@ export function AdminDataScopeNotice() {
         <span>
           {canManage
             ? "Las consultas y acciones están limitadas a este comercio."
-            : "Vista consolidada de consulta. Seleccioná un comercio para crear o modificar registros."}
+            : globalDescription ??
+              "Vista consolidada de consulta. Seleccioná un comercio para crear o modificar registros."}
         </span>
       </div>
     </div>

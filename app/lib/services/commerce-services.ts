@@ -153,6 +153,7 @@ export type Order = {
   id: number | string;
   version?: number;
   status?: OrderStatus;
+  orderType?: "CATALOG" | "CUSTOM";
   merchantId?: number | string;
   merchant?: EntityReference;
   customer?: EntityReference;

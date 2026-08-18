@@ -6,7 +6,8 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
+import { isCustomDeliveryOrder } from "@/app/lib/orders/order-type";
 import {
   canTransitionOrderStatus,
   statusTransitionBlockedReason,
@@ -21,7 +22,7 @@ type OrderStatusRouteContext = {
 };
 
 export async function PATCH(request: Request, context: OrderStatusRouteContext) {
-  const sessionContext = await getCommerceRequestContextFromCookies();
+  const sessionContext = await getScopedCommerceRequestContextFromCookies();
 
   if (!sessionContext) {
     return unauthorizedCommerceResponse();
@@ -46,6 +47,19 @@ export async function PATCH(request: Request, context: OrderStatusRouteContext) 
       accessToken: sessionContext.accessToken,
       orderId,
     });
+
+    if (
+      sessionContext.scope.mode === "global" &&
+      (!sessionContext.isAdmin || !isCustomDeliveryOrder(orderDetail))
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "En Todos los comercios sólo se puede actualizar el estado de entregas custom.",
+        },
+        { status: 403 }
+      );
+    }
 
     const currentVersion = Number(orderDetail.version);
 

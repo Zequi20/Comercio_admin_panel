@@ -34,6 +34,7 @@ import {
   orderBelongsToMerchant,
   orderMerchantId,
 } from "@/app/lib/orders/order-merchant";
+import { isCustomDeliveryOrder } from "@/app/lib/orders/order-type";
 import { googleMapsUrlForAddress } from "@/app/lib/orders/order-address";
 import {
   orderContainsService,
@@ -87,6 +88,7 @@ type CommerceOrder = {
   id: number | string;
   version?: number;
   status?: OrderStatus;
+  orderType?: "CATALOG" | "CUSTOM";
   merchantId?: number | string;
   merchant?: EntityReference;
   customer?: EntityReference;
@@ -2119,7 +2121,9 @@ export function OrdersManager() {
           </div>
         </div>
 
-        <AdminDataScopeNotice />
+        <AdminDataScopeNotice
+          globalDescription="Podés actualizar el estado de las entregas custom. Seleccioná un comercio para crear o modificar otros registros."
+        />
 
         {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -2243,6 +2247,15 @@ export function OrdersManager() {
                   const canAssign = canAssignDelivery(order);
                   const assignmentReason = assignmentBlockedReason(order);
                   const nextAction = nextPrimaryOrderAction(order);
+                  const canUpdateStatus =
+                    canManage ||
+                    (isAdmin &&
+                      scope.mode === "global" &&
+                      isCustomDeliveryOrder(order));
+                  const canRunNextAction =
+                    nextAction?.kind === "status"
+                      ? canUpdateStatus
+                      : canManage;
                   const rowStateClass = [
                     isUpdatingStatus ? "order-row-updating" : "",
                     isRecentlyUpdated ? "order-row-updated" : "",
@@ -2405,7 +2418,7 @@ export function OrdersManager() {
                                   ? "order-next-action-trigger assign"
                                   : "order-next-action-trigger"
                               }
-                              disabled={isPending || !canManage}
+                              disabled={isPending || !canRunNextAction}
                               onClick={() => {
                                 if (nextAction.kind === "assign") {
                                   openAssignModal(order);
@@ -2418,8 +2431,10 @@ export function OrdersManager() {
                                 );
                               }}
                               title={
-                                !canManage
-                                  ? "Seleccioná un comercio para operar"
+                                !canRunNextAction
+                                  ? nextAction.kind === "status"
+                                    ? "Seleccioná un comercio para operar sobre esta orden"
+                                    : "Seleccioná un comercio para operar"
                                   : nextAction.kind === "assign"
                                     ? assignmentActionTitle(order)
                                     : nextAction.title
