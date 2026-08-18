@@ -31,6 +31,7 @@ type AdminScopeContextValue = {
   scopeKey: string;
   scopeLabel: string;
   canManage: boolean;
+  merchants: MerchantDetails[];
 };
 
 const AdminScopeContext = createContext<AdminScopeContextValue | null>(null);
@@ -79,10 +80,12 @@ function merchantScopeOption(merchant: MerchantDetails): AdminScopeOption {
 export function AdminScopeProvider({
   children,
   isAdmin,
+  merchants,
   scope,
 }: Readonly<{
   children: ReactNode;
   isAdmin: boolean;
+  merchants: MerchantDetails[];
   scope: PortalScope;
 }>) {
   const value = useMemo<AdminScopeContextValue>(() => {
@@ -96,9 +99,10 @@ export function AdminScopeProvider({
       scope,
       scopeKey: `${scope.mode}:${scope.merchantId ?? "all"}`,
       scopeLabel,
-      canManage: !isAdmin || scope.mode === "merchant",
+      canManage: true,
+      merchants,
     };
-  }, [isAdmin, scope]);
+  }, [isAdmin, merchants, scope]);
 
   return (
     <AdminScopeContext.Provider value={value}>
@@ -122,7 +126,7 @@ export function AdminDataScopeNotice({
 }: Readonly<{
   globalDescription?: string;
 }> = {}) {
-  const { canManage, isAdmin, scope, scopeLabel } = useAdminScope();
+  const { isAdmin, scope, scopeLabel } = useAdminScope();
 
   if (!isAdmin) return null;
 
@@ -139,12 +143,54 @@ export function AdminDataScopeNotice({
       <div>
         <strong>{scopeLabel}</strong>
         <span>
-          {canManage
+          {scope.mode === "merchant"
             ? "Las consultas y acciones están limitadas a este comercio."
             : globalDescription ??
-              "Vista consolidada de consulta. Seleccioná un comercio para crear o modificar registros."}
+              "Vista consolidada con permisos de administración. Al crear un registro, elegí el comercio de destino."}
         </span>
       </div>
+    </div>
+  );
+}
+
+export function AdminMerchantTargetField({
+  disabled = false,
+  id,
+  onChange,
+  value,
+}: Readonly<{
+  disabled?: boolean;
+  id: string;
+  onChange: (merchantId: string) => void;
+  value: string;
+}>) {
+  const { isAdmin, merchants, scope } = useAdminScope();
+
+  if (!isAdmin || scope.mode !== "global") return null;
+
+  return (
+    <div className="field-group">
+      <label className="field-label" htmlFor={id}>
+        Comercio
+      </label>
+      <select
+        className="field-control"
+        disabled={disabled}
+        id={id}
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Seleccionar comercio</option>
+        {merchants.map((merchant) => (
+          <option key={merchant.id} value={merchant.id}>
+            {merchantLabel(merchant)} · ID {merchant.id}
+          </option>
+        ))}
+      </select>
+      <span className="field-help">
+        El nuevo registro quedará asociado a este comercio.
+      </span>
     </div>
   );
 }

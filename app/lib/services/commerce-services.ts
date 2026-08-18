@@ -149,6 +149,20 @@ export type OrderItem = {
   unitPrice?: number | string | null;
 };
 
+export type CustomOrderLocation = {
+  label?: string | null;
+  address?: string | null;
+  latitude: number;
+  longitude: number;
+};
+
+export type CustomOrderRequest = {
+  origin: CustomOrderLocation & { label: string };
+  productDescription: string;
+  destination: CustomOrderLocation;
+  contactPhone: string;
+};
+
 export type Order = {
   id: number | string;
   version?: number;
@@ -161,6 +175,9 @@ export type Order = {
   fulfillmentType?: OrderFulfillmentType;
   address?: string | null;
   notes?: string | null;
+  customRequest?: CustomOrderRequest | null;
+  estimatedDeliveryCost?: number | string | null;
+  priceStatus?: "PENDING" | "CONFIRMED";
   total?: number | string;
   currency?: string;
   items?: OrderItem[];
@@ -186,6 +203,11 @@ export type OrderPayload = {
 export type OrderAssignmentPayload = {
   courierId: number;
   expectedVersion: number;
+};
+
+export type CustomOrderPayload = CustomOrderRequest & {
+  notes?: string;
+  currency?: string;
 };
 
 function buildQuery(query: Record<string, string | number | boolean | undefined>) {
@@ -793,6 +815,26 @@ export async function createOrderForMerchant({
   );
 }
 
+export async function createCustomOrder({
+  accessToken,
+  payload,
+  idempotencyKey,
+}: {
+  accessToken: string;
+  payload: CustomOrderPayload;
+  idempotencyKey?: string;
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders/custom`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken, idempotencyKey),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo crear el pedido custom."
+  );
+}
+
 export async function listOrdersForMerchant({
   accessToken,
   cursor,
@@ -940,6 +982,26 @@ export async function updateOrderStatusForMerchant({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el estado del pedido."
+  );
+}
+
+export async function confirmCustomOrderPrice({
+  accessToken,
+  orderId,
+  payload,
+}: {
+  accessToken: string;
+  orderId: number | string;
+  payload: { total: number; expectedVersion: number };
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders/${orderId}/price`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo confirmar el precio final."
   );
 }
 

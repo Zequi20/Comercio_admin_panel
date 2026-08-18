@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Store,
   Truck,
   Trash2,
   X,
@@ -27,6 +26,7 @@ import {
 } from "@/app/components/table-pagination";
 import {
   AdminDataScopeNotice,
+  AdminMerchantTargetField,
   useAdminScope,
 } from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
@@ -105,6 +105,8 @@ type CommerceOrder = {
 
 type CatalogProduct = {
   id: number | string;
+  merchantId?: number | string;
+  merchant?: EntityReference;
   type?: "PRODUCT" | "SERVICE";
   sku?: string;
   name: string;
@@ -455,7 +457,10 @@ function readCouriers(payload: unknown): Courier[] {
 }
 
 function buildOrdersUrl(filters: OrderFilters) {
-  const params = new URLSearchParams({ limit: "100" });
+  const params = new URLSearchParams({
+    limit: "100",
+    orderType: "CATALOG",
+  });
 
   if (filters.status !== "ALL") {
     params.set("status", filters.status);
@@ -738,28 +743,6 @@ function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
   };
 }
 
-function OrderWorkflowSequence({
-  fulfillmentType,
-}: {
-  fulfillmentType: FulfillmentType;
-}) {
-  const statuses =
-    fulfillmentType === "PICKUP"
-      ? pickupWorkflowStatuses
-      : deliveryWorkflowStatuses;
-
-  return (
-    <ol className="order-workflow-sequence">
-      {statuses.map((status) => (
-        <li key={status}>
-          {statusLabelForFulfillment(status, fulfillmentType)}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-
 function OrderStatusStepper({ order }: { order: CommerceOrder }) {
   const currentStatus = order.status ?? "PLACED";
 
@@ -929,6 +912,12 @@ export function OrdersManager() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [form, setForm] = useState<OrderForm>(() => createEmptyForm());
+  const [merchantTarget, setMerchantTarget] = useState({
+    scopeKey,
+    value: "",
+  });
+  const targetMerchantId =
+    merchantTarget.scopeKey === scopeKey ? merchantTarget.value : "";
   const [filters, setFilters] = useState<OrderFilters>(initialFilters);
   const [editingOrder, setEditingOrder] = useState<CommerceOrder | null>(null);
   const [viewingItemsOrder, setViewingItemsOrder] =
@@ -1008,9 +997,21 @@ export function OrdersManager() {
       ) ?? null,
     [activeCouriers, selectedCourierId]
   );
+  const formMerchantId = editingOrder
+    ? orderMerchantId(editingOrder)
+    : scope.mode === "merchant"
+      ? scope.merchantId
+      : targetMerchantId;
   const availableProducts = useMemo(
-    () => products.filter((product) => product.available),
-    [products]
+    () =>
+      products.filter((product) => {
+        if (!product.available) return false;
+        if (!formMerchantId) return false;
+
+        const productMerchantId = product.merchantId ?? product.merchant?.id;
+        return String(productMerchantId ?? "") === String(formMerchantId);
+      }),
+    [formMerchantId, products]
   );
   const productsById = useMemo(
     () =>
@@ -1338,8 +1339,9 @@ export function OrdersManager() {
               .map(({ order }) => order)
               .filter(
                 (order) =>
-                  scope.mode === "global" ||
-                  orderBelongsToMerchant(order, scope.merchantId)
+                  !isCustomDeliveryOrder(order) &&
+                  (scope.mode === "global" ||
+                    orderBelongsToMerchant(order, scope.merchantId))
               );
             const ordersById = new Map(
               orders.map((order) => [String(order.id), order] as const)
@@ -1461,9 +1463,19 @@ export function OrdersManager() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateTargetMerchant(merchantId: string) {
+    setMerchantTarget({ scopeKey, value: merchantId });
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => ({ ...item, productId: "" })),
+    }));
+    setError(null);
+  }
+
   function resetForm() {
     setEditingOrder(null);
     setForm(createEmptyForm());
+    setMerchantTarget({ scopeKey, value: "" });
   }
 
   function openCreateForm() {
@@ -1673,6 +1685,10 @@ export function OrdersManager() {
   }
 
   function validateCreateForm() {
+    if (scope.mode === "global" && !targetMerchantId) {
+      return "Seleccioná el comercio de la nueva orden.";
+    }
+
     if (form.fulfillmentType === "DELIVERY" && !form.address.trim()) {
       return "Ingresá la dirección de entrega.";
     }
@@ -1742,6 +1758,7 @@ export function OrdersManager() {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
+        ...(targetMerchantId ? { merchantId: targetMerchantId } : {}),
         fulfillmentType: form.fulfillmentType,
         address:
           form.fulfillmentType === "DELIVERY"
@@ -2121,9 +2138,7 @@ export function OrdersManager() {
           </div>
         </div>
 
-        <AdminDataScopeNotice
-          globalDescription="Podés actualizar el estado de las entregas custom. Seleccioná un comercio para crear o modificar otros registros."
-        />
+        <AdminDataScopeNotice />
 
         {!hasOpenModal && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -2247,11 +2262,7 @@ export function OrdersManager() {
                   const canAssign = canAssignDelivery(order);
                   const assignmentReason = assignmentBlockedReason(order);
                   const nextAction = nextPrimaryOrderAction(order);
-                  const canUpdateStatus =
-                    canManage ||
-                    (isAdmin &&
-                      scope.mode === "global" &&
-                      isCustomDeliveryOrder(order));
+                  const canUpdateStatus = canManage;
                   const canRunNextAction =
                     nextAction?.kind === "status"
                       ? canUpdateStatus
@@ -2565,6 +2576,15 @@ export function OrdersManager() {
               </div>
             ) : (
               <form className="catalog-form" onSubmit={handleSubmit}>
+              {!editingOrder ? (
+                <AdminMerchantTargetField
+                  disabled={isSubmitting}
+                  id="order-target-merchant"
+                  value={targetMerchantId}
+                  onChange={updateTargetMerchant}
+                />
+              ) : null}
+
               {editingOrder ? (
                 <>
                   <div className="field-group">

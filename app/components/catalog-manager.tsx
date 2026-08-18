@@ -27,6 +27,7 @@ import {
 } from "@/app/components/table-pagination";
 import {
   AdminDataScopeNotice,
+  AdminMerchantTargetField,
   useAdminScope,
 } from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
@@ -613,9 +614,15 @@ function metadataFieldsToObject(fields: MetadataField[]):
 }
 
 export function CatalogManager() {
-  const { canManage, isAdmin, scopeKey, scopeLabel } = useAdminScope();
+  const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [form, setForm] = useState<CatalogForm>(emptyForm);
+  const [merchantTarget, setMerchantTarget] = useState({
+    scopeKey,
+    value: "",
+  });
+  const targetMerchantId =
+    merchantTarget.scopeKey === scopeKey ? merchantTarget.value : "";
   const [filters, setFilters] = useState<CatalogFilters>(initialFilters);
   const [editingProduct, setEditingProduct] = useState<CatalogProduct | null>(
     null
@@ -788,6 +795,7 @@ export function CatalogManager() {
   function resetForm() {
     setEditingProduct(null);
     setForm(emptyForm);
+    setMerchantTarget({ scopeKey, value: "" });
     setFailedImageUrl(null);
     setIsAdvancedOpen(false);
   }
@@ -930,6 +938,10 @@ export function CatalogManager() {
       return "Ingresá el nombre del producto o servicio.";
     }
 
+    if (!editingProduct && scope.mode === "global" && !targetMerchantId) {
+      return "Seleccioná el comercio del nuevo producto.";
+    }
+
     if (!Number.isFinite(price) || price < 0) {
       return "Ingresá un precio válido.";
     }
@@ -973,6 +985,9 @@ export function CatalogManager() {
     }
 
     const payload = {
+      ...(!editingProduct && targetMerchantId
+        ? { merchantId: targetMerchantId }
+        : {}),
       type: form.type,
       sku: form.sku.trim() || undefined,
       name: form.name.trim(),
@@ -1221,12 +1236,14 @@ export function CatalogManager() {
             </button>
             <button
               className="button-secondary"
-              disabled={!canManage}
+              disabled={!canManage || scope.mode === "global"}
               onClick={openImportModal}
               title={
-                canManage
-                  ? "Importar catálogo"
-                  : "Seleccioná un comercio para importar productos"
+                scope.mode === "global"
+                  ? "La importación masiva requiere seleccionar un comercio en el alcance superior"
+                  : canManage
+                    ? "Importar catálogo"
+                    : "No tenés permiso para importar productos"
               }
               type="button"
             >
@@ -1540,6 +1557,15 @@ export function CatalogManager() {
             </div>
 
             <form className="catalog-form" onSubmit={handleSubmit}>
+              {!editingProduct ? (
+                <AdminMerchantTargetField
+                  disabled={isSubmitting}
+                  id="catalog-target-merchant"
+                  value={targetMerchantId}
+                  onChange={(value) => setMerchantTarget({ scopeKey, value })}
+                />
+              ) : null}
+
               <div className="form-grid">
                 <div className="field-group">
                   <label className="field-label" htmlFor="catalog-type">

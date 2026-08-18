@@ -25,6 +25,7 @@ import {
   orderFulfillmentLabel,
   serviceProductIdSet,
 } from "../lib/orders/order-fulfillment";
+import { isCustomDeliveryOrder } from "../lib/orders/order-type";
 import {
   listCouriersForAdminScope,
   listCouriersForMerchant,
@@ -217,7 +218,9 @@ async function loadDashboardData(
   ]);
 
   return {
-    orders: orders?.data ?? [],
+    orders: (orders?.data ?? []).filter(
+      (order) => !isCustomDeliveryOrder(order)
+    ),
     products: products?.data ?? [],
     couriers: couriers?.data ?? [],
   };

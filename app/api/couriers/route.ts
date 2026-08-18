@@ -7,6 +7,7 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
+import { merchantIdFromMutation } from "@/app/lib/auth/mutation-merchant";
 import {
   createCourierForMerchant,
   createCourierUser,
@@ -50,13 +51,19 @@ export async function POST(request: Request) {
     return unauthorizedCommerceResponse();
   }
 
-  if (context.scope.mode !== "merchant") {
-    return badRequestResponse(
-      "Seleccioná un comercio antes de crear un repartidor."
-    );
+  const body = await request.json().catch(() => null);
+  const merchantId = merchantIdFromMutation(
+    context,
+    body && typeof body === "object" && "merchantId" in body
+      ? body.merchantId
+      : null
+  );
+
+  if (!merchantId) {
+    return badRequestResponse("Seleccioná el comercio del nuevo repartidor.");
   }
 
-  const payload = courierPayloadFromClient(await request.json().catch(() => null));
+  const payload = courierPayloadFromClient(body);
 
   if (!payload?.name) {
     return badRequestResponse("Ingresá el nombre del repartidor.");
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
         email: payload.email,
         password: payload.password,
         nickname: payload.nickname ?? payload.name,
-        merchantId: context.scope.merchantId,
+        merchantId,
         ...(payload.phone ? { phone: payload.phone } : {}),
       },
     });

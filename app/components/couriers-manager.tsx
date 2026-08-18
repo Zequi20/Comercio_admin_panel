@@ -23,6 +23,7 @@ import {
 } from "@/app/components/table-pagination";
 import {
   AdminDataScopeNotice,
+  AdminMerchantTargetField,
   useAdminScope,
 } from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
@@ -270,9 +271,15 @@ function deactivateCourierModalLayers() {
 }
 
 export function CouriersManager() {
-  const { canManage, isAdmin, scopeKey, scopeLabel } = useAdminScope();
+  const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [form, setForm] = useState<CourierForm>(emptyForm);
+  const [merchantTarget, setMerchantTarget] = useState({
+    scopeKey,
+    value: "",
+  });
+  const targetMerchantId =
+    merchantTarget.scopeKey === scopeKey ? merchantTarget.value : "";
   const [filters, setFilters] = useState<CourierFilters>(initialFilters);
   const [editingCourier, setEditingCourier] = useState<Courier | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -444,6 +451,7 @@ export function CouriersManager() {
   function resetForm() {
     setEditingCourier(null);
     setForm(emptyForm);
+    setMerchantTarget({ scopeKey, value: "" });
   }
 
   function hideFormModal() {
@@ -483,6 +491,10 @@ export function CouriersManager() {
     }
 
     if (!editingCourier) {
+      if (scope.mode === "global" && !targetMerchantId) {
+        return "Seleccioná el comercio del nuevo repartidor.";
+      }
+
       if (!form.email.trim()) {
         return "Ingresá el email del usuario repartidor.";
       }
@@ -510,6 +522,7 @@ export function CouriersManager() {
     const payload = {
       ...(!editingCourier
         ? {
+            ...(targetMerchantId ? { merchantId: targetMerchantId } : {}),
             email: form.email.trim(),
             password: form.password,
             nickname: form.name.trim(),
@@ -889,6 +902,15 @@ export function CouriersManager() {
             </div>
 
             <form className="catalog-form" onSubmit={handleSubmit}>
+              {!editingCourier ? (
+                <AdminMerchantTargetField
+                  disabled={isSubmitting}
+                  id="courier-target-merchant"
+                  value={targetMerchantId}
+                  onChange={(value) => setMerchantTarget({ scopeKey, value })}
+                />
+              ) : null}
+
               {!editingCourier ? (
                 <div className="form-grid">
                   <div className="field-group">

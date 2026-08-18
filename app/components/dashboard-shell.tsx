@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Menu,
   Package,
+  PackageSearch,
   ReceiptText,
   ShoppingBag,
   Store,
@@ -38,6 +39,12 @@ const navItems: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Catálogo", href: "/dashboard/catalogo", icon: Package },
   { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
+  {
+    label: "Pedidos custom",
+    href: "/dashboard/pedidos-custom",
+    icon: PackageSearch,
+    adminOnly: true,
+  },
   { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
   {
     label: "Difusión",
@@ -133,7 +140,9 @@ export function DashboardShell({
   const router = useRouter();
   const pathname = usePathname();
   const isGlobalAdministrationRoute =
-    pathname === "/dashboard/usuarios" || pathname === "/dashboard/comercios";
+    pathname === "/dashboard/usuarios" ||
+    pathname === "/dashboard/comercios" ||
+    pathname === "/dashboard/pedidos-custom";
 
   function closeMobileMenu() {
     if (!confirmDialogClose()) return;
@@ -234,7 +243,7 @@ export function DashboardShell({
       : "global";
 
   return (
-    <AdminScopeProvider isAdmin={isAdmin} scope={scope}>
+    <AdminScopeProvider isAdmin={isAdmin} merchants={merchants} scope={scope}>
       <div className="dashboard-shell">
         <aside className="sidebar" aria-label="Navegación principal">
           <BrandLockup />

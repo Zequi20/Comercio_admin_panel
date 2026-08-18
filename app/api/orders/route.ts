@@ -8,6 +8,8 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
+import { merchantIdFromMutation } from "@/app/lib/auth/mutation-merchant";
+import { isCustomDeliveryOrder } from "@/app/lib/orders/order-type";
 import { validateOrderItemsFulfillment } from "@/app/lib/orders/validate-order-fulfillment";
 import {
   createOrderForMerchant,
@@ -26,10 +28,14 @@ export async function GET(request: Request) {
 
   try {
     const status = searchParams.get("status") ?? undefined;
+    const orderType = searchParams.get("orderType");
     const orders = context.isAdmin
       ? await listOrdersForAdminScope({
           accessToken: context.accessToken,
-          merchantId: context.scope.merchantId ?? undefined,
+          merchantId:
+            orderType === "CUSTOM"
+              ? undefined
+              : context.scope.merchantId ?? undefined,
           status,
         })
       : await listOrdersForMerchant({
@@ -37,6 +43,17 @@ export async function GET(request: Request) {
           status,
           limit: Number(searchParams.get("limit") ?? 30),
         });
+
+    if (orderType === "CUSTOM" || orderType === "CATALOG") {
+      return NextResponse.json({
+        ...orders,
+        data: (orders.data ?? []).filter((order) =>
+          orderType === "CUSTOM"
+            ? isCustomDeliveryOrder(order)
+            : !isCustomDeliveryOrder(order)
+        ),
+      });
+    }
 
     return NextResponse.json(orders);
   } catch (error) {
@@ -51,16 +68,19 @@ export async function POST(request: Request) {
     return unauthorizedCommerceResponse();
   }
 
-  if (context.scope.mode !== "merchant") {
-    return badRequestResponse(
-      "Seleccioná un comercio antes de crear una orden."
-    );
+  const body = await request.json().catch(() => null);
+  const merchantId = merchantIdFromMutation(
+    context,
+    body && typeof body === "object" && "merchantId" in body
+      ? body.merchantId
+      : null
+  );
+
+  if (!merchantId) {
+    return badRequestResponse("Seleccioná el comercio de la nueva orden.");
   }
 
-  const payload = orderPayloadFromClient(
-    await request.json().catch(() => null),
-    context.scope.merchantId
-  );
+  const payload = orderPayloadFromClient(body, merchantId);
 
   if (!payload?.items.length) {
     return badRequestResponse("Agregá al menos un ítem al pedido.");

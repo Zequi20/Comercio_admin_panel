@@ -8,6 +8,7 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
+import { merchantIdFromMutation } from "@/app/lib/auth/mutation-merchant";
 import {
   createProductForMerchant,
   listProductsForAdminScope,
@@ -52,13 +53,19 @@ export async function POST(request: Request) {
     return unauthorizedCommerceResponse();
   }
 
-  if (context.scope.mode !== "merchant") {
-    return badRequestResponse(
-      "Seleccioná un comercio antes de agregar un producto."
-    );
+  const body = await request.json().catch(() => null);
+  const merchantId = merchantIdFromMutation(
+    context,
+    body && typeof body === "object" && "merchantId" in body
+      ? body.merchantId
+      : null
+  );
+
+  if (!merchantId) {
+    return badRequestResponse("Seleccioná el comercio del nuevo producto.");
   }
 
-  const payload = productPayloadFromClient(await request.json().catch(() => null));
+  const payload = productPayloadFromClient(body);
 
   if (!payload?.name) {
     return badRequestResponse("Ingresá el nombre del producto o servicio.");
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
   try {
     const product = await createProductForMerchant({
       accessToken: context.accessToken,
-      merchantId: context.scope.merchantId,
+      merchantId,
       payload,
       idempotencyKey: request.headers.get("Idempotency-Key") ?? randomUUID(),
     });

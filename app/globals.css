@@ -389,6 +389,12 @@ a {
   font-weight: 700;
 }
 
+.field-help {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .input-wrap {
   position: relative;
   display: grid;
@@ -2011,6 +2017,22 @@ a {
   min-width: 1680px;
 }
 
+.custom-orders-data-table {
+  min-width: 2380px;
+}
+
+.custom-orders-data-table th:nth-child(3),
+.custom-orders-data-table td:nth-child(3),
+.custom-orders-data-table th:nth-child(5),
+.custom-orders-data-table td:nth-child(5) {
+  min-width: 230px;
+}
+
+.custom-orders-data-table th:nth-child(4),
+.custom-orders-data-table td:nth-child(4) {
+  min-width: 270px;
+}
+
 .order-workflow-guide {
   display: grid;
   grid-template-columns: minmax(180px, 0.65fr) minmax(0, 2fr);
@@ -2298,6 +2320,31 @@ a {
   border-radius: 3px;
   outline: 2px solid color-mix(in srgb, var(--tertiary) 58%, transparent);
   outline-offset: 2px;
+}
+
+.custom-location-cell {
+  display: grid;
+  max-width: 260px;
+  gap: 3px;
+}
+
+.custom-order-history {
+  display: grid;
+  min-width: 190px;
+  max-height: 116px;
+  gap: 6px;
+  overflow: auto;
+}
+
+.custom-order-history > span {
+  display: block;
+}
+
+.custom-location-cell > strong,
+.custom-location-cell > .table-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-actions .icon-button {
@@ -3376,6 +3423,10 @@ a {
   overflow: auto;
   box-shadow: var(--shadow-floating);
   animation: modal-in 150ms ease-out;
+}
+
+.catalog-modal.custom-order-modal {
+  width: min(100%, 760px);
 }
 
 .modal-loading-state {
