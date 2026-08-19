@@ -16,7 +16,7 @@ export default async function UsuariosPage() {
           <p className="eyebrow">Administración global</p>
           <h1 className="dashboard-title">Usuarios y roles</h1>
           <p className="muted">
-            Gestioná cuentas, afiliaciones, estados y accesos RBAC del sistema.
+            Gestioná cuentas, afiliaciones, estados y accesos RBAC (Role-Based Access Control) del sistema.
           </p>
         </div>
         <span className="pill assigned">Sólo ADMIN</span>

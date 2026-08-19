@@ -740,7 +740,7 @@ export function NotificationsManager() {
               </div>
               <span className="notification-fcm-badge">
                 <BellRing aria-hidden="true" size={14} />
-                FCM
+                Notificaciones
               </span>
             </div>
 
