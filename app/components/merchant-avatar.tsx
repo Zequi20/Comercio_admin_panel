@@ -3,6 +3,11 @@
 import { Store } from "lucide-react";
 import { useState } from "react";
 
+import {
+  isSupportedImageUrl,
+  parseImageUrl,
+} from "@/app/lib/image-url";
+
 function metadataImageUrl(metadata?: Record<string, unknown> | null) {
   const value = metadata?.imageUrl;
 
@@ -10,22 +15,13 @@ function metadataImageUrl(metadata?: Record<string, unknown> | null) {
     return null;
   }
 
-  const trimmed = value.trim();
+  const parsed = parseImageUrl(value);
 
-  if (!trimmed) {
+  if (!parsed) {
     return null;
   }
 
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("/") ||
-    trimmed.startsWith("data:image/")
-  ) {
-    return trimmed;
-  }
-
-  return null;
+  return isSupportedImageUrl(parsed) ? parsed : null;
 }
 
 export function MerchantAvatar({

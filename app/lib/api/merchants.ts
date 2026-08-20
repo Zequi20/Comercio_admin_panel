@@ -1,4 +1,5 @@
 import type { MerchantDetails } from "../auth/types";
+import { parseMetadataImageUrl } from "../image-url";
 
 export type MerchantPayload = Partial<
   Pick<MerchantDetails, "isOpen" | "metadata">
@@ -22,7 +23,7 @@ function readMetadata(value: unknown): Record<string, unknown> | null {
     return null;
   }
 
-  return value as Record<string, unknown>;
+  return parseMetadataImageUrl(value as Record<string, unknown>);
 }
 
 export function merchantPayloadFromClient(value: unknown): MerchantPayload | null {

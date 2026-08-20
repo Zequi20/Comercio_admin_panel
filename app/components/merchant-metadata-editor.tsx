@@ -11,6 +11,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 
+import {
+  isSupportedImageUrl,
+  parseImageUrl,
+} from "@/app/lib/image-url";
+
 type MerchantMetadataEditorProps = {
   initialMetadata?: Record<string, unknown> | null;
   merchantId: number | string;
@@ -41,27 +46,12 @@ function metadataText(
   return typeof value === "string" ? value : "";
 }
 
-function isImageUrl(value: string) {
-  if (!value) return true;
-
-  if (value.startsWith("/") || value.startsWith("data:image/")) {
-    return true;
-  }
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function buildMetadata(
   baseMetadata: Record<string, unknown>,
   form: { imageUrl: string; category: string }
 ) {
   const metadata = { ...baseMetadata };
-  const imageUrl = form.imageUrl.trim();
+  const imageUrl = parseImageUrl(form.imageUrl);
   const category = form.category.trim();
 
   if (imageUrl) {
@@ -96,10 +86,10 @@ export function MerchantMetadataEditor({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const previewImageUrl = form.imageUrl.trim();
+  const previewImageUrl = parseImageUrl(form.imageUrl);
   const hasPreviewImage =
     previewImageUrl &&
-    isImageUrl(previewImageUrl) &&
+    isSupportedImageUrl(previewImageUrl) &&
     failedImageUrl !== previewImageUrl;
   const hasChanges = useMemo(() => {
     return (
@@ -123,7 +113,7 @@ export function MerchantMetadataEditor({
     setError(null);
     setSuccess(null);
 
-    if (!isImageUrl(form.imageUrl.trim())) {
+    if (!isSupportedImageUrl(form.imageUrl)) {
       setError("Ingresá una URL de imagen válida.");
       return;
     }

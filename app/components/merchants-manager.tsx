@@ -36,6 +36,10 @@ import {
 import { MerchantAvatar } from "@/app/components/merchant-avatar";
 import type { MerchantDetails } from "@/app/lib/auth/types";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import {
+  isSupportedImageUrl,
+  parseImageUrl,
+} from "@/app/lib/image-url";
 
 type MerchantForm = {
   name: string;
@@ -112,18 +116,6 @@ function formatTechnicalMetadata(metadata?: Record<string, unknown> | null) {
   return JSON.stringify(technical, null, 2);
 }
 
-function isImageUrl(value: string) {
-  if (!value) return true;
-  if (value.startsWith("/") || value.startsWith("data:image/")) return true;
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function merchantToForm(merchant: MerchantDetails): MerchantForm {
   return {
     name: merchant.name ?? "",
@@ -150,8 +142,8 @@ function buildPayload(form: MerchantForm) {
   if (!Number.isFinite(deliveryCost) || deliveryCost < 0) {
     throw new Error("Ingresá un costo de envío válido.");
   }
-  const imageUrl = form.imageUrl.trim();
-  if (!isImageUrl(imageUrl)) {
+  const imageUrl = parseImageUrl(form.imageUrl);
+  if (!isSupportedImageUrl(imageUrl)) {
     throw new Error("Ingresá una URL de imagen válida.");
   }
 
@@ -292,10 +284,10 @@ export function MerchantsManager() {
       ).length,
     [merchants]
   );
-  const previewImageUrl = form.imageUrl.trim();
+  const previewImageUrl = parseImageUrl(form.imageUrl);
   const hasPreviewImage = Boolean(
     previewImageUrl &&
-      isImageUrl(previewImageUrl) &&
+      isSupportedImageUrl(previewImageUrl) &&
       failedImageUrl !== previewImageUrl
   );
 

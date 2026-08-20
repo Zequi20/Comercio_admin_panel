@@ -3,6 +3,7 @@ import type {
   ProductPayload,
   ProductType,
 } from "../services/commerce-services";
+import { parseMetadataImageUrl } from "../image-url";
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -61,6 +62,6 @@ export function productPayloadFromClient(value: unknown): ProductPayload | null 
       ? { available: record.available }
       : {}),
     ...(availabilityStatus ? { availabilityStatus } : {}),
-    ...(metadata ? { metadata } : {}),
+    ...(metadata ? { metadata: parseMetadataImageUrl(metadata) } : {}),
   };
 }

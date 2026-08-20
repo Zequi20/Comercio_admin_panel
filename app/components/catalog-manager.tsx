@@ -31,6 +31,10 @@ import {
   useAdminScope,
 } from "@/app/components/admin-scope-context";
 import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import {
+  isSupportedImageUrl,
+  parseImageUrl,
+} from "@/app/lib/image-url";
 
 type ProductType = "PRODUCT" | "SERVICE";
 type ProductAvailabilityStatus =
@@ -415,28 +419,15 @@ function metadataEntries(metadata?: Record<string, unknown> | null) {
 }
 
 function metadataImageUrl(metadata?: Record<string, unknown> | null) {
-  const trimmed = metadataText(metadata, productImageMetadataKey).trim();
+  const parsed = parseImageUrl(
+    metadataText(metadata, productImageMetadataKey)
+  );
 
-  if (!trimmed) {
+  if (!parsed) {
     return null;
   }
 
-  return isImageUrl(trimmed) ? trimmed : null;
-}
-
-function isImageUrl(value: string) {
-  if (!value) return true;
-
-  if (value.startsWith("/") || value.startsWith("data:image/")) {
-    return true;
-  }
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
+  return isSupportedImageUrl(parsed) ? parsed : null;
 }
 
 function metadataCountLabel(count: number) {
@@ -650,8 +641,8 @@ export function CatalogManager() {
     });
   const hasOpenModal =
     isFormOpen || isImportModalOpen || viewingMetadataProduct !== null;
-  const previewImageUrl = form.imageUrl.trim();
-  const isPreviewImageUrlValid = isImageUrl(previewImageUrl);
+  const previewImageUrl = parseImageUrl(form.imageUrl);
+  const isPreviewImageUrlValid = isSupportedImageUrl(previewImageUrl);
   const hasPreviewImage =
     Boolean(previewImageUrl) &&
     isPreviewImageUrlValid &&
@@ -946,7 +937,7 @@ export function CatalogManager() {
       return "Ingresá un precio válido.";
     }
 
-    if (!isImageUrl(form.imageUrl.trim())) {
+    if (!isSupportedImageUrl(form.imageUrl)) {
       return "Ingresá una URL de imagen válida.";
     }
 
@@ -978,7 +969,7 @@ export function CatalogManager() {
     const metadata = metadataResult.ok
       ? { ...(metadataResult.metadata ?? {}) }
       : {};
-    const imageUrl = form.imageUrl.trim();
+    const imageUrl = parseImageUrl(form.imageUrl);
 
     if (imageUrl) {
       metadata[productImageMetadataKey] = imageUrl;

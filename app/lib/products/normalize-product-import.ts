@@ -2,6 +2,11 @@ import "server-only";
 
 import ExcelJS from "exceljs";
 
+import {
+  isSupportedImageUrl,
+  parseImageUrl,
+} from "../image-url";
+
 const TECHNICAL_HEADERS = ["imageurl", "category", "servicemode"] as const;
 const SERVICE_MODES = new Set(["DELIVERY", "PICKUP", "DELIVERY_PICKUP"]);
 
@@ -52,19 +57,6 @@ function metadataFromCell(cell: ExcelJS.Cell, rowNumber: number) {
   );
 }
 
-function isSupportedImageUrl(value: string) {
-  if (value.startsWith("/") || value.startsWith("data:image/")) {
-    return true;
-  }
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function valueForHeader(
   row: ExcelJS.Row,
   columns: Map<string, number>,
@@ -97,8 +89,9 @@ export async function normalizeProductImportFile(file: File) {
   const hasTechnicalColumns = TECHNICAL_HEADERS.some((header) =>
     columns.has(header)
   );
+  const hasMetadataColumn = columns.has("metadata");
 
-  if (!hasTechnicalColumns) {
+  if (!hasTechnicalColumns && !hasMetadataColumn) {
     return file;
   }
 
@@ -118,8 +111,10 @@ export async function normalizeProductImportFile(file: File) {
     const imageUrl = valueForHeader(row, columns, "imageurl");
     const category = valueForHeader(row, columns, "category");
     const serviceModeValue = valueForHeader(row, columns, "servicemode");
+    const metadataCell = row.getCell(metadataColumn);
+    const hasTechnicalValues = Boolean(imageUrl || category || serviceModeValue);
 
-    if (!imageUrl && !category && !serviceModeValue) {
+    if (!hasTechnicalValues && !cellText(metadataCell)) {
       return;
     }
 
@@ -137,11 +132,12 @@ export async function normalizeProductImportFile(file: File) {
       );
     }
 
-    const metadataCell = row.getCell(metadataColumn);
     const metadata = metadataFromCell(metadataCell, rowNumber);
 
     if (imageUrl) {
-      metadata.imageUrl = imageUrl;
+      metadata.imageUrl = parseImageUrl(imageUrl);
+    } else if (typeof metadata.imageUrl === "string") {
+      metadata.imageUrl = parseImageUrl(metadata.imageUrl);
     }
 
     if (category) {

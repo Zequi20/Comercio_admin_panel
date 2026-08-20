@@ -41,7 +41,7 @@ const fieldGuideRows = [
   [
     "imageUrl",
     "No",
-    "URL pública y directa de la imagen. No pegues la imagen dentro del Excel.",
+    "URL pública de la imagen. También podés usar un enlace para compartir de Google Drive.",
     "https://ejemplo.com/producto.jpg",
   ],
   ["category", "No", "Categoría visible del producto o servicio.", "comidas"],
