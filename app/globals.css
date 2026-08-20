@@ -809,7 +809,7 @@ a {
   border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
   background: var(--primary-container);
   box-shadow: inset 3px 0 0 var(--accent);
-  color: var(--primary);
+  color: var(--on-primary-container);
 }
 
 .sidebar-footer {
@@ -2384,13 +2384,13 @@ a {
 .order-fulfillment-pill.delivery {
   border-color: color-mix(in srgb, var(--tertiary) 24%, var(--border-soft));
   background: var(--tertiary-container);
-  color: var(--tertiary);
+  color: var(--on-primary-container);
 }
 
 .order-fulfillment-pill.pickup {
   border-color: color-mix(in srgb, var(--primary) 24%, var(--border-soft));
-  background: var(--primary-container);
-  color: var(--primary);
+  background: var(--tertiary-container);
+  color: var(--on-primary-container);
 }
 
 .order-status-head,
