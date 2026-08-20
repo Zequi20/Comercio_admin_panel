@@ -37,7 +37,7 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
-import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import {
   MANAGED_USER_ROLES,
   managedUserPermissionNames,
@@ -653,7 +653,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
 
   function closeModal() {
     if (isSaving || roleAction) return;
-    if (!confirmDialogClose("form")) return;
+    if (!confirmFormClose()) return;
 
     setActiveModal(null);
     setEditingUser(null);

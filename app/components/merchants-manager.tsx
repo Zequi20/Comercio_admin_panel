@@ -35,7 +35,7 @@ import {
 } from "@/app/components/table-pagination";
 import { MerchantAvatar } from "@/app/components/merchant-avatar";
 import type { MerchantDetails } from "@/app/lib/auth/types";
-import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import {
   isSupportedImageUrl,
   parseImageUrl,
@@ -315,7 +315,7 @@ export function MerchantsManager() {
 
   function closeModal() {
     if (isSaving) return;
-    if (!confirmDialogClose("form")) return;
+    if (!confirmFormClose()) return;
     setActiveModal(null);
     setEditingMerchant(null);
     setFormError(null);

@@ -29,7 +29,7 @@ import {
   AdminMerchantTargetField,
   useAdminScope,
 } from "@/app/components/admin-scope-context";
-import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import {
   orderBelongsToMerchant,
   orderMerchantId,
@@ -1538,7 +1538,7 @@ export function OrdersManager() {
 
   function closeFormModal() {
     if (isSubmitting || isFormLoading) return;
-    if (!confirmDialogClose("form")) return;
+    if (!confirmFormClose()) return;
 
     resetForm();
     setIsFormLoading(false);
@@ -1552,8 +1552,6 @@ export function OrdersManager() {
   }
 
   function closeItemsModal() {
-    if (!confirmDialogClose()) return;
-
     setViewingItemsOrder(null);
   }
 
@@ -1579,7 +1577,7 @@ export function OrdersManager() {
 
   function closeAssignModal() {
     if (isAssigning) return;
-    if (!confirmDialogClose("form")) return;
+    if (!confirmFormClose()) return;
 
     setAssigningOrder(null);
     setSelectedCourierId("");

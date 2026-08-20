@@ -25,7 +25,6 @@ import {
 import { LogoutButton } from "./logout-button";
 import { MerchantAvatar } from "./merchant-avatar";
 import { ThemeToggle } from "./theme-toggle";
-import { confirmDialogClose } from "../lib/confirm-dialog-close";
 import type { MerchantDetails, PortalScope } from "../lib/auth/types";
 
 type NavigationItem = {
@@ -145,8 +144,6 @@ export function DashboardShell({
     pathname === "/dashboard/pedidos-custom";
 
   function closeMobileMenu() {
-    if (!confirmDialogClose()) return;
-
     setIsMenuOpen(false);
   }
 

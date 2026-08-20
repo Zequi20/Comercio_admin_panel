@@ -1,11 +1,6 @@
-export type DialogCloseKind = "form" | "modal";
+const FORM_CLOSE_MESSAGE =
+  "¿Seguro que querés cerrar este formulario? Los cambios no guardados se perderán.";
 
-const closeMessages: Record<DialogCloseKind, string> = {
-  form:
-    "¿Seguro que querés cerrar este formulario? Los cambios no guardados se perderán.",
-  modal: "¿Seguro que querés cerrar esta ventana?",
-};
-
-export function confirmDialogClose(kind: DialogCloseKind = "modal") {
-  return window.confirm(closeMessages[kind]);
+export function confirmFormClose() {
+  return window.confirm(FORM_CLOSE_MESSAGE);
 }

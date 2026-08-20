@@ -30,7 +30,7 @@ import {
   AdminMerchantTargetField,
   useAdminScope,
 } from "@/app/components/admin-scope-context";
-import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import {
   isSupportedImageUrl,
   parseImageUrl,
@@ -812,7 +812,7 @@ export function CatalogManager() {
 
   function closeFormModal() {
     if (isSubmitting) return;
-    if (!confirmDialogClose("form")) return;
+    if (!confirmFormClose()) return;
 
     resetForm();
     setError(null);
@@ -829,7 +829,6 @@ export function CatalogManager() {
 
   function closeImportModal() {
     if (isImporting) return;
-    if (!confirmDialogClose("form")) return;
 
     resetImportState();
     setError(null);
@@ -916,8 +915,6 @@ export function CatalogManager() {
   }
 
   function closeMetadataModal() {
-    if (!confirmDialogClose()) return;
-
     setViewingMetadataProduct(null);
   }
 

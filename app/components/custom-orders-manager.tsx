@@ -22,7 +22,7 @@ import {
   type TablePaginationState,
 } from "@/app/components/table-pagination";
 import { useAdminScope } from "@/app/components/admin-scope-context";
-import { confirmDialogClose } from "@/app/lib/confirm-dialog-close";
+import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import { customOrderNextStatuses } from "@/app/lib/orders/order-type";
 import { orderStatusLabel } from "@/app/lib/order-status";
 
@@ -491,7 +491,7 @@ export function CustomOrdersManager() {
   }
 
   function closeCreate() {
-    if (isSubmitting || !confirmDialogClose("form")) return;
+    if (isSubmitting || !confirmFormClose()) return;
     setIsCreateOpen(false);
     setCreateForm(emptyCreateForm);
     setError(null);
@@ -509,7 +509,7 @@ export function CustomOrdersManager() {
   }
 
   function closeEdit() {
-    if (isSubmitting || !confirmDialogClose("form")) return;
+    if (isSubmitting || !confirmFormClose()) return;
     setEditingOrder(null);
     setError(null);
   }
