@@ -8,7 +8,6 @@ import {
   PackageSearch,
   ReceiptText,
   ShoppingBag,
-  Store,
   Truck,
   type LucideIcon,
   UsersRound,
@@ -24,6 +23,7 @@ import {
 } from "./admin-scope-context";
 import { LogoutButton } from "./logout-button";
 import { MerchantAvatar } from "./merchant-avatar";
+import { RuteqoLogo } from "./ruteqo-logo";
 import { ThemeToggle } from "./theme-toggle";
 import type { MerchantDetails, PortalScope } from "../lib/auth/types";
 
@@ -76,10 +76,10 @@ function BrandLockup() {
   return (
     <div className="brand-lockup">
       <div className="brand-mark" aria-hidden="true">
-        <Store size={26} />
+        <RuteqoLogo size={26} />
       </div>
       <div>
-        <p className="eyebrow">Pedidos</p>
+        <p className="eyebrow">Ruteqo</p>
         <strong>Comercio</strong>
       </div>
     </div>

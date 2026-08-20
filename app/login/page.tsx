@@ -8,6 +8,7 @@ import {
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "../components/login-form";
+import { RuteqoLogo } from "../components/ruteqo-logo";
 import { ThemeToggle } from "../components/theme-toggle";
 import { getCommerceSessionFromCookies } from "../lib/auth/session";
 
@@ -27,10 +28,10 @@ export default async function LoginPage() {
           <div>
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">
-                <Store size={28} />
+                <RuteqoLogo size={28} />
               </div>
               <div>
-                <p className="eyebrow">Pedidos Comercio</p>
+                <p className="eyebrow">Ruteqo</p>
                 <h1 className="login-title">Portal comercio</h1>
               </div>
             </div>
@@ -75,17 +76,17 @@ export default async function LoginPage() {
           <div className="login-panel-header">
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">
-                <Store size={26} />
+                <RuteqoLogo size={26} />
               </div>
               <div>
-                <p className="eyebrow">Comercio</p>
+                <p className="eyebrow">Ruteqo Comercio</p>
                 <h2 className="section-title">Iniciar sesión</h2>
               </div>
             </div>
             <ThemeToggle compact />
           </div>
           <p className="login-copy">
-            Entrá con tu cuenta Pedidos. Vamos a validar rol, permisos y comercio
+            Entrá con tu cuenta Ruteqo. Vamos a validar rol, permisos y comercio
             asociado antes de abrir el dashboard.
           </p>
           <LoginForm />

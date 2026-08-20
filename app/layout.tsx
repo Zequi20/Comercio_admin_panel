@@ -2,14 +2,17 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pedidos Comercio",
-  description: "Portal operativo para comercios de Pedidos.",
+  title: "Ruteqo Comercio",
+  description: "Portal operativo de Ruteqo para comercios.",
+  icons: {
+    icon: "/icon_ruteqo.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#FCFCFC",
+  themeColor: "#101828",
 };
 
 const themeScript = `
