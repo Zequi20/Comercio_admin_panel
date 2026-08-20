@@ -571,7 +571,7 @@ a {
 
 .input-action {
   position: absolute;
-  right: 4px;
+  right: 16px;
   display: grid;
   width: 32px;
   height: 32px;
@@ -4639,8 +4639,12 @@ html,
 body,
 .page-shell,
 .dashboard-shell {
-  background: var(--background);
-  background-image: none;
+  background-color: var(--background);
+  background-image: url("/ruteqo-corner-watermark.svg");
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: clamp(520px, 62vw, 900px);
+  background-attachment: fixed;
   animation: none;
 }
 

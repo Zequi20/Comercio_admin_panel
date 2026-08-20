@@ -28,7 +28,7 @@ export default async function LoginPage() {
           <div>
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true">
-                <RuteqoLogo size={28} />
+                <RuteqoLogo  />
               </div>
               <div>
                 <p className="eyebrow">Ruteqo</p>

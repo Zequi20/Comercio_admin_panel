@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-export function RuteqoLogo({ size = 26 }: { size?: number }) {
+export function RuteqoLogo({ size = 36 }: { size?: number }) {
   return (
     <Image
       alt=""
