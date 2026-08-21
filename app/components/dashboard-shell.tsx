@@ -23,7 +23,7 @@ import {
 } from "./admin-scope-context";
 import { LogoutButton } from "./logout-button";
 import { MerchantAvatar } from "./merchant-avatar";
-import { RuteqoLogo } from "./ruteqo-logo";
+import { RouteqoLogo } from "./routeqo-logo";
 import { ThemeToggle } from "./theme-toggle";
 import type { MerchantDetails, PortalScope } from "../lib/auth/types";
 
@@ -86,10 +86,10 @@ function BrandLockup() {
   return (
     <div className="brand-lockup">
       <div className="brand-mark" aria-hidden="true">
-        <RuteqoLogo size={26} />
+        <RouteqoLogo size={26} />
       </div>
       <strong className="brand-name">
-        Ruteqo <span>Comercio</span>
+        routeqo <span>Comercio</span>
       </strong>
     </div>
   );

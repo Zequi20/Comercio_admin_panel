@@ -1,36 +1,36 @@
 :root {
-  --ruteqo-ink: #101828;
-  --ruteqo-blue: #2457d6;
-  --ruteqo-lime: #b8f36b;
-  --ruteqo-soft-blue: #eaf0ff;
-  --ruteqo-paper: #ffffff;
-  --ruteqo-soft-paper: #f8fafc;
-  --ruteqo-muted: #667085;
-  --background: var(--ruteqo-soft-paper);
-  --background-alt: var(--ruteqo-soft-blue);
-  --surface: var(--ruteqo-paper);
-  --surface-secondary: var(--ruteqo-soft-paper);
-  --text: var(--ruteqo-ink);
-  --text-secondary: var(--ruteqo-muted);
+  --routeqo-ink: #101828;
+  --routeqo-blue: #2457d6;
+  --routeqo-lime: #b8f36b;
+  --routeqo-soft-blue: #eaf0ff;
+  --routeqo-paper: #ffffff;
+  --routeqo-soft-paper: #f8fafc;
+  --routeqo-muted: #667085;
+  --background: var(--routeqo-soft-paper);
+  --background-alt: var(--routeqo-soft-blue);
+  --surface: var(--routeqo-paper);
+  --surface-secondary: var(--routeqo-soft-paper);
+  --text: var(--routeqo-ink);
+  --text-secondary: var(--routeqo-muted);
   --border-soft: #e4e7ec;
   --border-medium: #d0d5dd;
-  --primary: var(--ruteqo-blue);
-  --on-primary: var(--ruteqo-paper);
-  --primary-container: var(--ruteqo-soft-blue);
-  --on-primary-container: var(--ruteqo-ink);
-  --secondary: var(--ruteqo-muted);
-  --tertiary: var(--ruteqo-blue);
-  --tertiary-container: var(--ruteqo-soft-blue);
-  --accent: var(--ruteqo-lime);
-  --on-accent: var(--ruteqo-ink);
-  --success: var(--ruteqo-ink);
-  --success-container: var(--ruteqo-lime);
+  --primary: var(--routeqo-blue);
+  --on-primary: var(--routeqo-paper);
+  --primary-container: var(--routeqo-soft-blue);
+  --on-primary-container: var(--routeqo-ink);
+  --secondary: var(--routeqo-muted);
+  --tertiary: var(--routeqo-blue);
+  --tertiary-container: var(--routeqo-soft-blue);
+  --accent: var(--routeqo-lime);
+  --on-accent: var(--routeqo-ink);
+  --success: var(--routeqo-ink);
+  --success-container: var(--routeqo-lime);
   --error: #ba1a1a;
   --error-container: #ffdad6;
   --liquid-background:
     radial-gradient(circle at 14% 18%, rgba(36, 87, 214, 0.16), transparent 31%),
     radial-gradient(ellipse at 86% 8%, rgba(184, 243, 107, 0.18), transparent 39%),
-    linear-gradient(135deg, var(--ruteqo-paper) 0%, var(--ruteqo-soft-paper) 48%, var(--ruteqo-soft-blue) 100%);
+    linear-gradient(135deg, var(--routeqo-paper) 0%, var(--routeqo-soft-paper) 48%, var(--routeqo-soft-blue) 100%);
   --radius-sm: 5px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -49,20 +49,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: var(--ruteqo-ink);
+    --background: var(--routeqo-ink);
     --background-alt: #17233b;
     --surface: #172033;
     --surface-secondary: #1d2940;
-    --text: var(--ruteqo-paper);
+    --text: var(--routeqo-paper);
     --text-secondary: #b8c1d1;
     --border-soft: #2a3852;
     --border-medium: #40506b;
-    --primary: var(--ruteqo-blue);
+    --primary: var(--routeqo-blue);
     --primary-container: #1d3472;
-    --on-primary-container: var(--ruteqo-soft-blue);
+    --on-primary-container: var(--routeqo-soft-blue);
     --tertiary-container: #1d3472;
-    --success: var(--ruteqo-ink);
-    --success-container: var(--ruteqo-lime);
+    --success: var(--routeqo-ink);
+    --success-container: var(--routeqo-lime);
     --error-container: #4f1111;
     --shadow-floating: 0 18px 46px rgba(0, 0, 0, 0.32);
     --shadow-card:
@@ -77,35 +77,35 @@
     --liquid-background:
       radial-gradient(circle at 14% 18%, rgba(36, 87, 214, 0.28), transparent 32%),
       radial-gradient(ellipse at 86% 8%, rgba(184, 243, 107, 0.12), transparent 40%),
-      linear-gradient(135deg, var(--ruteqo-ink) 0%, #14213a 52%, #182942 100%);
+      linear-gradient(135deg, var(--routeqo-ink) 0%, #14213a 52%, #182942 100%);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="light"] {
-  --background: var(--ruteqo-soft-paper);
-  --background-alt: var(--ruteqo-soft-blue);
-  --surface: var(--ruteqo-paper);
-  --surface-secondary: var(--ruteqo-soft-paper);
-  --text: var(--ruteqo-ink);
-  --text-secondary: var(--ruteqo-muted);
+  --background: var(--routeqo-soft-paper);
+  --background-alt: var(--routeqo-soft-blue);
+  --surface: var(--routeqo-paper);
+  --surface-secondary: var(--routeqo-soft-paper);
+  --text: var(--routeqo-ink);
+  --text-secondary: var(--routeqo-muted);
   --border-soft: #e4e7ec;
   --border-medium: #d0d5dd;
-  --primary: var(--ruteqo-blue);
-  --on-primary: var(--ruteqo-paper);
-  --primary-container: var(--ruteqo-soft-blue);
-  --on-primary-container: var(--ruteqo-ink);
-  --secondary: var(--ruteqo-muted);
-  --tertiary: var(--ruteqo-blue);
-  --tertiary-container: var(--ruteqo-soft-blue);
-  --success: var(--ruteqo-ink);
-  --success-container: var(--ruteqo-lime);
+  --primary: var(--routeqo-blue);
+  --on-primary: var(--routeqo-paper);
+  --primary-container: var(--routeqo-soft-blue);
+  --on-primary-container: var(--routeqo-ink);
+  --secondary: var(--routeqo-muted);
+  --tertiary: var(--routeqo-blue);
+  --tertiary-container: var(--routeqo-soft-blue);
+  --success: var(--routeqo-ink);
+  --success-container: var(--routeqo-lime);
   --error: #ba1a1a;
   --error-container: #ffdad6;
   --liquid-background:
     radial-gradient(circle at 14% 18%, rgba(36, 87, 214, 0.16), transparent 31%),
     radial-gradient(ellipse at 86% 8%, rgba(184, 243, 107, 0.18), transparent 39%),
-    linear-gradient(135deg, var(--ruteqo-paper) 0%, var(--ruteqo-soft-paper) 48%, var(--ruteqo-soft-blue) 100%);
+    linear-gradient(135deg, var(--routeqo-paper) 0%, var(--routeqo-soft-paper) 48%, var(--routeqo-soft-blue) 100%);
   --shadow-floating: 0 18px 42px rgba(16, 24, 40, 0.16);
   --shadow-card:
     0 16px 34px rgba(16, 24, 40, 0.08),
@@ -120,20 +120,20 @@
 }
 
 :root[data-theme="dark"] {
-  --background: var(--ruteqo-ink);
+  --background: var(--routeqo-ink);
   --background-alt: #17233b;
   --surface: #172033;
   --surface-secondary: #1d2940;
-  --text: var(--ruteqo-paper);
+  --text: var(--routeqo-paper);
   --text-secondary: #b8c1d1;
   --border-soft: #2a3852;
   --border-medium: #40506b;
-  --primary: var(--ruteqo-blue);
+  --primary: var(--routeqo-blue);
   --primary-container: #1d3472;
-  --on-primary-container: var(--ruteqo-soft-blue);
+  --on-primary-container: var(--routeqo-soft-blue);
   --tertiary-container: #1d3472;
-  --success: var(--ruteqo-ink);
-  --success-container: var(--ruteqo-lime);
+  --success: var(--routeqo-ink);
+  --success-container: var(--routeqo-lime);
   --error-container: #4f1111;
   --shadow-floating: 0 18px 46px rgba(0, 0, 0, 0.32);
   --shadow-card:
@@ -148,7 +148,7 @@
   --liquid-background:
     radial-gradient(circle at 14% 18%, rgba(36, 87, 214, 0.28), transparent 32%),
     radial-gradient(ellipse at 86% 8%, rgba(184, 243, 107, 0.12), transparent 40%),
-    linear-gradient(135deg, var(--ruteqo-ink) 0%, #14213a 52%, #182942 100%);
+    linear-gradient(135deg, var(--routeqo-ink) 0%, #14213a 52%, #182942 100%);
   color-scheme: dark;
 }
 
@@ -272,13 +272,13 @@ a {
   width: 38px;
   height: 38px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--ruteqo-ink));
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--routeqo-ink));
   border-radius: var(--radius-md);
-  background: var(--ruteqo-ink);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ruteqo-lime) 12%, transparent);
+  background: var(--routeqo-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--routeqo-lime) 12%, transparent);
 }
 
-.ruteqo-logo {
+.routeqo-logo {
   display: block;
   width: auto;
   height: auto;
@@ -2411,7 +2411,7 @@ a {
 }
 
 .order-status-feedback.success {
-  color: color-mix(in srgb, var(--ruteqo-ink) 78%, var(--ruteqo-blue));
+  color: color-mix(in srgb, var(--routeqo-ink) 78%, var(--routeqo-blue));
 }
 
 .order-status-feedback .spinner {
@@ -4568,12 +4568,12 @@ a {
 
 /* Carbon-inspired product layout -------------------------------------------------
  * Flat layers, 2x-grid rhythm and visible key lines, while preserving the
- * Ruteqo palette and the existing component behavior.
+ * routeqo palette and the existing component behavior.
  */
 :root {
-  --layer-01: var(--ruteqo-paper);
-  --layer-02: var(--ruteqo-soft-paper);
-  --layer-accent: var(--ruteqo-soft-blue);
+  --layer-01: var(--routeqo-paper);
+  --layer-02: var(--routeqo-soft-paper);
+  --layer-accent: var(--routeqo-soft-blue);
   --layer-hover: #eef2f6;
   --field-background: #eef2f6;
   --liquid-background: var(--background);
@@ -4589,9 +4589,9 @@ a {
 }
 
 :root[data-theme="light"] {
-  --layer-01: var(--ruteqo-paper);
-  --layer-02: var(--ruteqo-soft-paper);
-  --layer-accent: var(--ruteqo-soft-blue);
+  --layer-01: var(--routeqo-paper);
+  --layer-02: var(--routeqo-soft-paper);
+  --layer-accent: var(--routeqo-soft-blue);
   --layer-hover: #eef2f6;
   --field-background: #eef2f6;
   --liquid-background: var(--background);
@@ -4640,7 +4640,7 @@ body,
 .page-shell,
 .dashboard-shell {
   background-color: var(--background);
-  background-image: url("/ruteqo-corner-watermark.svg");
+  background-image: url("/routeqo-corner-watermark.svg");
   background-position: right bottom;
   background-repeat: no-repeat;
   background-size: clamp(520px, 62vw, 900px);
@@ -4659,9 +4659,9 @@ body {
 
 .sidebar {
   border-right: 0;
-  background: var(--ruteqo-ink);
+  background: var(--routeqo-ink);
   box-shadow: none;
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
   padding: 16px 0;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -4673,7 +4673,7 @@ body {
 }
 
 .sidebar .brand-lockup strong {
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
 }
 
 .sidebar .eyebrow,
@@ -4699,7 +4699,7 @@ body {
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
 }
 
 .nav-item.active {
@@ -4718,18 +4718,18 @@ body {
 .sidebar-merchant-avatar {
   border-color: rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.1);
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
 }
 
 .sidebar-account strong {
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
 }
 
 .sidebar-footer .button-secondary {
   border-color: rgba(255, 255, 255, 0.24);
   background: transparent;
   box-shadow: none;
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
 }
 
 .dashboard-main {
@@ -4792,7 +4792,7 @@ body {
 }
 
 .button-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--primary) 88%, var(--ruteqo-ink));
+  background: color-mix(in srgb, var(--primary) 88%, var(--routeqo-ink));
 }
 
 .button-secondary:hover:not(:disabled),
@@ -5200,8 +5200,8 @@ body {
   }
 
   .mobile-drawer {
-    background: var(--ruteqo-ink);
-    color: var(--ruteqo-paper);
+    background: var(--routeqo-ink);
+    color: var(--routeqo-paper);
     padding: 16px 0;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -5213,7 +5213,7 @@ body {
   }
 
   .mobile-drawer .brand-lockup strong {
-    color: var(--ruteqo-paper);
+    color: var(--routeqo-paper);
   }
 
   .mobile-drawer .eyebrow,
@@ -5222,14 +5222,14 @@ body {
   }
 
   .mobile-drawer .sidebar-account strong {
-    color: var(--ruteqo-paper);
+    color: var(--routeqo-paper);
   }
 
   .mobile-drawer .icon-button,
   .mobile-drawer .button-secondary {
     border-color: rgba(255, 255, 255, 0.24);
     background: transparent;
-    color: var(--ruteqo-paper);
+    color: var(--routeqo-paper);
   }
 
   .dashboard-main {
@@ -5345,8 +5345,8 @@ body {
   display: flex;
   overflow: hidden;
   flex-direction: column;
-  background: var(--ruteqo-ink);
-  color: var(--ruteqo-paper);
+  background: var(--routeqo-ink);
+  color: var(--routeqo-paper);
   padding: clamp(48px, 5.5vw, 84px);
 }
 
@@ -5357,7 +5357,7 @@ body {
   left: -100px;
   width: 560px;
   height: 560px;
-  background: url("/ruteqo-login-watermark.svg") center / contain no-repeat;
+  background: url("/routeqo-login-watermark.svg") center / contain no-repeat;
   content: "";
   opacity: 1;
   transform: rotate(10deg);
@@ -5367,7 +5367,7 @@ body {
   display: flex;
   gap: 14px;
   align-items: center;
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
   font-size: 25px;
   font-weight: 500;
   letter-spacing: -0.02em;
@@ -5382,7 +5382,7 @@ body {
   place-items: center;
 }
 
-.login-brand-mark .ruteqo-logo {
+.login-brand-mark .routeqo-logo {
   width: 100%;
   height: 100%;
 }
@@ -5394,7 +5394,7 @@ body {
 .login-brand-copy h2 {
   max-width: 420px;
   margin: 0;
-  color: var(--ruteqo-paper);
+  color: var(--routeqo-paper);
   font-size: clamp(36px, 3.4vw, 48px);
   font-weight: 600;
   letter-spacing: -0.035em;

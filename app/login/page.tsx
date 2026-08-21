@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "../components/login-form";
-import { RuteqoLogo } from "../components/ruteqo-logo";
+import { RouteqoLogo } from "../components/routeqo-logo";
 import { ThemeToggle } from "../components/theme-toggle";
 import { getCommerceSessionFromCookies } from "../lib/auth/session";
 
@@ -17,12 +17,12 @@ export default async function LoginPage() {
   return (
     <main className="page-shell login-page">
       <div className="login-shell">
-        <section className="login-brand-rail" aria-label="Ruteqo Comercio">
+        <section className="login-brand-rail" aria-label="routeqo Comercio">
           <div className="login-brand">
             <span className="login-brand-mark" aria-hidden="true">
-              <RuteqoLogo size={48} />
+              <RouteqoLogo size={48} />
             </span>
-            <span>Ruteqo Comercio</span>
+            <span>routeqo Comercio</span>
           </div>
 
           <div className="login-brand-copy">

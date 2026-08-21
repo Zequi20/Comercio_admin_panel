@@ -1,13 +1,13 @@
 import Image from "next/image";
 
-export function RuteqoLogo({ size = 36 }: { size?: number }) {
+export function RouteqoLogo({ size = 36 }: { size?: number }) {
   return (
     <Image
       alt=""
       aria-hidden="true"
-      className="ruteqo-logo"
+      className="routeqo-logo"
       height={size}
-      src="/icon_ruteqo.svg"
+      src="/icon_routeqo.svg"
       width={size}
     />
   );
