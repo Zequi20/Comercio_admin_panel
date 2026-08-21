@@ -154,11 +154,13 @@ export function AdminDataScopeNotice({
 
 export function AdminMerchantTargetField({
   disabled = false,
+  helpText = "El nuevo registro quedará asociado a este comercio.",
   id,
   onChange,
   value,
 }: Readonly<{
   disabled?: boolean;
+  helpText?: string;
   id: string;
   onChange: (merchantId: string) => void;
   value: string;
@@ -188,7 +190,7 @@ export function AdminMerchantTargetField({
         ))}
       </select>
       <span className="field-help">
-        El nuevo registro quedará asociado a este comercio.
+        {helpText}
       </span>
     </div>
   );

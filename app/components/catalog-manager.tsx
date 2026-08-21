@@ -626,6 +626,14 @@ export function CatalogManager() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importMerchantTarget, setImportMerchantTarget] = useState({
+    scopeKey,
+    value: "",
+  });
+  const importTargetMerchantId =
+    importMerchantTarget.scopeKey === scopeKey
+      ? importMerchantTarget.value
+      : "";
   const [importResult, setImportResult] =
     useState<ProductImportResponse | null>(null);
   const [importInputKey, setImportInputKey] = useState(0);
@@ -780,6 +788,7 @@ export function CatalogManager() {
 
   function resetImportState() {
     setImportFile(null);
+    setImportMerchantTarget({ scopeKey, value: "" });
     setImportResult(null);
     setImportInputKey((current) => current + 1);
   }
@@ -1050,7 +1059,18 @@ export function CatalogManager() {
       return;
     }
 
+    const importMerchantId =
+      scope.mode === "merchant"
+        ? String(scope.merchantId)
+        : importTargetMerchantId;
+
+    if (!importMerchantId) {
+      setError("Seleccioná el comercio al que querés importar el catálogo.");
+      return;
+    }
+
     const formData = new FormData();
+    formData.set("merchantId", importMerchantId);
     formData.set("file", importFile);
     setIsImporting(true);
 
@@ -1225,14 +1245,12 @@ export function CatalogManager() {
             </button>
             <button
               className="button-secondary"
-              disabled={!canManage || scope.mode === "global"}
+              disabled={!canManage}
               onClick={openImportModal}
               title={
-                scope.mode === "global"
-                  ? "La importación masiva requiere seleccionar un comercio en el alcance superior"
-                  : canManage
-                    ? "Importar catálogo"
-                    : "No tenés permiso para importar productos"
+                canManage
+                  ? "Importar catálogo"
+                  : "No tenés permiso para importar productos"
               }
               type="button"
             >
@@ -1961,6 +1979,16 @@ export function CatalogManager() {
             </div>
 
             <form className="catalog-form" onSubmit={handleImportProducts}>
+              <AdminMerchantTargetField
+                disabled={isImporting}
+                helpText="Los productos importados quedarán asociados a este comercio."
+                id="catalog-import-target-merchant"
+                value={importTargetMerchantId}
+                onChange={(value) =>
+                  setImportMerchantTarget({ scopeKey, value })
+                }
+              />
+
               <div className="catalog-import-panel">
                 <div className="field-label-row">
                   <label className="field-label" htmlFor="catalog-import-file">
@@ -2066,7 +2094,11 @@ export function CatalogManager() {
                 </a>
                 <button
                   className="button-primary"
-                  disabled={!importFile || isImporting}
+                  disabled={
+                    !importFile ||
+                    isImporting ||
+                    (scope.mode === "global" && !importTargetMerchantId)
+                  }
                   type="submit"
                 >
                   {isImporting ? (

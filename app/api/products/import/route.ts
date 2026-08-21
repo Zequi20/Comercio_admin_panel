@@ -5,6 +5,7 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
+import { merchantIdFromMutation } from "@/app/lib/auth/mutation-merchant";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
   normalizeProductImportFile,
@@ -40,14 +41,18 @@ export async function POST(request: Request) {
     return unauthorizedCommerceResponse();
   }
 
-  if (context.scope.mode !== "merchant") {
-    return badRequestResponse(
-      "Seleccioná un comercio antes de importar el catálogo."
-    );
-  }
-
   const incomingFormData = await request.formData().catch(() => null);
   const file = incomingFormData?.get("file") ?? null;
+  const merchantId = merchantIdFromMutation(
+    context,
+    incomingFormData?.get("merchantId")
+  );
+
+  if (!merchantId) {
+    return badRequestResponse(
+      "Seleccioná el comercio al que querés importar el catálogo."
+    );
+  }
 
   if (!isUploadedFile(file) || file.size <= 0) {
     return badRequestResponse("Seleccioná un archivo Excel para importar.");
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
   try {
     const normalizedFile = await normalizeProductImportFile(file);
     const formData = new FormData();
-    formData.set("merchantId", String(context.scope.merchantId));
+    formData.set("merchantId", String(merchantId));
     formData.set(
       "file",
       normalizedFile,
