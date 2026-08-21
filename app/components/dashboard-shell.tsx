@@ -34,33 +34,43 @@ type NavigationItem = {
   adminOnly?: boolean;
 };
 
-const navItems: NavigationItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Catálogo", href: "/dashboard/catalogo", icon: Package },
-  { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
+const navGroups: { label: string; items: NavigationItem[] }[] = [
   {
-    label: "Pedidos custom",
-    href: "/dashboard/pedidos-custom",
-    icon: PackageSearch,
-    adminOnly: true,
-  },
-  { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
-  {
-    label: "Difusión",
-    href: "/dashboard/notificaciones",
-    icon: BellRing,
-  },
-  {
-    label: "Comercios",
-    href: "/dashboard/comercios",
-    icon: ShoppingBag,
-    adminOnly: true,
+    label: "Operación",
+    items: [
+      { label: "Panel de control", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Catálogo", href: "/dashboard/catalogo", icon: Package },
+      { label: "Órdenes", href: "/dashboard/ordenes", icon: ReceiptText },
+      { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
+      {
+        label: "Difusión",
+        href: "/dashboard/notificaciones",
+        icon: BellRing,
+      },
+    ],
   },
   {
-    label: "Usuarios y roles",
-    href: "/dashboard/usuarios",
-    icon: UsersRound,
-    adminOnly: true,
+    label: "Administración",
+    items: [
+      {
+        label: "Pedidos libres",
+        href: "/dashboard/pedidos-custom",
+        icon: PackageSearch,
+        adminOnly: true,
+      },
+      {
+        label: "Comercios",
+        href: "/dashboard/comercios",
+        icon: ShoppingBag,
+        adminOnly: true,
+      },
+      {
+        label: "Usuarios y roles",
+        href: "/dashboard/usuarios",
+        icon: UsersRound,
+        adminOnly: true,
+      },
+    ],
   },
 ];
 
@@ -78,10 +88,9 @@ function BrandLockup() {
       <div className="brand-mark" aria-hidden="true">
         <RuteqoLogo size={26} />
       </div>
-      <div>
-        <p className="eyebrow">Ruteqo</p>
-        <strong>Comercio</strong>
-      </div>
+      <strong className="brand-name">
+        Ruteqo <span>Comercio</span>
+      </strong>
     </div>
   );
 }
@@ -97,21 +106,34 @@ function NavigationLinks({
 
   return (
     <nav className="sidebar-nav" aria-label="Apartados principales">
-      {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
-        const Icon = item.icon;
-        const isActive = isActiveRoute(pathname, item.href);
+      {navGroups.map((group) => {
+        const visibleItems = group.items.filter(
+          (item) => !item.adminOnly || isAdmin,
+        );
+
+        if (visibleItems.length === 0) return null;
 
         return (
-          <Link
-            aria-current={isActive ? "page" : undefined}
-            className={isActive ? "nav-item active" : "nav-item"}
-            href={item.href}
-            key={item.label}
-            onClick={onNavigate}
-          >
-            <Icon size={18} />
-            <span>{item.label}</span>
-          </Link>
+          <section className="nav-section" key={group.label}>
+            <h2 className="nav-section-label">{group.label}</h2>
+            {visibleItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = isActiveRoute(pathname, item.href);
+
+              return (
+                <Link
+                  aria-current={isActive ? "page" : undefined}
+                  className={isActive ? "nav-item active" : "nav-item"}
+                  href={item.href}
+                  key={item.label}
+                  onClick={onNavigate}
+                >
+                  <Icon aria-hidden="true" size={18} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </section>
         );
       })}
     </nav>

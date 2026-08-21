@@ -20,22 +20,28 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<"email" | "password" | null>(
+    null
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setErrorField(null);
 
     const nextEmail = email.trim().toLowerCase();
     const nextPassword = password;
 
     if (!isValidEmail(nextEmail)) {
       setError("Ingresá un correo válido.");
+      setErrorField("email");
       return;
     }
 
     if (nextPassword.length < 8) {
       setError("Ingresá tu contraseña.");
+      setErrorField("password");
       return;
     }
 
@@ -70,7 +76,12 @@ export function LoginForm() {
   }
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
+    <form
+      aria-busy={isSubmitting}
+      className="login-form"
+      noValidate
+      onSubmit={handleSubmit}
+    >
       <div className="field-group">
         <label className="field-label" htmlFor="email">
           Correo
@@ -82,6 +93,11 @@ export function LoginForm() {
             name="email"
             type="email"
             autoComplete="email"
+            aria-describedby={
+              errorField === "email" ? "login-error" : undefined
+            }
+            aria-invalid={errorField === "email" ? true : undefined}
+            autoFocus
             inputMode="email"
             placeholder="comercio@pedidos.com"
             value={email}
@@ -102,6 +118,10 @@ export function LoginForm() {
             name="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
+            aria-describedby={
+              errorField === "password" ? "login-error" : undefined
+            }
+            aria-invalid={errorField === "password" ? true : undefined}
             placeholder="••••••••"
             value={password}
             disabled={isSubmitting}
@@ -121,7 +141,7 @@ export function LoginForm() {
       </div>
 
       {error ? (
-        <div className="error-box" role="alert">
+        <div className="error-box" id="login-error" role="alert">
           <CircleAlert aria-hidden="true" size={18} />
           <span>{error}</span>
         </div>

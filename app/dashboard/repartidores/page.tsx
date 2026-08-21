@@ -1,15 +1,13 @@
 import { CouriersManager } from "../../components/couriers-manager";
+import { PageHeader } from "../../components/page-header";
 
 export default function RepartidoresPage() {
   return (
     <main className="dashboard-main">
-      <div className="dashboard-topbar">
-        <div>
-          <p className="eyebrow">Repartidores</p>
-          <h1 className="dashboard-title">Equipo de entrega</h1>
-          <p className="muted">Disponibilidad y cobertura para delivery.</p>
-        </div>
-      </div>
+      <PageHeader
+        description="Disponibilidad y cobertura para delivery."
+        title="Equipo de entrega"
+      />
 
       <CouriersManager />
     </main>

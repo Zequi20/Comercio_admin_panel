@@ -17,6 +17,7 @@ import { DashboardOrdersRealtime } from "../components/dashboard-orders-realtime
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
+import { PageHeader } from "../components/page-header";
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
 import { orderStatusLabel } from "../lib/order-status";
@@ -47,12 +48,6 @@ const statusPillClass: Record<string, string> = {
 };
 
 const quickActions = [
-  {
-    title: "Nueva orden",
-    detail: "Cargar un pedido manual",
-    href: "/dashboard/ordenes",
-    icon: Plus,
-  },
   {
     title: "Agregar producto",
     detail: "Actualizar la oferta visible",
@@ -297,7 +292,7 @@ async function DashboardContent({
     {
       label: "Ventas hoy",
       value: formatPrice(salesTodayTotal),
-      meta: `${soldTodayOrders.length} pedidos no cancelados`,
+      meta: `${soldTodayOrders.length} pedidos · ticket ${formatPrice(averageTicket)}`,
       icon: CircleDollarSign,
       pill: "Hoy",
       pillClass: "success",
@@ -397,8 +392,8 @@ async function DashboardContent({
         <section className="card card-lg">
           <div className="card-header">
             <div>
-              <h2 className="card-title">Acciones rápidas</h2>
-              <p className="muted">Atajos para las tareas más frecuentes.</p>
+              <h2 className="card-title">Gestión frecuente</h2>
+              <p className="muted">Accesos secundarios para mantener la operación.</p>
             </div>
           </div>
           <div className="quick-actions">
@@ -453,11 +448,14 @@ async function DashboardContent({
               initialIsOpen={dashboardMerchant.isOpen}
               merchantId={dashboardMerchant.id}
             />
-            <MerchantMetadataEditor
-              key={`dashboard-metadata-${dashboardMerchant.id}`}
-              initialMetadata={dashboardMerchant.metadata}
-              merchantId={dashboardMerchant.id}
-            />
+            <details className="workspace-disclosure merchant-config-disclosure">
+              <summary>Configuración técnica</summary>
+              <MerchantMetadataEditor
+                key={`dashboard-metadata-${dashboardMerchant.id}`}
+                initialMetadata={dashboardMerchant.metadata}
+                merchantId={dashboardMerchant.id}
+              />
+            </details>
             <div className="metric-list dashboard-side-metrics">
               <div className="metric-row">
                 <span className="metric-label">Comercio ID</span>
@@ -509,29 +507,6 @@ async function DashboardContent({
           </section>
         )}
 
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Métricas</h2>
-            <span className="pill">Hoy</span>
-          </div>
-          <div className="metric-list">
-            <div className="metric-row">
-              <span className="metric-label">Ventas hoy</span>
-              <span className="metric-value">
-                {formatPrice(salesTodayTotal)}
-              </span>
-            </div>
-            <div className="metric-row">
-              <span className="metric-label">Ticket medio</span>
-              <span className="metric-value">{formatPrice(averageTicket)}</span>
-            </div>
-            <div className="metric-row">
-              <span className="metric-label">Pedidos creados</span>
-              <span className="metric-value">{todayOrders.length}</span>
-            </div>
-          </div>
-        </section>
-
         <section className="empty-state dashboard-catalog-summary">
           <Package aria-hidden="true" size={28} />
           <div>
@@ -562,7 +537,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { session, accessToken, isAdmin, scope } = context;
+  const { accessToken, isAdmin, scope } = context;
   const scopeName =
     scope.mode === "global"
       ? "Todos los comercios"
@@ -572,25 +547,16 @@ export default async function DashboardPage() {
   return (
     <main className="dashboard-main">
       <DashboardOrdersRealtime scopeKey={scopeKey} />
-      <div className="dashboard-topbar">
-        <div>
-          <p className="eyebrow">Dashboard</p>
-          <h1 className="dashboard-title">Panel de control</h1>
-          <p className="muted">
-            {scopeName} · {session.user.email}
-          </p>
-        </div>
-        <div className="dashboard-actions">
-          <Link className="button-secondary" href="/dashboard/catalogo">
-            <Package size={17} />
-            Catálogo
+      <PageHeader
+        actions={
+          <Link className="button-primary" href="/dashboard/ordenes">
+            <Plus aria-hidden="true" size={17} />
+            Nueva orden
           </Link>
-          <Link className="button-tonal" href="/dashboard/ordenes">
-            <ReceiptText size={17} />
-            Ver órdenes
-          </Link>
-        </div>
-      </div>
+        }
+        description={scopeName}
+        title="Panel de control"
+      />
 
       <Suspense fallback={<DashboardContentShimmer />}>
         <DashboardContent

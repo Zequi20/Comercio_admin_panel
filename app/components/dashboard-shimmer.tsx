@@ -92,7 +92,7 @@ export function DashboardContentShimmer() {
             </div>
           </div>
           <div className="quick-actions">
-            {Array.from({ length: 3 }).map((_, index) => (
+            {Array.from({ length: 2 }).map((_, index) => (
               <QuickActionShimmer key={index} />
             ))}
           </div>
@@ -117,18 +117,6 @@ export function DashboardContentShimmer() {
           </div>
         </section>
 
-        <section className="card">
-          <div className="card-header">
-            <span className="skeleton shimmer-title" />
-            <span className="skeleton shimmer-pill" />
-          </div>
-          <div className="metric-list">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <MetricRowShimmer key={index} />
-            ))}
-          </div>
-        </section>
-
         <section className="empty-state dashboard-catalog-summary">
           <span className="skeleton shimmer-icon" />
           <div>
@@ -146,14 +134,12 @@ export function DashboardContentShimmer() {
 export function DashboardPageShimmer() {
   return (
     <main className="dashboard-main">
-      <div className="dashboard-topbar dashboard-shimmer-topbar">
+      <div className="page-header dashboard-shimmer-topbar">
         <div>
-          <span className="skeleton shimmer-line tiny" />
           <span className="skeleton shimmer-heading" />
           <span className="skeleton shimmer-line long" />
         </div>
         <div className="dashboard-actions">
-          <span className="skeleton shimmer-button" />
           <span className="skeleton shimmer-button" />
         </div>
       </div>

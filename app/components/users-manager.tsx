@@ -982,7 +982,9 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
           </div>
         </div>
 
-        <div className="catalog-filters users-filters">
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <div className="catalog-filters users-filters">
           <label className="field-group">
             <span className="field-label">Buscar</span>
             <span className="notification-search-control">
@@ -1040,7 +1042,8 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
           >
             Limpiar
           </button>
-        </div>
+          </div>
+        </details>
 
         {truncated ? (
           <div className="notification-info-box" role="note">

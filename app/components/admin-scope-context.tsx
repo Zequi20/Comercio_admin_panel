@@ -7,7 +7,6 @@ import {
   Globe2,
   LoaderCircle,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -397,27 +396,19 @@ export function AdminScopeSelector({
       aria-label="Alcance administrativo"
     >
       <div className="admin-scope-identity">
-        <span className="icon-surface admin-scope-icon" aria-hidden="true">
-          <ShieldCheck size={20} />
-        </span>
         <div>
-          <div className="admin-scope-heading">
-            <strong>Administración global</strong>
-            <span className={isGlobal ? "pill assigned" : "pill"}>
-              {isGlobal ? "Vista global" : "Comercio activo"}
-            </span>
-          </div>
+          <span className="admin-scope-kicker">Alcance actual</span>
           <span className="admin-scope-description">
             {isGlobal
-              ? "Consultando registros de todos los comercios"
-              : "Operando dentro de un comercio específico"}
+              ? "Todos los comercios"
+              : "Comercio seleccionado"}
           </span>
         </div>
       </div>
 
       <div className="field-group admin-scope-control">
         <label className="field-label" htmlFor="admin-merchant-scope">
-          Alcance de datos
+          Comercio
         </label>
         <div
           className="admin-scope-combobox"

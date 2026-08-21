@@ -489,6 +489,7 @@ function CatalogMetadataModal({
             <p className="muted">{metadataCountLabel(metadata.length)}</p>
           </div>
           <button
+            aria-label="Cerrar detalles técnicos"
             className="icon-button"
             onClick={onClose}
             title="Cerrar detalles técnicos"
@@ -1202,7 +1203,7 @@ export function CatalogManager() {
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Tabla de catálogo</h2>
+            <h2 className="card-title">Resultados</h2>
             <p className="muted">
               {products.length} ítems · {activeCount} activos
             </p>
@@ -1239,6 +1240,7 @@ export function CatalogManager() {
               Importar
             </button>
             <button
+              aria-label="Actualizar catálogo"
               className="icon-button"
               disabled={isLoading}
               onClick={() => void loadProducts()}
@@ -1266,16 +1268,11 @@ export function CatalogManager() {
           </div>
         ) : null}
 
-        <section
-          aria-label="Comportamiento de los estados del catálogo"
-          className="catalog-state-guide"
-        >
-          <div className="catalog-state-guide-header">
-            <strong>Qué significa cada estado</strong>
-            <span>
-              Solo los ítems activos pueden agregarse al carrito y confirmarse.
-            </span>
-          </div>
+        <details className="workspace-disclosure catalog-state-guide">
+          <summary>Ayuda sobre estados</summary>
+          <p className="muted disclosure-description">
+            Solo los ítems activos pueden agregarse al carrito y confirmarse.
+          </p>
           <div className="catalog-state-guide-grid">
             {availabilityOptions.map((option) => (
               <article className="catalog-state-guide-item" key={option.value}>
@@ -1288,9 +1285,11 @@ export function CatalogManager() {
               </article>
             ))}
           </div>
-        </section>
+        </details>
 
-        <form className="catalog-filters" onSubmit={handleFilterSubmit}>
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <form className="catalog-filters" onSubmit={handleFilterSubmit}>
           <div className="field-group">
             <label className="field-label" htmlFor="catalog-search">
               Buscar
@@ -1348,10 +1347,13 @@ export function CatalogManager() {
             <Search size={17} />
             Filtrar
           </button>
-        </form>
+          </form>
+        </details>
 
         <div className="table-wrap">
-          <table className="data-table catalog-data-table">
+          <table
+            className={`data-table catalog-data-table${isAdmin ? " is-admin" : ""}`}
+          >
             <thead>
               <tr>
                 <th>Imagen</th>
@@ -1456,6 +1458,7 @@ export function CatalogManager() {
                       <td>
                         <div className="table-actions">
                           <button
+                            aria-label={`Editar ${product.name}`}
                             className="icon-button"
                             disabled={isPending || !canManage}
                             onClick={() => openEditForm(product)}
@@ -1465,6 +1468,7 @@ export function CatalogManager() {
                             <Edit3 size={17} />
                           </button>
                           <button
+                            aria-label={`Eliminar ${product.name}`}
                             className="icon-button danger-button"
                             disabled={isPending || !canManage}
                             onClick={() => void handleDelete(product)}
@@ -1534,6 +1538,7 @@ export function CatalogManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar formulario de catálogo"
                 className="icon-button"
                 disabled={isSubmitting}
                 onClick={closeFormModal}
@@ -1944,6 +1949,7 @@ export function CatalogManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar importación de catálogo"
                 className="icon-button"
                 disabled={isImporting}
                 onClick={closeImportModal}

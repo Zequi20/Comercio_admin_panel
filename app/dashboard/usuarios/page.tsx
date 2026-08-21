@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { UsersManager } from "@/app/components/users-manager";
+import { PageHeader } from "@/app/components/page-header";
 import { getCommerceSessionFromCookies } from "@/app/lib/auth/session";
 
 export default async function UsuariosPage() {
@@ -11,16 +12,10 @@ export default async function UsuariosPage() {
 
   return (
     <main className="dashboard-main">
-      <div className="dashboard-topbar users-topbar">
-        <div>
-          <p className="eyebrow">Administración global</p>
-          <h1 className="dashboard-title">Usuarios y roles</h1>
-          <p className="muted">
-            Gestioná cuentas, afiliaciones, estados y accesos RBAC (Role-Based Access Control) del sistema.
-          </p>
-        </div>
-        <span className="pill assigned">Sólo ADMIN</span>
-      </div>
+      <PageHeader
+        description="Gestioná cuentas, afiliaciones, estados y permisos efectivos del sistema."
+        title="Usuarios y roles"
+      />
 
       <UsersManager
         currentUserId={

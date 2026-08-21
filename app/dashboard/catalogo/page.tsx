@@ -1,15 +1,13 @@
 import { CatalogManager } from "../../components/catalog-manager";
+import { PageHeader } from "../../components/page-header";
 
 export default function CatalogoPage() {
   return (
     <main className="dashboard-main">
-      <div className="dashboard-topbar">
-        <div>
-          <p className="eyebrow">Catálogo</p>
-          <h1 className="dashboard-title">Productos y servicios</h1>
-          <p className="muted">Administrá la oferta visible para clientes.</p>
-        </div>
-      </div>
+      <PageHeader
+        description="Administrá la oferta visible para clientes."
+        title="Productos y servicios"
+      />
 
       <CatalogManager />
     </main>

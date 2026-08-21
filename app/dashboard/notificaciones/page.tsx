@@ -1,17 +1,13 @@
 import { NotificationsManager } from "../../components/notifications-manager";
+import { PageHeader } from "../../components/page-header";
 
 export default function NotificacionesPage() {
   return (
     <main className="dashboard-main">
-      <div className="dashboard-topbar">
-        <div>
-          <p className="eyebrow">Notificaciones</p>
-          <h1 className="dashboard-title">Centro de difusión</h1>
-          <p className="muted">
-            Enviá mensajes a Clientes y Repartidores.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        description="Enviá mensajes a clientes y repartidores."
+        title="Centro de difusión"
+      />
 
       <NotificationsManager />
     </main>

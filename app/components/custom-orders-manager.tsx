@@ -732,7 +732,7 @@ export function CustomOrdersManager() {
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Tabla de pedidos custom</h2>
+            <h2 className="card-title">Resultados</h2>
             <p className="muted">
               {visibleOrders.length} pedidos · {openCount} abiertos
             </p>
@@ -743,6 +743,7 @@ export function CustomOrdersManager() {
               Agregar
             </button>
             <button
+              aria-label="Actualizar pedidos custom"
               className="icon-button"
               disabled={isLoading}
               onClick={() => void loadOrders()}
@@ -777,10 +778,12 @@ export function CustomOrdersManager() {
           </div>
         ) : null}
 
-        <form
-          className="catalog-filters orders-filters"
-          onSubmit={(event) => event.preventDefault()}
-        >
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <form
+            className="catalog-filters orders-filters"
+            onSubmit={(event) => event.preventDefault()}
+          >
           <div className="field-group">
             <label className="field-label" htmlFor="custom-orders-search">
               Buscar
@@ -824,13 +827,15 @@ export function CustomOrdersManager() {
             <Search size={17} />
             Filtrar
           </button>
-        </form>
+          </form>
+        </details>
 
-        <div className="orders-table-guide" aria-label="Comportamiento de la tabla">
+        <details className="workspace-disclosure orders-table-guide">
+          <summary>Ayuda para consultar la tabla</summary>
           <span className="orders-table-scroll-guide">
             Deslizá horizontalmente para consultar todos los datos del pedido
           </span>
-        </div>
+        </details>
 
         <div className="table-wrap orders-table-wrap custom-orders-table-wrap">
           <table className="data-table orders-data-table custom-orders-data-table">
@@ -945,6 +950,7 @@ export function CustomOrdersManager() {
                       <td className="orders-actions-column">
                         <div className="table-actions">
                           <button
+                            aria-label={`Editar pedido custom ${order.id}`}
                             className="icon-button"
                             disabled={isPending}
                             onClick={() => openEdit(order)}
@@ -954,6 +960,7 @@ export function CustomOrdersManager() {
                             <Edit3 size={17} />
                           </button>
                           <button
+                            aria-label={`Eliminar pedido custom ${order.id}`}
                             className="icon-button danger-button"
                             disabled={isPending}
                             onClick={() => void handleDelete(order)}
@@ -1019,6 +1026,7 @@ export function CustomOrdersManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar formulario de pedido custom"
                 className="icon-button"
                 disabled={isSubmitting}
                 onClick={closeCreate}
@@ -1230,6 +1238,7 @@ export function CustomOrdersManager() {
                 </p>
               </div>
               <button
+                aria-label={`Cerrar edición del pedido custom ${editingOrder.id}`}
                 className="icon-button"
                 disabled={isSubmitting}
                 onClick={closeEdit}

@@ -2101,7 +2101,7 @@ export function OrdersManager() {
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Tabla de órdenes</h2>
+            <h2 className="card-title">Resultados</h2>
             <p className="muted">
               {visibleOrders.length} órdenes · {openCount} abiertas
             </p>
@@ -2122,6 +2122,7 @@ export function OrdersManager() {
               Agregar
             </button>
             <button
+              aria-label="Actualizar órdenes"
               className="icon-button"
               disabled={isLoading}
               onClick={() => {
@@ -2152,10 +2153,12 @@ export function OrdersManager() {
           </div>
         ) : null}
 
-        <form
-          className="catalog-filters orders-filters"
-          onSubmit={handleFilterSubmit}
-        >
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <form
+            className="catalog-filters orders-filters"
+            onSubmit={handleFilterSubmit}
+          >
           <div className="field-group">
             <label className="field-label" htmlFor="orders-search">
               Buscar
@@ -2194,21 +2197,27 @@ export function OrdersManager() {
             <Search size={17} />
             Filtrar
           </button>
-        </form>
+          </form>
+        </details>
 
-        <div className="orders-table-guide" aria-label="Comportamiento de la tabla">
-          <span className="orders-table-scroll-guide">
-            <ArrowLeftRight aria-hidden="true" size={16} />
-            Deslizá para ver el resto de las columnas
-          </span>
-          <span className="orders-table-fixed-guide">
-            <Pin aria-hidden="true" size={14} />
-            Acciones fijas
-          </span>
-        </div>
+        <details className="workspace-disclosure orders-table-guide">
+          <summary>Ayuda para consultar la tabla</summary>
+          <div className="orders-table-guide-content">
+            <span className="orders-table-scroll-guide">
+              <ArrowLeftRight aria-hidden="true" size={16} />
+              Deslizá para ver el resto de las columnas
+            </span>
+            <span className="orders-table-fixed-guide">
+              <Pin aria-hidden="true" size={14} />
+              Acciones fijas
+            </span>
+          </div>
+        </details>
 
         <div className="table-wrap orders-table-wrap">
-          <table className="data-table orders-data-table">
+          <table
+            className={`data-table orders-data-table${isAdmin ? " is-admin" : ""}`}
+          >
             <thead>
               <tr>
                 <th>Orden</th>
@@ -2470,6 +2479,7 @@ export function OrdersManager() {
                             </button>
                           ) : null}
                           <button
+                            aria-label={`Editar orden ${order.id}`}
                             className="icon-button"
                             disabled={isPending || !canManage}
                             onClick={() => openEditFormFromRow(order)}
@@ -2479,6 +2489,7 @@ export function OrdersManager() {
                             <Edit3 size={17} />
                           </button>
                           <button
+                            aria-label={`Eliminar orden ${order.id}`}
                             className="icon-button danger-button"
                             disabled={isPending || !canManage}
                             onClick={() => void handleDelete(order)}
@@ -2552,6 +2563,7 @@ export function OrdersManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar formulario de orden"
                 className="icon-button"
                 disabled={isSubmitting || isFormLoading}
                 onClick={closeFormModal}
@@ -2904,6 +2916,7 @@ export function OrdersManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar asignación de repartidor"
                 className="icon-button"
                 disabled={isAssigning}
                 onClick={closeAssignModal}
@@ -3109,6 +3122,7 @@ export function OrdersManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar detalle de ítems"
                 className="icon-button"
                 onClick={closeItemsModal}
                 title="Cerrar detalle"

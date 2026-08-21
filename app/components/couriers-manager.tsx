@@ -630,7 +630,7 @@ export function CouriersManager() {
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Tabla de repartidores</h2>
+            <h2 className="card-title">Resultados</h2>
             <p className="muted">
               {visibleCouriers.length} repartidores · {activeCount} activos
             </p>
@@ -651,6 +651,7 @@ export function CouriersManager() {
               Agregar
             </button>
             <button
+              aria-label="Actualizar repartidores"
               className="icon-button"
               disabled={isLoading}
               onClick={() => void loadCouriers()}
@@ -678,10 +679,12 @@ export function CouriersManager() {
           </div>
         ) : null}
 
-        <form
-          className="catalog-filters couriers-filters"
-          onSubmit={handleFilterSubmit}
-        >
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <form
+            className="catalog-filters couriers-filters"
+            onSubmit={handleFilterSubmit}
+          >
           <div className="field-group">
             <label className="field-label" htmlFor="couriers-search">
               Buscar
@@ -717,10 +720,13 @@ export function CouriersManager() {
             <Search size={17} />
             Filtrar
           </button>
-        </form>
+          </form>
+        </details>
 
         <div className="table-wrap">
-          <table className="data-table couriers-data-table">
+          <table
+            className={`data-table couriers-data-table${isAdmin ? " is-admin" : ""}`}
+          >
             <thead>
               <tr>
                 <th>Repartidor</th>
@@ -795,6 +801,7 @@ export function CouriersManager() {
                       <td>
                         <div className="table-actions">
                           <button
+                            aria-label={`Editar repartidor ${courierDisplayName(courier)}`}
                             className="icon-button"
                             disabled={isPending || !canManage}
                             onClick={() => openEditForm(courier)}
@@ -808,6 +815,7 @@ export function CouriersManager() {
                             <Edit3 size={17} />
                           </button>
                           <button
+                            aria-label={`Eliminar repartidor ${courierDisplayName(courier)}`}
                             className="icon-button danger-button"
                             disabled={isPending || !canManage}
                             onClick={() => void handleDelete(courier)}
@@ -891,6 +899,7 @@ export function CouriersManager() {
                 </p>
               </div>
               <button
+                aria-label="Cerrar formulario de repartidor"
                 className="icon-button"
                 disabled={isSubmitting}
                 onClick={closeFormModal}

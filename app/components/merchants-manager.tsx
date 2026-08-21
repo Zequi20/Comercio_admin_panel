@@ -480,7 +480,9 @@ export function MerchantsManager() {
           </div>
         </div>
 
-        <div className="catalog-filters merchants-filters">
+        <details className="responsive-filter-panel" open>
+          <summary>Filtros</summary>
+          <div className="catalog-filters merchants-filters">
           <label className="field-group">
             <span className="field-label">Buscar</span>
             <span className="notification-search-control">
@@ -524,7 +526,8 @@ export function MerchantsManager() {
           >
             Limpiar
           </button>
-        </div>
+          </div>
+        </details>
 
         <div className="table-wrap">
           <table className="data-table merchants-data-table">

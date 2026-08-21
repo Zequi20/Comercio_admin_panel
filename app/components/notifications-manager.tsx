@@ -601,8 +601,10 @@ export function NotificationsManager() {
             ) : null}
           </div>
 
-          <div className="notification-directory-tools">
-            <label className="field-group">
+          <details className="responsive-filter-panel notification-filter-panel" open>
+            <summary>Buscar y filtrar</summary>
+            <div className="notification-directory-tools">
+              <label className="field-group">
               <span className="field-label">Buscar usuario</span>
               <span className="notification-search-control">
                 <Search aria-hidden="true" size={17} />
@@ -614,8 +616,8 @@ export function NotificationsManager() {
                   value={query}
                 />
               </span>
-            </label>
-            <label className="field-group">
+              </label>
+              <label className="field-group">
               <span className="field-label">Tipo de usuario</span>
               <select
                 className="field-control"
@@ -628,8 +630,9 @@ export function NotificationsManager() {
                 <option value="CUSTOMER">Clientes · Pedidos App</option>
                 <option value="COURIER">Repartidores · Pedidos Repartidor</option>
               </select>
-            </label>
-          </div>
+              </label>
+            </div>
+          </details>
 
           {directoryTruncated ? (
             <div className="notification-info-box" role="note">
@@ -738,10 +741,6 @@ export function NotificationsManager() {
                   {` · ${targetAppLabel}`}
                 </p>
               </div>
-              <span className="notification-fcm-badge">
-                <BellRing aria-hidden="true" size={14} />
-                Notificaciones
-              </span>
             </div>
 
             <form className="notification-form" onSubmit={handleSubmit}>
@@ -849,17 +848,14 @@ export function NotificationsManager() {
             </form>
           </section>
 
-          <aside className="notification-delivery-help" role="note">
-            <Info aria-hidden="true" size={18} />
-            <div>
-              <strong>Cómo funciona la entrega</strong>
-              <span>
-                La solicitud se encola por usuario. El sistema sólo podrá entregarla si
-                ese usuario inició sesión en la app y tiene un token vigente.
-                “Encolada” no confirma la recepción en el dispositivo.
-              </span>
-            </div>
-          </aside>
+          <details className="workspace-disclosure notification-delivery-help">
+            <summary>Cómo funciona la entrega</summary>
+            <p>
+              La solicitud se encola por usuario. El sistema sólo podrá entregarla si
+              ese usuario inició sesión en la app y tiene un token vigente.
+              “Encolada” no confirma la recepción en el dispositivo.
+            </p>
+          </details>
         </div>
       </div>
     </div>
