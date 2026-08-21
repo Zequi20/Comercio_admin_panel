@@ -46,15 +46,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
-    context.isAdmin &&
-    String(context.session.merchant?.id ?? "") !== String(context.scope.merchantId)
-  ) {
-    return badRequestResponse(
-      "La importación masiva todavía requiere que el administrador esté vinculado al comercio seleccionado. Podés crear y editar productos individualmente."
-    );
-  }
-
   const incomingFormData = await request.formData().catch(() => null);
   const file = incomingFormData?.get("file") ?? null;
 
