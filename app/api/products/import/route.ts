@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       normalizedFile,
       normalizedFile.name || "productos.xlsx"
     );
+    formData.set("merchantId", String(context.scope.merchantId));
 
     const importResult = await importProductsForMerchant({
       accessToken: context.accessToken,
