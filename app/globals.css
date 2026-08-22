@@ -3445,6 +3445,19 @@ a {
   width: min(100%, 760px);
 }
 
+.dashboard-order-create {
+  display: contents;
+}
+
+.dashboard-order-create-status {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 80;
+  max-width: min(420px, calc(100vw - 40px));
+  box-shadow: var(--shadow-floating);
+}
+
 .modal-loading-state {
   display: grid;
   min-height: 220px;

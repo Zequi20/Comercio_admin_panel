@@ -17,6 +17,7 @@ import { DashboardOrdersRealtime } from "../components/dashboard-orders-realtime
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
+import { OrdersManager } from "../components/orders-manager";
 import { PageHeader } from "../components/page-header";
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
@@ -548,12 +549,7 @@ export default async function DashboardPage() {
     <main className="dashboard-main">
       <DashboardOrdersRealtime scopeKey={scopeKey} />
       <PageHeader
-        actions={
-          <Link className="button-primary" href="/dashboard/ordenes">
-            <Plus aria-hidden="true" size={17} />
-            Nueva orden
-          </Link>
-        }
+        actions={<OrdersManager variant="create-action" />}
         description={scopeName}
         title="Panel de control"
       />

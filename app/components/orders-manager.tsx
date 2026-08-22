@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
@@ -906,8 +907,14 @@ function itemLineTotal(item: OrderItem, currency: string) {
   return formatPrice(quantity * unitPrice, currency);
 }
 
-export function OrdersManager() {
+type OrdersManagerProps = Readonly<{
+  variant?: "manager" | "create-action";
+}>;
+
+export function OrdersManager({ variant = "manager" }: OrdersManagerProps) {
+  const router = useRouter();
   const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
+  const isCreateAction = variant === "create-action";
   const [orders, setOrders] = useState<CommerceOrder[]>([]);
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
@@ -1169,6 +1176,18 @@ export function OrdersManager() {
   useEffect(() => {
     let ignore = false;
 
+    if (isCreateAction) {
+      async function loadCreateFormData() {
+        await loadProducts();
+      }
+
+      void loadCreateFormData();
+
+      return () => {
+        ignore = true;
+      };
+    }
+
     async function loadInitialData() {
       const requestId = ++ordersLoadRequestRef.current;
       const mutationRevision = ordersMutationRevisionRef.current;
@@ -1227,7 +1246,7 @@ export function OrdersManager() {
     return () => {
       ignore = true;
     };
-  }, [scopeKey]);
+  }, [isCreateAction, scopeKey]);
 
   useEffect(() => {
     document.body.classList.toggle("modal-open", hasOpenModal);
@@ -1238,6 +1257,8 @@ export function OrdersManager() {
   }, [hasOpenModal]);
 
   useEffect(() => {
+    if (isCreateAction) return;
+
     const events = new EventSource("/api/orders/events");
     const pendingRealtimeOrderIds = new Map<
       string,
@@ -1399,7 +1420,7 @@ export function OrdersManager() {
       pendingRealtimeOrderIds.clear();
       needsFullRealtimeRefresh = false;
     };
-  }, [scope.mode, scope.merchantId, scopeKey]);
+  }, [isCreateAction, scope.mode, scope.merchantId, scopeKey]);
 
   useEffect(() => {
     return () => {
@@ -2024,10 +2045,13 @@ export function OrdersManager() {
           ? "Orden actualizada correctamente."
           : "Orden creada correctamente."
       );
+      if (isCreateAction) {
+        router.refresh();
+      }
       if (savedOrder) {
         updateOrderInTable(savedOrder);
         markOrderAsRecentlyUpdated(String(savedOrder.id));
-      } else {
+      } else if (!isCreateAction) {
         await loadOrders(filters, { merge: true });
       }
     } catch (err) {
@@ -2097,8 +2121,26 @@ export function OrdersManager() {
   }
 
   return (
-    <div className="catalog-layout">
-      <section className="card card-lg catalog-table-card">
+    <div
+      className={isCreateAction ? "dashboard-order-create" : "catalog-layout"}
+    >
+      {isCreateAction ? (
+        <button
+          className="button-primary"
+          disabled={!canManage}
+          onClick={openCreateForm}
+          title={
+            canManage
+              ? "Agregar orden"
+              : "Seleccioná un comercio para agregar órdenes"
+          }
+          type="button"
+        >
+          <Plus aria-hidden="true" size={17} />
+          Nueva orden
+        </button>
+      ) : (
+        <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
             <h2 className="card-title">Resultados</h2>
@@ -2532,7 +2574,19 @@ export function OrdersManager() {
             setOrdersPagination({ page: 1, pageSize })
           }
         />
-      </section>
+        </section>
+      )}
+
+      {isCreateAction && !hasOpenModal && success ? (
+        <div
+          aria-live="polite"
+          className="success-box dashboard-order-create-status"
+          role="status"
+        >
+          <CircleCheck aria-hidden="true" size={18} />
+          <span>{success}</span>
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <div className="catalog-modal-layer" role="presentation">
