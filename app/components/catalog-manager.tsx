@@ -1658,16 +1658,19 @@ export function CatalogManager() {
 
                 <div className="field-group">
                   <label className="field-label" htmlFor="catalog-sku">
-                    Código SKU
+                    Código SKU (opcional)
                   </label>
                   <input
                     className="field-control"
                     disabled={isSubmitting}
                     id="catalog-sku"
-                    placeholder="SKU-001"
+                    placeholder="Se genera automáticamente"
                     value={form.sku}
                     onChange={(event) => updateForm("sku", event.target.value)}
                   />
+                  <span className="field-hint">
+                    Si queda vacío, se asignará un código SKU único.
+                  </span>
                 </div>
               </div>
 

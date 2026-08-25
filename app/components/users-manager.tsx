@@ -189,6 +189,29 @@ function merchantLabel(merchant: MerchantDetails) {
   );
 }
 
+function userDataChanges(form: EditUserForm, user: ManagedUser) {
+  const email = form.email.trim().toLowerCase();
+  const nickname = form.nickname.trim();
+  const phone = form.phone.trim();
+  const currentMerchantId = user.merchant?.id ?? user.merchantId;
+  const normalizedCurrentMerchantId =
+    currentMerchantId === undefined || currentMerchantId === null
+      ? ""
+      : String(currentMerchantId);
+  const payload: Record<string, string | null> = {};
+
+  if (email !== (user.email ?? "").trim().toLowerCase()) payload.email = email;
+  if (nickname !== (user.nickname ?? "").trim()) {
+    payload.nickname = nickname || null;
+  }
+  if (phone !== (user.phone ?? "").trim()) payload.phone = phone || null;
+  if (form.merchantId !== normalizedCurrentMerchantId) {
+    payload.merchantId = form.merchantId || null;
+  }
+
+  return payload;
+}
+
 function MerchantCombobox({
   disabled,
   fallbackLabel,
@@ -495,6 +518,10 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     text: string;
   } | null>(null);
   const [roleAction, setRoleAction] = useState<"add" | "remove" | null>(null);
+  const [hasSavedRoleChanges, setHasSavedRoleChanges] = useState(false);
+  const hasUnsavedUserDataChanges = editingUser
+    ? Object.keys(userDataChanges(editForm, editingUser)).length > 0
+    : false;
 
   const applyUsersDirectory = useCallback(
     (directory: ManagedUser[], isTruncated: boolean) => {
@@ -646,6 +673,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     setCreateForm(emptyCreateForm);
     setCreateError(null);
     setSuccess(null);
+    setHasSavedRoleChanges(false);
     setActiveModal("create");
     void loadMerchants();
   }
@@ -670,6 +698,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     );
     setEditError(null);
     setRoleMessage(null);
+    setHasSavedRoleChanges(false);
     setSuccess(null);
     setActiveModal("edit");
     void loadMerchants();
@@ -680,12 +709,20 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     setPasswordForm(emptyPasswordForm);
     setPasswordError(null);
     setSuccess(null);
+    setHasSavedRoleChanges(false);
     setActiveModal("password");
   }
 
   function closeModal() {
     if (isSaving || roleAction) return;
-    if (!confirmFormClose()) return;
+    const shouldConfirm =
+      activeModal !== "edit" || hasUnsavedUserDataChanges;
+    if (shouldConfirm && !confirmFormClose()) return;
+
+    const savedRoleUserName =
+      activeModal === "edit" && hasSavedRoleChanges && editingUser
+        ? userName(editingUser)
+        : null;
 
     setActiveModal(null);
     setEditingUser(null);
@@ -693,6 +730,10 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     setEditError(null);
     setPasswordError(null);
     setRoleMessage(null);
+    setHasSavedRoleChanges(false);
+    if (savedRoleUserName) {
+      setSuccess(`Roles de ${savedRoleUserName} actualizados correctamente.`);
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -766,21 +807,21 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
       return;
     }
 
-    const payload: Record<string, string | null> = {};
-    if (email !== (editingUser.email ?? "").trim().toLowerCase()) payload.email = email;
-    if (nickname !== (editingUser.nickname ?? "").trim()) {
-      payload.nickname = nickname || null;
-    }
-    if (phone !== (editingUser.phone ?? "").trim()) payload.phone = phone || null;
-    const currentMerchantId = editingUser.merchant?.id ?? editingUser.merchantId;
-    const normalizedCurrentMerchantId =
-      currentMerchantId === undefined || currentMerchantId === null
-        ? ""
-        : String(currentMerchantId);
-    if (merchantId !== normalizedCurrentMerchantId) {
-      payload.merchantId = merchantId || null;
-    }
+    const payload = userDataChanges(
+      { email, nickname, phone, merchantId },
+      editingUser
+    );
     if (!Object.keys(payload).length) {
+      if (hasSavedRoleChanges) {
+        const changedUserName = userName(editingUser);
+        setActiveModal(null);
+        setEditingUser(null);
+        setRoleMessage(null);
+        setHasSavedRoleChanges(false);
+        setSuccess(`Roles de ${changedUserName} actualizados correctamente.`);
+        return;
+      }
+
       setEditError("No hay cambios de datos para guardar.");
       return;
     }
@@ -802,7 +843,12 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
 
       setActiveModal(null);
       setEditingUser(null);
-      setSuccess(`Datos de ${email} actualizados correctamente.`);
+      setHasSavedRoleChanges(false);
+      setSuccess(
+        hasSavedRoleChanges
+          ? `Datos y roles de ${email} actualizados correctamente.`
+          : `Datos de ${email} actualizados correctamente.`
+      );
       await loadUsers();
     } catch (cause) {
       setEditError(
@@ -918,6 +964,8 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
             return Array.from(next);
           })();
       setAssignedRoles(nextRoles);
+      setHasSavedRoleChanges(true);
+      setEditError(null);
       setUsers((current) =>
         current.map((user) =>
           String(user.id) === String(editingUser.id)
@@ -946,8 +994,8 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
         kind: "success",
         text:
           mode === "add"
-            ? `Rol ${selectedRole} asignado.`
-            : `Rol ${selectedRole} retirado.`,
+            ? `Rol ${selectedRole} asignado. El cambio ya está guardado.`
+            : `Rol ${selectedRole} retirado. El cambio ya está guardado.`,
       });
     } catch (cause) {
       setRoleMessage({
@@ -1670,7 +1718,9 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                       <div className="users-role-manager-header">
                         <div>
                           <strong>Roles RBAC</strong>
-                          <span>Los permisos efectivos se derivan de estos roles.</span>
+                          <span>
+                            Los roles se guardan inmediatamente al agregarlos o quitarlos.
+                          </span>
                         </div>
                         <span className="pill assigned">{assignedRoles.length} asignados</span>
                       </div>
@@ -1792,7 +1842,11 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                         ) : (
                           <Save aria-hidden="true" size={17} />
                         )}
-                        {isSaving ? "Guardando…" : "Guardar datos"}
+                        {isSaving
+                          ? "Guardando…"
+                          : hasSavedRoleChanges && !hasUnsavedUserDataChanges
+                            ? "Finalizar edición"
+                            : "Guardar cambios"}
                       </button>
                       <button
                         className="button-secondary"

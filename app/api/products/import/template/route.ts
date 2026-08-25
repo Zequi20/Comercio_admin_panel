@@ -23,8 +23,8 @@ const fieldGuideRows = [
   ["Campo", "Requerido", "Qué ingresar", "Ejemplo"],
   [
     "sku",
-    "Sí",
-    "Texto único. Las filas con SKU duplicado se rechazan.",
+    "No",
+    "Código único opcional. Si queda vacío, se genera automáticamente.",
     "HAMB-001",
   ],
   ["name", "Sí", "Nombre visible del producto o servicio.", "Hamburguesa"],
