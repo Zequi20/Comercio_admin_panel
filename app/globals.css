@@ -2010,7 +2010,37 @@ a {
 }
 
 .catalog-data-table {
-  min-width: 1040px;
+  min-width: 1120px;
+}
+
+.catalog-data-table.is-global-catalog {
+  min-width: 1280px;
+}
+
+.catalog-data-table .catalog-number-column,
+.catalog-data-table .catalog-number-cell {
+  width: 112px;
+  white-space: nowrap;
+}
+
+.catalog-data-table .catalog-product-primary-column,
+.catalog-data-table .catalog-product-primary-cell {
+  min-width: 280px;
+}
+
+.catalog-data-table .catalog-price-column,
+.catalog-data-table .catalog-price-cell {
+  width: 150px;
+  white-space: nowrap;
+}
+
+.catalog-data-table .catalog-status-column {
+  width: 170px;
+}
+
+.catalog-data-table .catalog-secondary-column {
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 .orders-data-table {
@@ -2585,6 +2615,72 @@ a {
 .catalog-thumbnail-fallback {
   background: var(--primary-container);
   color: var(--primary);
+}
+
+.catalog-number {
+  display: inline-flex;
+  min-width: 56px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border-soft));
+  border-radius: 999px;
+  background: var(--primary-container);
+  color: var(--primary);
+  padding: 4px 9px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.catalog-product-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.catalog-product-copy {
+  min-width: 0;
+}
+
+.catalog-product-copy .table-muted {
+  max-width: 260px;
+}
+
+.catalog-price-cell strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.catalog-sku-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.catalog-merchant-group-row,
+.catalog-merchant-group-row:hover {
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface-secondary));
+}
+
+.catalog-merchant-group-row td {
+  border-bottom-color: color-mix(in srgb, var(--primary) 18%, var(--border-soft));
+  padding-block: 7px;
+}
+
+.catalog-merchant-group-label {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--primary);
+}
+
+.catalog-merchant-group-label strong {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.01em;
 }
 
 .metadata-trigger {

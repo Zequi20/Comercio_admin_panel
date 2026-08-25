@@ -19,6 +19,7 @@ export type ProductAvailabilityStatus =
 export type Product = {
   id: number | string;
   merchantId: number | string;
+  catalogNumber: number | string;
   merchant?: EntityReference;
   type?: ProductType;
   sku?: string;

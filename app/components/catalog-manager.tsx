@@ -13,11 +13,18 @@ import {
   RefreshCw,
   Save,
   Search,
+  Store,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -57,6 +64,7 @@ type MetadataField = {
 type CatalogProduct = {
   id: number | string;
   merchantId?: number | string;
+  catalogNumber?: number | string;
   merchant?: {
     id?: number | string;
     name?: string | null;
@@ -174,6 +182,20 @@ function productMerchantName(product: CatalogProduct) {
     product.merchant?.name ??
     (product.merchantId ? `Comercio #${product.merchantId}` : "Sin comercio")
   );
+}
+
+function productMerchantKey(product: CatalogProduct) {
+  return String(product.merchant?.id ?? product.merchantId ?? "unassigned");
+}
+
+function catalogNumberValue(product: CatalogProduct) {
+  const value = Number(product.catalogNumber);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function formatCatalogNumber(product: CatalogProduct) {
+  const value = catalogNumberValue(product);
+  return value === null ? "Sin asignar" : `#${String(value).padStart(3, "0")}`;
 }
 
 function availabilityLabel(status: ProductAvailabilityStatus) {
@@ -606,6 +628,8 @@ function metadataFieldsToObject(fields: MetadataField[]):
 
 export function CatalogManager() {
   const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
+  const showMerchantColumn = isAdmin && scope.mode === "global";
+  const catalogColumnCount = showMerchantColumn ? 9 : 8;
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [form, setForm] = useState<CatalogForm>(emptyForm);
   const [merchantTarget, setMerchantTarget] = useState({
@@ -655,9 +679,33 @@ export function CatalogManager() {
       ).length,
     [products]
   );
+  const displayProducts = useMemo(() => {
+    if (!showMerchantColumn) return products;
+
+    return [...products].sort((first, second) => {
+      const merchantComparison = productMerchantName(first).localeCompare(
+        productMerchantName(second),
+        "es"
+      );
+      if (merchantComparison !== 0) return merchantComparison;
+
+      const merchantKeyComparison = productMerchantKey(first).localeCompare(
+        productMerchantKey(second),
+        "es",
+        { numeric: true }
+      );
+      if (merchantKeyComparison !== 0) return merchantKeyComparison;
+
+      const firstNumber = catalogNumberValue(first) ?? Number.MAX_SAFE_INTEGER;
+      const secondNumber = catalogNumberValue(second) ?? Number.MAX_SAFE_INTEGER;
+      if (firstNumber !== secondNumber) return firstNumber - secondNumber;
+
+      return first.name.localeCompare(second.name, "es");
+    });
+  }, [products, showMerchantColumn]);
   const catalogPage = useMemo(
-    () => paginateRows(products, catalogPagination),
-    [catalogPagination, products]
+    () => paginateRows(displayProducts, catalogPagination),
+    [catalogPagination, displayProducts]
   );
   const advancedStatusLabel = form.metadata.length
     ? metadataCountLabel(form.metadata.length)
@@ -1298,7 +1346,7 @@ export function CatalogManager() {
             <input
               className="field-control"
               id="catalog-search"
-              placeholder="Nombre o SKU"
+              placeholder="Buscar por nombre o código SKU"
               value={filters.q}
               onChange={(event) => updateFilters({ q: event.target.value })}
             />
@@ -1351,17 +1399,21 @@ export function CatalogManager() {
         </form>
 
         <div className="table-wrap">
-          <table className="data-table catalog-data-table">
+          <table
+            className={`data-table catalog-data-table${
+              showMerchantColumn ? " is-global-catalog" : ""
+            }`}
+          >
             <thead>
               <tr>
-                <th>Imagen</th>
-                <th>Nombre</th>
-                {isAdmin ? <th>Comercio</th> : null}
-                <th>Tipo</th>
-                <th>SKU</th>
-                <th>Precio</th>
-                <th>Estado</th>
-                <th>Campos avanzados</th>
+                <th className="catalog-number-column">N.º catálogo</th>
+                <th className="catalog-product-primary-column">Producto</th>
+                <th className="catalog-price-column">Precio</th>
+                <th className="catalog-status-column">Estado</th>
+                {showMerchantColumn ? <th>Comercio</th> : null}
+                <th className="catalog-secondary-column">Código SKU</th>
+                <th className="catalog-secondary-column">Tipo</th>
+                <th className="catalog-secondary-column">Campos avanzados</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -1369,118 +1421,149 @@ export function CatalogManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={isAdmin ? 9 : 8}>
+                    <td colSpan={catalogColumnCount}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
                 ))
               ) : products.length ? (
-                catalogPage.rows.map((product) => {
+                catalogPage.rows.map((product, index) => {
                   const isPending = pendingProductId === String(product.id);
                   const metadata = metadataEntries(product.metadata);
+                  const previousProduct = catalogPage.rows[index - 1];
+                  const startsMerchantGroup =
+                    showMerchantColumn &&
+                    (!previousProduct ||
+                      productMerchantKey(previousProduct) !==
+                        productMerchantKey(product));
 
                   return (
-                    <tr key={product.id}>
-                      <td>
-                        <CatalogThumbnail product={product} />
-                      </td>
-                      <td>
-                        <strong>{product.name}</strong>
-                        {product.description ? (
-                          <span className="table-muted">
-                            {product.description}
-                          </span>
-                        ) : null}
-                      </td>
-                      {isAdmin ? (
-                        <td>
-                          <strong>{productMerchantName(product)}</strong>
-                          <span className="table-muted">
-                            ID {product.merchant?.id ?? product.merchantId ?? "-"}
+                    <Fragment key={product.id}>
+                      {startsMerchantGroup ? (
+                        <tr className="catalog-merchant-group-row">
+                          <td colSpan={catalogColumnCount}>
+                            <span className="catalog-merchant-group-label">
+                              <Store aria-hidden="true" size={15} />
+                              <strong>{productMerchantName(product)}</strong>
+                            </span>
+                          </td>
+                        </tr>
+                      ) : null}
+                      <tr>
+                        <td className="catalog-number-cell">
+                          <span className="catalog-number">
+                            {formatCatalogNumber(product)}
                           </span>
                         </td>
-                      ) : null}
-                      <td>
-                        <span className="pill">
-                          {product.type === "SERVICE" ? "Servicio" : "Producto"}
-                        </span>
-                      </td>
-                      <td>{product.sku || "Sin SKU"}</td>
-                      <td>{formatPrice(product.price, product.currency)}</td>
-                      <td>
-                        <select
-                          aria-label={`Estado de ${product.name}`}
-                          className={`catalog-status-select status-${availabilityStatusForProduct(
-                            product
-                          ).toLowerCase()}`}
-                          disabled={isPending || !canManage}
-                          title={
-                            availabilityOptions.find(
-                              (option) =>
-                                option.value ===
-                                availabilityStatusForProduct(product)
-                            )?.description
-                          }
-                          value={availabilityStatusForProduct(product)}
-                          onChange={(event) =>
-                            void handleAvailabilityStatus(
-                              product,
-                              event.target.value as ProductAvailabilityStatus
-                            )
-                          }
-                        >
-                          {availabilityOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        {metadata.length ? (
-                          <button
-                            aria-label={`Ver ${metadataCountLabel(
-                              metadata.length
-                            )} técnicos de ${product.name}`}
-                            className="metadata-trigger"
-                            onClick={() => openMetadataModal(product)}
-                            type="button"
-                          >
-                            <Braces aria-hidden="true" size={15} />
-                            <span>{metadataCountLabel(metadata.length)}</span>
-                          </button>
-                        ) : (
-                          <span className="table-muted">Sin campos</span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="table-actions">
-                          <button
-                            className="icon-button"
+                        <td className="catalog-product-primary-cell">
+                          <div className="catalog-product-cell">
+                            <CatalogThumbnail product={product} />
+                            <span className="catalog-product-copy">
+                              <strong>{product.name}</strong>
+                              {product.description ? (
+                                <span className="table-muted">
+                                  {product.description}
+                                </span>
+                              ) : null}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="catalog-price-cell">
+                          <strong>{formatPrice(product.price, product.currency)}</strong>
+                        </td>
+                        <td className="catalog-status-column">
+                          <select
+                            aria-label={`Estado de ${product.name}`}
+                            className={`catalog-status-select status-${availabilityStatusForProduct(
+                              product
+                            ).toLowerCase()}`}
                             disabled={isPending || !canManage}
-                            onClick={() => openEditForm(product)}
-                            title={canManage ? "Editar" : "Seleccioná un comercio para editar"}
-                            type="button"
+                            title={
+                              availabilityOptions.find(
+                                (option) =>
+                                  option.value ===
+                                  availabilityStatusForProduct(product)
+                              )?.description
+                            }
+                            value={availabilityStatusForProduct(product)}
+                            onChange={(event) =>
+                              void handleAvailabilityStatus(
+                                product,
+                                event.target.value as ProductAvailabilityStatus
+                              )
+                            }
                           >
-                            <Edit3 size={17} />
-                          </button>
-                          <button
-                            className="icon-button danger-button"
-                            disabled={isPending || !canManage}
-                            onClick={() => void handleDelete(product)}
-                            title={canManage ? "Eliminar" : "Seleccioná un comercio para eliminar"}
-                            type="button"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            {availabilityOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        {showMerchantColumn ? (
+                          <td>
+                            <strong>{productMerchantName(product)}</strong>
+                            <span className="table-muted">
+                              Comercio #{product.merchant?.id ?? product.merchantId ?? "-"}
+                            </span>
+                          </td>
+                        ) : null}
+                        <td className="catalog-secondary-column">
+                          <span className="catalog-sku-code">
+                            {product.sku || "Sin código SKU"}
+                          </span>
+                        </td>
+                        <td className="catalog-secondary-column">
+                          <span className="pill">
+                            {product.type === "SERVICE" ? "Servicio" : "Producto"}
+                          </span>
+                        </td>
+                        <td className="catalog-secondary-column">
+                          {metadata.length ? (
+                            <button
+                              aria-label={`Ver ${metadataCountLabel(
+                                metadata.length
+                              )} técnicos de ${product.name}`}
+                              className="metadata-trigger"
+                              onClick={() => openMetadataModal(product)}
+                              type="button"
+                            >
+                              <Braces aria-hidden="true" size={15} />
+                              <span>{metadataCountLabel(metadata.length)}</span>
+                            </button>
+                          ) : (
+                            <span className="table-muted">Sin campos</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              className="icon-button"
+                              disabled={isPending || !canManage}
+                              onClick={() => openEditForm(product)}
+                              title={canManage ? "Editar" : "Seleccioná un comercio para editar"}
+                              type="button"
+                            >
+                              <Edit3 size={17} />
+                            </button>
+                            <button
+                              className="icon-button danger-button"
+                              disabled={isPending || !canManage}
+                              onClick={() => void handleDelete(product)}
+                              title={canManage ? "Eliminar" : "Seleccioná un comercio para eliminar"}
+                              type="button"
+                            >
+                              <Trash2 size={17} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8}>
+                  <td colSpan={catalogColumnCount}>
                     <div className="empty-table-state">
                       <PackagePlus aria-hidden="true" size={26} />
                       <strong>Sin ítems en el catálogo</strong>
@@ -1575,7 +1658,7 @@ export function CatalogManager() {
 
                 <div className="field-group">
                   <label className="field-label" htmlFor="catalog-sku">
-                    SKU
+                    Código SKU
                   </label>
                   <input
                     className="field-control"
