@@ -1411,7 +1411,9 @@ export function CatalogManager() {
                 <th className="catalog-price-column">Precio</th>
                 <th className="catalog-status-column">Estado</th>
                 {showMerchantColumn ? <th>Comercio</th> : null}
-                <th className="catalog-secondary-column">Código SKU</th>
+                <th className="catalog-secondary-column catalog-sku-column">
+                  Código SKU
+                </th>
                 <th className="catalog-secondary-column">Tipo</th>
                 <th className="catalog-secondary-column">Campos avanzados</th>
                 <th>Acciones</th>
@@ -1508,8 +1510,15 @@ export function CatalogManager() {
                             </span>
                           </td>
                         ) : null}
-                        <td className="catalog-secondary-column">
-                          <span className="catalog-sku-code">
+                        <td className="catalog-secondary-column catalog-sku-column">
+                          <span
+                            className="catalog-sku-code"
+                            title={
+                              product.sku && product.sku.length > 16
+                                ? `SKU completo: ${product.sku}`
+                                : undefined
+                            }
+                          >
                             {product.sku || "Sin código SKU"}
                           </span>
                         </td>

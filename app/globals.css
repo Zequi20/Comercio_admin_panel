@@ -2043,6 +2043,11 @@ a {
   font-size: 11px;
 }
 
+.catalog-data-table .catalog-sku-column {
+  width: 16ch;
+  max-width: 16ch;
+}
+
 .orders-data-table {
   min-width: 1680px;
 }
@@ -2655,9 +2660,17 @@ a {
 }
 
 .catalog-sku-code {
+  display: block;
+  max-width: 16ch;
+  overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 11px;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.catalog-sku-code[title] {
+  cursor: help;
 }
 
 .catalog-merchant-group-row,
