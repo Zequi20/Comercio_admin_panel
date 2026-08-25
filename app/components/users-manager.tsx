@@ -66,6 +66,12 @@ type EditUserForm = {
   email: string;
   nickname: string;
   phone: string;
+  merchantId: string;
+};
+
+type PasswordUserForm = {
+  newPassword: string;
+  confirmPassword: string;
 };
 
 type UsersResponse = {
@@ -73,7 +79,7 @@ type UsersResponse = {
   truncated?: boolean;
 };
 
-type ActiveModal = "create" | "edit" | null;
+type ActiveModal = "create" | "edit" | "password" | null;
 
 async function requestUsersDirectory() {
   const response = await fetch("/api/users", { credentials: "include" });
@@ -112,6 +118,12 @@ const emptyEditForm: EditUserForm = {
   email: "",
   nickname: "",
   phone: "",
+  merchantId: "",
+};
+
+const emptyPasswordForm: PasswordUserForm = {
+  newPassword: "",
+  confirmPassword: "",
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -179,6 +191,7 @@ function merchantLabel(merchant: MerchantDetails) {
 
 function MerchantCombobox({
   disabled,
+  fallbackLabel,
   inputId,
   isLoading,
   merchants,
@@ -186,6 +199,7 @@ function MerchantCombobox({
   value,
 }: {
   disabled: boolean;
+  fallbackLabel?: string;
   inputId: string;
   isLoading: boolean;
   merchants: MerchantDetails[];
@@ -196,14 +210,16 @@ function MerchantCombobox({
   const listboxId = useId();
   const selectedMerchant =
     merchants.find((merchant) => String(merchant.id) === value) ?? null;
+  const selectedLabel = selectedMerchant
+    ? merchantLabel(selectedMerchant)
+    : value
+      ? fallbackLabel ?? `Comercio #${value}`
+      : "";
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [optionsStyle, setOptionsStyle] = useState<CSSProperties>({});
-  const [query, setQuery] = useState(
-    selectedMerchant ? merchantLabel(selectedMerchant) : ""
-  );
+  const [query, setQuery] = useState(selectedLabel);
   const normalizedQuery = query.trim().toLocaleLowerCase("es");
-  const selectedLabel = selectedMerchant ? merchantLabel(selectedMerchant) : "";
   const isShowingSelectedValue =
     Boolean(value) && normalizedQuery === selectedLabel.toLocaleLowerCase("es");
   const visibleMerchants = useMemo(() => {
@@ -265,6 +281,7 @@ function MerchantCombobox({
   function openOptions() {
     if (disabled || isLoading) return;
     updateOptionsPosition();
+    setQuery(selectedLabel);
     setActiveIndex(
       Math.max(
         0,
@@ -278,7 +295,7 @@ function MerchantCombobox({
 
   function closeOptions() {
     setIsOpen(false);
-    setQuery(selectedMerchant ? merchantLabel(selectedMerchant) : "");
+    setQuery(selectedLabel);
   }
 
   function selectMerchant(merchant: MerchantDetails) {
@@ -432,7 +449,7 @@ function MerchantCombobox({
           placeholder={isLoading ? "Cargando comercios…" : "Buscar comercio"}
           role="combobox"
           type="text"
-          value={query}
+          value={isOpen ? query : selectedLabel}
         />
       </span>
 
@@ -467,6 +484,9 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
 
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [editForm, setEditForm] = useState<EditUserForm>(emptyEditForm);
+  const [passwordForm, setPasswordForm] =
+    useState<PasswordUserForm>(emptyPasswordForm);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [assignedRoles, setAssignedRoles] = useState<ManagedUserRole[]>([]);
   const [selectedRole, setSelectedRole] = useState<ManagedUserRole>("MERCHANT");
   const [editError, setEditError] = useState<string | null>(null);
@@ -636,10 +656,13 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     ) as ManagedUserRole[];
     const assigned = new Set(roles);
     setEditingUser(user);
+    const merchantId = user.merchant?.id ?? user.merchantId;
     setEditForm({
       email: user.email ?? "",
       nickname: user.nickname ?? "",
       phone: user.phone ?? "",
+      merchantId:
+        merchantId === undefined || merchantId === null ? "" : String(merchantId),
     });
     setAssignedRoles(roles);
     setSelectedRole(
@@ -649,6 +672,15 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     setRoleMessage(null);
     setSuccess(null);
     setActiveModal("edit");
+    void loadMerchants();
+  }
+
+  function openPasswordModal(user: ManagedUser) {
+    setEditingUser(user);
+    setPasswordForm(emptyPasswordForm);
+    setPasswordError(null);
+    setSuccess(null);
+    setActiveModal("password");
   }
 
   function closeModal() {
@@ -659,6 +691,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     setEditingUser(null);
     setCreateError(null);
     setEditError(null);
+    setPasswordError(null);
     setRoleMessage(null);
   }
 
@@ -727,6 +760,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     const email = editForm.email.trim().toLowerCase();
     const nickname = editForm.nickname.trim();
     const phone = editForm.phone.trim();
+    const merchantId = editForm.merchantId;
     if (!emailPattern.test(email)) {
       setEditError("Ingresá un correo válido.");
       return;
@@ -738,6 +772,14 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
       payload.nickname = nickname || null;
     }
     if (phone !== (editingUser.phone ?? "").trim()) payload.phone = phone || null;
+    const currentMerchantId = editingUser.merchant?.id ?? editingUser.merchantId;
+    const normalizedCurrentMerchantId =
+      currentMerchantId === undefined || currentMerchantId === null
+        ? ""
+        : String(currentMerchantId);
+    if (merchantId !== normalizedCurrentMerchantId) {
+      payload.merchantId = merchantId || null;
+    }
     if (!Object.keys(payload).length) {
       setEditError("No hay cambios de datos para guardar.");
       return;
@@ -765,6 +807,59 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
     } catch (cause) {
       setEditError(
         cause instanceof Error ? cause.message : "No se pudo actualizar el usuario."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handlePasswordUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+    if (!editingUser) return;
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(String(editingUser.id))}/password`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+        }
+      );
+      const responsePayload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(
+            responsePayload,
+            "No se pudo cambiar la contraseña del usuario."
+          )
+        );
+      }
+
+      const changedUserName = userName(editingUser);
+      setActiveModal(null);
+      setEditingUser(null);
+      setPasswordForm(emptyPasswordForm);
+      setSuccess(
+        `Contraseña de ${changedUserName} actualizada correctamente. Deberá volver a iniciar sesión cuando expire su sesión actual.`
+      );
+    } catch (cause) {
+      setPasswordError(
+        cause instanceof Error
+          ? cause.message
+          : "No se pudo cambiar la contraseña del usuario."
       );
     } finally {
       setIsSaving(false);
@@ -1149,6 +1244,16 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                             <Edit3 aria-hidden="true" size={16} />
                           </button>
                           <button
+                            aria-label={`Cambiar contraseña de ${userName(user)}`}
+                            className="icon-button"
+                            disabled={isPending}
+                            onClick={() => openPasswordModal(user)}
+                            title="Cambiar contraseña"
+                            type="button"
+                          >
+                            <KeyRound aria-hidden="true" size={16} />
+                          </button>
+                          <button
                             aria-label={`${isActive ? "Desactivar" : "Reactivar"} ${userName(user)}`}
                             className={`icon-button${isActive ? " danger-button" : ""}`}
                             disabled={isPending || isActive === undefined || Boolean(isSelf && isActive)}
@@ -1217,7 +1322,13 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                 type="button"
               />
               <section
-                aria-label={activeModal === "create" ? "Crear usuario" : "Editar usuario"}
+                aria-label={
+                  activeModal === "create"
+                    ? "Crear usuario"
+                    : activeModal === "password"
+                      ? "Cambiar contraseña"
+                      : "Editar usuario"
+                }
                 aria-modal="true"
                 className="card card-lg catalog-modal users-modal"
                 role="dialog"
@@ -1225,7 +1336,11 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                 <div className="card-header">
                   <div>
                     <h2 className="card-title">
-                      {activeModal === "create" ? "Crear usuario" : "Editar usuario y roles"}
+                      {activeModal === "create"
+                        ? "Crear usuario"
+                        : activeModal === "password"
+                          ? "Cambiar contraseña"
+                          : "Editar usuario y roles"}
                     </h2>
                     <p className="muted">
                       {activeModal === "create"
@@ -1383,6 +1498,80 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                       </button>
                     </div>
                   </form>
+                ) : activeModal === "password" ? (
+                  <form className="catalog-form" onSubmit={handlePasswordUpdate}>
+                    <div className="form-grid">
+                      <label className="field-group">
+                        <span className="field-label">Nueva contraseña</span>
+                        <input
+                          autoComplete="new-password"
+                          autoFocus
+                          className="field-control"
+                          disabled={isSaving}
+                          minLength={8}
+                          onChange={(event) =>
+                            setPasswordForm((current) => ({
+                              ...current,
+                              newPassword: event.target.value,
+                            }))
+                          }
+                          placeholder="Mínimo 8 caracteres"
+                          required
+                          type="password"
+                          value={passwordForm.newPassword}
+                        />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">Confirmar contraseña</span>
+                        <input
+                          autoComplete="new-password"
+                          className="field-control"
+                          disabled={isSaving}
+                          minLength={8}
+                          onChange={(event) =>
+                            setPasswordForm((current) => ({
+                              ...current,
+                              confirmPassword: event.target.value,
+                            }))
+                          }
+                          placeholder="Repetí la nueva contraseña"
+                          required
+                          type="password"
+                          value={passwordForm.confirmPassword}
+                        />
+                      </label>
+                    </div>
+                    <p className="muted users-form-note">
+                      Se revocarán las sesiones persistentes del usuario. Los accesos
+                      actuales finalizarán al vencer y deberá iniciar sesión con la nueva
+                      contraseña.
+                    </p>
+                    {passwordError ? (
+                      <div className="error-box" role="alert">
+                        <CircleAlert aria-hidden="true" size={17} />
+                        <span>{passwordError}</span>
+                      </div>
+                    ) : null}
+                    <div className="form-actions">
+                      <button className="button-primary" disabled={isSaving} type="submit">
+                        {isSaving ? (
+                          <span aria-hidden="true" className="spinner" />
+                        ) : (
+                          <KeyRound aria-hidden="true" size={17} />
+                        )}
+                        {isSaving ? "Cambiando…" : "Cambiar contraseña"}
+                      </button>
+                      <button
+                        className="button-secondary"
+                        disabled={isSaving}
+                        onClick={() => closeModal()}
+                        type="button"
+                      >
+                        <X aria-hidden="true" size={17} />
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
                 ) : (
                   <form className="catalog-form" onSubmit={handleUpdate}>
                     <div className="form-grid">
@@ -1413,17 +1602,69 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                         />
                       </label>
                     </div>
-                    <label className="field-group">
-                      <span className="field-label">Nombre</span>
-                      <input
-                        className="field-control"
-                        disabled={isSaving}
-                        onChange={(event) =>
-                          setEditForm((current) => ({ ...current, nickname: event.target.value }))
-                        }
-                        value={editForm.nickname}
-                      />
-                    </label>
+                    <div className="form-grid users-access-grid">
+                      <label className="field-group">
+                        <span className="field-label">Nombre</span>
+                        <input
+                          className="field-control"
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              nickname: event.target.value,
+                            }))
+                          }
+                          value={editForm.nickname}
+                        />
+                      </label>
+                      <div className="field-group">
+                        <label className="field-label" htmlFor="edit-user-merchant">
+                          Comercio asociado
+                        </label>
+                        <MerchantCombobox
+                          disabled={isSaving}
+                          fallbackLabel={
+                            editingUser ? userMerchantName(editingUser) : undefined
+                          }
+                          inputId="edit-user-merchant"
+                          isLoading={isLoadingMerchants}
+                          merchants={merchants}
+                          onChange={(merchantId) =>
+                            setEditForm((current) => ({ ...current, merchantId }))
+                          }
+                          value={editForm.merchantId}
+                        />
+                        <div className="users-merchant-editor-actions">
+                          <span className="muted users-form-note">
+                            {editForm.merchantId
+                              ? "Seleccioná otro comercio para reemplazar la asociación."
+                              : "El usuario quedará sin comercio asociado."}
+                          </span>
+                          {editForm.merchantId ? (
+                            <button
+                              className="button-secondary users-unlink-merchant"
+                              disabled={isSaving}
+                              onClick={() =>
+                                setEditForm((current) => ({
+                                  ...current,
+                                  merchantId: "",
+                                }))
+                              }
+                              type="button"
+                            >
+                              <X aria-hidden="true" size={14} />
+                              Quitar asociación
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    {merchantsError ? (
+                      <div className="error-box" role="alert">
+                        <CircleAlert aria-hidden="true" size={17} />
+                        <span>{merchantsError}</span>
+                      </div>
+                    ) : null}
 
                     <section className="users-role-manager" aria-label="Gestión de roles">
                       <div className="users-role-manager-header">

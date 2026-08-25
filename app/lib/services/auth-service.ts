@@ -38,6 +38,7 @@ export type ManagedUserUpdatePayload = {
   email?: string;
   nickname?: string | null;
   phone?: string | null;
+  merchantId?: number | null;
 };
 
 export type ManagedRoleChangeResponse = {
@@ -345,6 +346,26 @@ export async function updateManagedUser({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el usuario."
+  );
+}
+
+export async function updateManagedUserPassword({
+  accessToken,
+  newPassword,
+  userId,
+}: {
+  accessToken: string;
+  newPassword: string;
+  userId: number | string;
+}) {
+  await requestJson<unknown>(
+    `${AUTH_BASE_URL}/users/${encodeURIComponent(String(userId))}/password`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ newPassword }),
+    },
+    "No se pudo cambiar la contraseña del usuario."
   );
 }
 

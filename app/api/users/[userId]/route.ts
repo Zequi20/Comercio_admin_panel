@@ -53,6 +53,18 @@ export async function PATCH(request: Request, route: UserRouteContext) {
         : null;
   }
 
+  if ("merchantId" in body) {
+    if (body.merchantId === null || body.merchantId === "") {
+      payload.merchantId = null;
+    } else {
+      const merchantId = positiveUserId(body.merchantId);
+      if (!merchantId) {
+        return badRequestResponse("Seleccioná un comercio válido.");
+      }
+      payload.merchantId = merchantId;
+    }
+  }
+
   if (Object.keys(payload).length === 0) {
     return badRequestResponse("No hay cambios válidos para actualizar.");
   }
