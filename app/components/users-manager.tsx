@@ -12,6 +12,7 @@ import {
   Search,
   ShieldCheck,
   Store,
+  Truck,
   UserCheck,
   UserMinus,
   Users,
@@ -772,7 +773,9 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
           password,
           role: createForm.role,
           ...(phone ? { phone } : {}),
-          ...(createForm.merchantId ? { merchantId: createForm.merchantId } : {}),
+          ...(createForm.role !== "COURIER" && createForm.merchantId
+            ? { merchantId: createForm.merchantId }
+            : {}),
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -914,6 +917,19 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
 
   async function handleRoleChange(mode: "add" | "remove") {
     if (!editingUser) return;
+
+    if (
+      mode === "add" &&
+      selectedRole === "COURIER" &&
+      (editingUser.merchant?.id !== undefined ||
+        (editingUser.merchantId !== undefined && editingUser.merchantId !== null))
+    ) {
+      setRoleMessage({
+        kind: "error",
+        text: "Quitá la asociación comercial y guardá los datos antes de asignar el rol COURIER.",
+      });
+      return;
+    }
     const roleSet = new Set(assignedRoles);
     if (mode === "add" && roleSet.has(selectedRole)) {
       setRoleMessage({ kind: "error", text: "El usuario ya tiene ese rol." });
@@ -1048,6 +1064,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
   }
 
   const selectedRoleAssigned = assignedRoles.includes(selectedRole);
+  const editingUserIsCourier = assignedRoles.includes("COURIER");
   const isEditingSelf = Boolean(
     editingUser && currentUserId && String(editingUser.id) === currentUserId
   );
@@ -1477,12 +1494,14 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                         <select
                           className="field-control"
                           disabled={isSaving}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const role = event.target.value as ManagedUserRole;
                             setCreateForm((current) => ({
                               ...current,
-                              role: event.target.value as ManagedUserRole,
-                            }))
-                          }
+                              role,
+                              ...(role === "COURIER" ? { merchantId: "" } : {}),
+                            }));
+                          }}
                           value={createForm.role}
                         >
                           {MANAGED_USER_ROLES.map((role) => (
@@ -1492,27 +1511,45 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                           ))}
                         </select>
                       </label>
-                      <div className="field-group">
-                        <label
-                          className="field-label"
-                          htmlFor="create-user-merchant"
-                        >
-                          Comercio asociado
-                        </label>
-                        <MerchantCombobox
-                          disabled={isSaving}
-                          inputId="create-user-merchant"
-                          isLoading={isLoadingMerchants}
-                          merchants={merchants}
-                          onChange={(merchantId) =>
-                            setCreateForm((current) => ({ ...current, merchantId }))
-                          }
-                          value={createForm.merchantId}
-                        />
-                      </div>
+                      {createForm.role !== "COURIER" ? (
+                        <div className="field-group">
+                          <label
+                            className="field-label"
+                            htmlFor="create-user-merchant"
+                          >
+                            Comercio asociado
+                          </label>
+                          <MerchantCombobox
+                            disabled={isSaving}
+                            inputId="create-user-merchant"
+                            isLoading={isLoadingMerchants}
+                            merchants={merchants}
+                            onChange={(merchantId) =>
+                              setCreateForm((current) => ({
+                                ...current,
+                                merchantId,
+                              }))
+                            }
+                            value={createForm.merchantId}
+                          />
+                        </div>
+                      ) : (
+                        <div className="notification-info-box users-universal-courier-note">
+                          <Truck aria-hidden="true" size={18} />
+                          <div>
+                            <strong>Repartidor universal</strong>
+                            <span>
+                              La cuenta se crea sin comercio y queda disponible en el
+                              pool compartido.
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <p className="muted users-form-note">
-                      El comercio es opcional. Vinculalo cuando la cuenta operará como comercio o repartidor.
+                      {createForm.role === "COURIER"
+                        ? "Cada comercio puede marcar luego al repartidor como favorito."
+                        : "El comercio es opcional y sólo aplica a cuentas que operan para ese comercio."}
                     </p>
                     {merchantsError ? (
                       <div className="error-box" role="alert">
@@ -1665,47 +1702,75 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                           value={editForm.nickname}
                         />
                       </label>
-                      <div className="field-group">
-                        <label className="field-label" htmlFor="edit-user-merchant">
-                          Comercio asociado
-                        </label>
-                        <MerchantCombobox
-                          disabled={isSaving}
-                          fallbackLabel={
-                            editingUser ? userMerchantName(editingUser) : undefined
-                          }
-                          inputId="edit-user-merchant"
-                          isLoading={isLoadingMerchants}
-                          merchants={merchants}
-                          onChange={(merchantId) =>
-                            setEditForm((current) => ({ ...current, merchantId }))
-                          }
-                          value={editForm.merchantId}
-                        />
-                        <div className="users-merchant-editor-actions">
-                          <span className="muted users-form-note">
-                            {editForm.merchantId
-                              ? "Seleccioná otro comercio para reemplazar la asociación."
-                              : "El usuario quedará sin comercio asociado."}
-                          </span>
-                          {editForm.merchantId ? (
-                            <button
-                              className="button-secondary users-unlink-merchant"
-                              disabled={isSaving}
-                              onClick={() =>
-                                setEditForm((current) => ({
-                                  ...current,
-                                  merchantId: "",
-                                }))
-                              }
-                              type="button"
-                            >
-                              <X aria-hidden="true" size={14} />
-                              Quitar asociación
-                            </button>
-                          ) : null}
+                      {editingUserIsCourier ? (
+                        <div className="notification-info-box users-universal-courier-note">
+                          <Truck aria-hidden="true" size={18} />
+                          <div>
+                            <strong>Repartidor universal</strong>
+                            <span>
+                              Este usuario no puede asociarse a un comercio.
+                            </span>
+                            {editForm.merchantId ? (
+                              <button
+                                className="button-secondary users-unlink-merchant"
+                                disabled={isSaving}
+                                onClick={() =>
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    merchantId: "",
+                                  }))
+                                }
+                                type="button"
+                              >
+                                <X aria-hidden="true" size={14} />
+                                Quitar asociación heredada
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="field-group">
+                          <label className="field-label" htmlFor="edit-user-merchant">
+                            Comercio asociado
+                          </label>
+                          <MerchantCombobox
+                            disabled={isSaving}
+                            fallbackLabel={
+                              editingUser ? userMerchantName(editingUser) : undefined
+                            }
+                            inputId="edit-user-merchant"
+                            isLoading={isLoadingMerchants}
+                            merchants={merchants}
+                            onChange={(merchantId) =>
+                              setEditForm((current) => ({ ...current, merchantId }))
+                            }
+                            value={editForm.merchantId}
+                          />
+                          <div className="users-merchant-editor-actions">
+                            <span className="muted users-form-note">
+                              {editForm.merchantId
+                                ? "Seleccioná otro comercio para reemplazar la asociación."
+                                : "El usuario quedará sin comercio asociado."}
+                            </span>
+                            {editForm.merchantId ? (
+                              <button
+                                className="button-secondary users-unlink-merchant"
+                                disabled={isSaving}
+                                onClick={() =>
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    merchantId: "",
+                                  }))
+                                }
+                                type="button"
+                              >
+                                <X aria-hidden="true" size={14} />
+                                Quitar asociación
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {merchantsError ? (
                       <div className="error-box" role="alert">

@@ -6,8 +6,10 @@ export default function RepartidoresPage() {
       <div className="dashboard-topbar">
         <div>
           <p className="eyebrow">Repartidores</p>
-          <h1 className="dashboard-title">Equipo de entrega</h1>
-          <p className="muted">Disponibilidad y cobertura para delivery.</p>
+          <h1 className="dashboard-title">Red de entrega</h1>
+          <p className="muted">
+            Consultá el pool universal y administrá los favoritos de tu comercio.
+          </p>
         </div>
       </div>
 

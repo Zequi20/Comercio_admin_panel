@@ -121,6 +121,7 @@ type Courier = {
   name?: string | null;
   user?: EntityReference | null;
   isActive: boolean;
+  isFavorite?: boolean;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -631,6 +632,7 @@ function courierDetail(courier?: CourierReference | Courier | null) {
 
 function courierOptionLabel(courier: Courier) {
   const details = [
+    courier.isFavorite ? "Favorito" : null,
     courier.user?.email,
     metadataText(courier.metadata, "vehicle"),
     metadataText(courier.metadata, "licensePlate") ||
@@ -984,10 +986,20 @@ export function OrdersManager() {
     () =>
       couriers
         .filter((courier) => courier.isActive)
-        .sort((first, second) =>
-          courierDisplayName(first).localeCompare(courierDisplayName(second))
-        ),
+        .sort((first, second) => {
+          if (Boolean(first.isFavorite) !== Boolean(second.isFavorite)) {
+            return first.isFavorite ? -1 : 1;
+          }
+
+          return courierDisplayName(first).localeCompare(
+            courierDisplayName(second)
+          );
+        }),
     [couriers]
+  );
+  const activeFavoriteCouriers = useMemo(
+    () => activeCouriers.filter((courier) => courier.isFavorite).length,
+    [activeCouriers]
   );
 
   const selectedCourier = useMemo(
@@ -3010,6 +3022,17 @@ export function OrdersManager() {
                       </option>
                     ))}
                   </select>
+                  {scope.mode === "merchant" ? (
+                    <span className="field-help">
+                      {activeFavoriteCouriers
+                        ? `${activeFavoriteCouriers} favoritos activos aparecen primero.`
+                        : "No hay favoritos activos; podés marcarlos desde Repartidores."}
+                    </span>
+                  ) : (
+                    <span className="field-help">
+                      Seleccioná un comercio en el alcance para priorizar sus favoritos.
+                    </span>
+                  )}
                   {selectedCourier ? (
                     <div className="assignment-courier-card">
                       <div>
@@ -3017,6 +3040,9 @@ export function OrdersManager() {
                         <span>{courierDetail(selectedCourier)}</span>
                       </div>
                       <div className="assignment-courier-tags">
+                        {selectedCourier.isFavorite ? (
+                          <span className="is-favorite">Favorito</span>
+                        ) : null}
                         {courierVehicle(selectedCourier) ? (
                           <span>{courierVehicle(selectedCourier)}</span>
                         ) : null}

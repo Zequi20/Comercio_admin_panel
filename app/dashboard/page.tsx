@@ -27,11 +27,11 @@ import {
 } from "../lib/orders/order-fulfillment";
 import { isCustomDeliveryOrder } from "../lib/orders/order-type";
 import {
-  listCouriersForAdminScope,
-  listCouriersForMerchant,
+  listFavoriteCouriers,
   listOrdersForAdminScope,
   listOrdersForMerchant,
   listProductsForMerchant,
+  listUniversalCouriers,
   type Order,
 } from "../lib/services/commerce-services";
 
@@ -61,7 +61,7 @@ const quickActions = [
   },
   {
     title: "Repartidores",
-    detail: "Revisar equipo de entrega",
+    detail: "Red universal y favoritos",
     href: "/dashboard/repartidores",
     icon: Truck,
   },
@@ -195,7 +195,7 @@ async function loadDashboardData(
   isAdmin: boolean,
 ) {
   const dashboardListLimit = 100;
-  const [orders, products, couriers] = await Promise.all([
+  const [orders, products, couriers, favorites] = await Promise.all([
     (isAdmin
       ? listOrdersForAdminScope({
           accessToken,
@@ -208,13 +208,16 @@ async function loadDashboardData(
       merchantId: scope.merchantId ?? undefined,
       limit: dashboardListLimit,
     }).catch(() => null),
-    (isAdmin
-      ? listCouriersForAdminScope({
+    listUniversalCouriers({ accessToken, limit: dashboardListLimit }).catch(
+      () => null
+    ),
+    scope.mode === "merchant"
+      ? listFavoriteCouriers({
           accessToken,
-          merchantId: scope.merchantId ?? undefined,
-        })
-      : listCouriersForMerchant({ accessToken, limit: dashboardListLimit })
-    ).catch(() => null),
+          merchantId: scope.merchantId,
+          limit: dashboardListLimit,
+        }).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -223,6 +226,7 @@ async function loadDashboardData(
     ),
     products: products?.data ?? [],
     couriers: couriers?.data ?? [],
+    favoriteCouriers: favorites?.data ?? [],
   };
 }
 
@@ -235,7 +239,7 @@ async function DashboardContent({
   isAdmin: boolean;
   scope: PortalScope;
 }) {
-  const { orders, products, couriers } = await loadDashboardData(
+  const { orders, products, couriers, favoriteCouriers } = await loadDashboardData(
     accessToken,
     scope,
     isAdmin,
@@ -275,6 +279,9 @@ async function DashboardContent({
     .slice(0, 5);
   const activeProducts = products.filter((product) => product.available).length;
   const activeCouriers = couriers.filter((courier) => courier.isActive).length;
+  const activeFavoriteCouriers = favoriteCouriers.filter(
+    (favorite) => favorite.courier.isActive
+  ).length;
   const serviceProductIds = serviceProductIdSet(products);
 
   const stats = [
@@ -502,7 +509,7 @@ async function DashboardContent({
                 <span className="metric-value">{products.length}</span>
               </div>
               <div className="metric-row">
-                <span className="metric-label">Repartidores</span>
+                <span className="metric-label">Repartidores universales</span>
                 <span className="metric-value">{couriers.length}</span>
               </div>
             </div>
@@ -540,7 +547,10 @@ async function DashboardContent({
               {products.length} ítems cargados · {activeProducts} activos.
             </p>
             <p className="muted">
-              {activeCouriers} repartidores activos para delivery.
+              {activeCouriers} repartidores activos en la red universal
+              {scope.mode === "merchant"
+                ? ` · ${activeFavoriteCouriers} favoritos activos.`
+                : "."}
             </p>
           </div>
           <Link className="button-secondary" href="/dashboard/catalogo">

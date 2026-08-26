@@ -4,10 +4,13 @@ import {
   CircleAlert,
   CircleCheck,
   Edit3,
+  Globe2,
+  LoaderCircle,
   Plus,
   RefreshCw,
   Save,
   Search,
+  Star,
   Trash2,
   Truck,
   X,
@@ -21,14 +24,11 @@ import {
   TablePagination,
   type TablePaginationState,
 } from "@/app/components/table-pagination";
-import {
-  AdminDataScopeNotice,
-  AdminMerchantTargetField,
-  useAdminScope,
-} from "@/app/components/admin-scope-context";
+import { useAdminScope } from "@/app/components/admin-scope-context";
 import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+type FavoriteFilter = "ALL" | "FAVORITES" | "OTHERS";
 
 type EntityReference = {
   id?: number | string;
@@ -42,8 +42,8 @@ type Courier = {
   id: number | string;
   name?: string | null;
   user?: EntityReference | null;
-  merchant?: EntityReference | null;
   isActive: boolean;
+  isFavorite?: boolean;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
@@ -51,6 +51,9 @@ type Courier = {
 
 type ListCouriersResponse = {
   data?: Courier[];
+  favoritesEnabled?: boolean;
+  favoriteCount?: number;
+  merchantId?: number | string | null;
 };
 
 type CourierForm = {
@@ -66,6 +69,7 @@ type CourierForm = {
 type CourierFilters = {
   q: string;
   status: StatusFilter;
+  favorite: FavoriteFilter;
 };
 
 const emptyForm: CourierForm = {
@@ -81,6 +85,7 @@ const emptyForm: CourierForm = {
 const initialFilters: CourierFilters = {
   q: "",
   status: "ALL",
+  favorite: "ALL",
 };
 
 function messageFromPayload(payload: unknown, fallback: string) {
@@ -168,10 +173,6 @@ function courierDisplayName(courier: Courier) {
   );
 }
 
-function courierMerchantName(courier: Courier) {
-  return courier.merchant?.name ?? "Sin comercio asignado";
-}
-
 function courierUserDetail(courier: Courier) {
   const user = courier.user;
 
@@ -209,8 +210,6 @@ function courierMatchesQuery(courier: Courier, query: string) {
     courier.user?.nickname,
     courier.user?.name,
     courier.user?.phone,
-    courier.merchant?.id,
-    courier.merchant?.name,
     metadataText(courier.metadata, "area"),
     metadataText(courier.metadata, "vehicle"),
     courierLicensePlate(courier),
@@ -271,21 +270,18 @@ function deactivateCourierModalLayers() {
 }
 
 export function CouriersManager() {
-  const { canManage, isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
+  const { isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [form, setForm] = useState<CourierForm>(emptyForm);
-  const [merchantTarget, setMerchantTarget] = useState({
-    scopeKey,
-    value: "",
-  });
-  const targetMerchantId =
-    merchantTarget.scopeKey === scopeKey ? merchantTarget.value : "";
   const [filters, setFilters] = useState<CourierFilters>(initialFilters);
   const [editingCourier, setEditingCourier] = useState<Courier | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingCourierId, setPendingCourierId] = useState<string | null>(null);
+  const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [couriersPagination, setCouriersPagination] =
@@ -302,9 +298,19 @@ export function CouriersManager() {
           (filters.status === "ACTIVE" && courier.isActive) ||
           (filters.status === "INACTIVE" && !courier.isActive);
 
-        return matchesStatus && courierMatchesQuery(courier, filters.q);
+        const matchesFavorite =
+          scope.mode !== "merchant" ||
+          filters.favorite === "ALL" ||
+          (filters.favorite === "FAVORITES" && courier.isFavorite) ||
+          (filters.favorite === "OTHERS" && !courier.isFavorite);
+
+        return (
+          matchesStatus &&
+          matchesFavorite &&
+          courierMatchesQuery(courier, filters.q)
+        );
       }),
-    [couriers, filters.q, filters.status]
+    [couriers, filters.favorite, filters.q, filters.status, scope.mode]
   );
   const couriersPage = useMemo(
     () => paginateRows(visibleCouriers, couriersPagination),
@@ -315,6 +321,12 @@ export function CouriersManager() {
     () => couriers.filter((courier) => courier.isActive).length,
     [couriers]
   );
+  const favoriteCount = useMemo(
+    () => couriers.filter((courier) => courier.isFavorite).length,
+    [couriers]
+  );
+  const tableColumnCount =
+    8 + (scope.mode === "merchant" ? 1 : 0) + (isAdmin ? 1 : 0);
 
   async function loadCouriers() {
     setIsLoading(true);
@@ -338,8 +350,17 @@ export function CouriersManager() {
           filters.status === "ALL" ||
           (filters.status === "ACTIVE" && courier.isActive) ||
           (filters.status === "INACTIVE" && !courier.isActive);
+        const matchesFavorite =
+          scope.mode !== "merchant" ||
+          filters.favorite === "ALL" ||
+          (filters.favorite === "FAVORITES" && courier.isFavorite) ||
+          (filters.favorite === "OTHERS" && !courier.isFavorite);
 
-        return matchesStatus && courierMatchesQuery(courier, filters.q);
+        return (
+          matchesStatus &&
+          matchesFavorite &&
+          courierMatchesQuery(courier, filters.q)
+        );
       });
 
       setCouriers(nextCouriers);
@@ -451,7 +472,6 @@ export function CouriersManager() {
   function resetForm() {
     setEditingCourier(null);
     setForm(emptyForm);
-    setMerchantTarget({ scopeKey, value: "" });
   }
 
   function hideFormModal() {
@@ -491,10 +511,6 @@ export function CouriersManager() {
     }
 
     if (!editingCourier) {
-      if (scope.mode === "global" && !targetMerchantId) {
-        return "Seleccioná el comercio del nuevo repartidor.";
-      }
-
       if (!form.email.trim()) {
         return "Ingresá el email del usuario repartidor.";
       }
@@ -522,7 +538,6 @@ export function CouriersManager() {
     const payload = {
       ...(!editingCourier
         ? {
-            ...(targetMerchantId ? { merchantId: targetMerchantId } : {}),
             email: form.email.trim(),
             password: form.password,
             nickname: form.name.trim(),
@@ -582,7 +597,7 @@ export function CouriersManager() {
 
   async function handleDelete(courier: Courier) {
     const confirmed = window.confirm(
-      `¿Eliminar "${courierDisplayName(courier)}" de ${courierMerchantName(courier)}?`
+      `¿Eliminar el perfil universal de "${courierDisplayName(courier)}"? Dejará de estar disponible para todos los comercios.`
     );
 
     if (!confirmed) return;
@@ -625,31 +640,94 @@ export function CouriersManager() {
     }
   }
 
+  async function handleFavoriteToggle(courier: Courier) {
+    if (scope.mode !== "merchant") return;
+
+    const courierId = String(courier.id);
+    const nextIsFavorite = !courier.isFavorite;
+    setPendingFavoriteIds((current) => {
+      const next = new Set(current);
+      next.add(courierId);
+      return next;
+    });
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        `/api/merchants/${encodeURIComponent(
+          String(scope.merchantId)
+        )}/favorite-couriers/${encodeURIComponent(courierId)}`,
+        {
+          method: nextIsFavorite ? "PUT" : "DELETE",
+          credentials: "include",
+        }
+      );
+      const payload = response.status === 204
+        ? null
+        : await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(
+            payload,
+            nextIsFavorite
+              ? "No se pudo marcar el repartidor como favorito."
+              : "No se pudo quitar el repartidor de favoritos."
+          )
+        );
+      }
+
+      setCouriers((current) =>
+        current.map((item) =>
+          String(item.id) === courierId
+            ? { ...item, isFavorite: nextIsFavorite }
+            : item
+        )
+      );
+      setSuccess(
+        nextIsFavorite
+          ? `${courierDisplayName(courier)} ahora es favorito de ${scopeLabel}.`
+          : `${courierDisplayName(courier)} fue quitado de los favoritos de ${scopeLabel}.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo actualizar la preferencia del repartidor."
+      );
+    } finally {
+      setPendingFavoriteIds((current) => {
+        const next = new Set(current);
+        next.delete(courierId);
+        return next;
+      });
+    }
+  }
+
   return (
     <div className="catalog-layout">
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Tabla de repartidores</h2>
+            <h2 className="card-title">Red universal de repartidores</h2>
             <p className="muted">
-              {visibleCouriers.length} repartidores · {activeCount} activos
+              {visibleCouriers.length} visibles · {activeCount} activos
+              {scope.mode === "merchant" ? ` · ${favoriteCount} favoritos` : ""}
             </p>
           </div>
           <div className="dashboard-actions">
-            <button
-              className="button-tonal"
-              disabled={!canManage}
-              onClick={openCreateForm}
-              title={
-                canManage
-                  ? "Agregar repartidor"
-                  : "Seleccioná un comercio para agregar repartidores"
-              }
-              type="button"
-            >
-              <Plus size={17} />
-              Agregar
-            </button>
+            {isAdmin ? (
+              <button
+                className="button-tonal"
+                onClick={openCreateForm}
+                title="Crear un repartidor disponible para todos los comercios"
+                type="button"
+              >
+                <Plus size={17} />
+                Nuevo global
+              </button>
+            ) : null}
             <button
               className="icon-button"
               disabled={isLoading}
@@ -662,7 +740,20 @@ export function CouriersManager() {
           </div>
         </div>
 
-        <AdminDataScopeNotice />
+        <div
+          className="notification-info-box admin-data-scope-notice"
+          role="note"
+        >
+          <Globe2 aria-hidden="true" size={18} />
+          <div>
+            <strong>Pool compartido por todos los comercios</strong>
+            <span>
+              {scope.mode === "merchant"
+                ? `Las estrellas corresponden únicamente a los favoritos de ${scopeLabel}.`
+                : "Los perfiles son globales. Seleccioná un comercio para consultar y gestionar sus favoritos."}
+            </span>
+          </div>
+        </div>
 
         {!isFormOpen && error ? (
           <div className="error-box catalog-status-message" role="alert">
@@ -679,7 +770,9 @@ export function CouriersManager() {
         ) : null}
 
         <form
-          className="catalog-filters couriers-filters"
+          className={`catalog-filters couriers-filters${
+            scope.mode === "merchant" ? " has-favorite-filter" : ""
+          }`}
           onSubmit={handleFilterSubmit}
         >
           <div className="field-group">
@@ -713,6 +806,27 @@ export function CouriersManager() {
               <option value="INACTIVE">Inactivos</option>
             </select>
           </div>
+          {scope.mode === "merchant" ? (
+            <div className="field-group">
+              <label className="field-label" htmlFor="couriers-filter-favorite">
+                Preferencia
+              </label>
+              <select
+                className="field-control"
+                id="couriers-filter-favorite"
+                value={filters.favorite}
+                onChange={(event) =>
+                  updateFilters({
+                    favorite: event.target.value as FavoriteFilter,
+                  })
+                }
+              >
+                <option value="ALL">Todos</option>
+                <option value="FAVORITES">Favoritos</option>
+                <option value="OTHERS">No favoritos</option>
+              </select>
+            </div>
+          ) : null}
           <button className="button-tonal" disabled={isLoading} type="submit">
             <Search size={17} />
             Filtrar
@@ -724,7 +838,6 @@ export function CouriersManager() {
             <thead>
               <tr>
                 <th>Repartidor</th>
-                {isAdmin ? <th>Comercio</th> : null}
                 <th>Usuario</th>
                 <th>Estado</th>
                 <th>Zona</th>
@@ -732,14 +845,15 @@ export function CouriersManager() {
                 <th>Matrícula</th>
                 <th>Contacto</th>
                 <th>Actualizado</th>
-                <th>Acciones</th>
+                {scope.mode === "merchant" ? <th>Preferencia</th> : null}
+                {isAdmin ? <th>Administración</th> : null}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={isAdmin ? 10 : 9}>
+                    <td colSpan={tableColumnCount}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -747,6 +861,9 @@ export function CouriersManager() {
               ) : visibleCouriers.length ? (
                 couriersPage.rows.map((courier) => {
                   const isPending = pendingCourierId === String(courier.id);
+                  const isFavoritePending = pendingFavoriteIds.has(
+                    String(courier.id)
+                  );
                   const area = metadataText(courier.metadata, "area");
                   const vehicle = metadataText(courier.metadata, "vehicle");
                   const licensePlate = courierLicensePlate(courier);
@@ -758,16 +875,6 @@ export function CouriersManager() {
                         <strong>{courierDisplayName(courier)}</strong>
                         <span className="table-muted">ID {courier.id}</span>
                       </td>
-                      {isAdmin ? (
-                        <td>
-                          <strong>{courierMerchantName(courier)}</strong>
-                          <span className="table-muted">
-                            {courier.merchant?.id
-                              ? `ID ${courier.merchant.id}`
-                              : "Sin afiliación"}
-                          </span>
-                        </td>
-                      ) : null}
                       <td>
                         <strong>
                           {courier.user?.nickname ??
@@ -792,46 +899,73 @@ export function CouriersManager() {
                       <td>{licensePlate || "Sin matrícula"}</td>
                       <td>{phone || "Sin teléfono"}</td>
                       <td>{formatDate(courier.updatedAt)}</td>
-                      <td>
-                        <div className="table-actions">
+                      {scope.mode === "merchant" ? (
+                        <td>
+                          <button
+                            aria-pressed={Boolean(courier.isFavorite)}
+                            className={`button-tonal favorite-toggle${
+                              courier.isFavorite ? " is-favorite" : ""
+                            }`}
+                            disabled={isFavoritePending}
+                            onClick={() => void handleFavoriteToggle(courier)}
+                            title={
+                              courier.isFavorite
+                                ? "Quitar de favoritos"
+                                : "Marcar como favorito"
+                            }
+                            type="button"
+                          >
+                            {isFavoritePending ? (
+                              <LoaderCircle
+                                aria-hidden="true"
+                                className="spin-icon"
+                                size={16}
+                              />
+                            ) : (
+                              <Star aria-hidden="true" size={16} />
+                            )}
+                            {courier.isFavorite ? "Favorito" : "Marcar"}
+                          </button>
+                        </td>
+                      ) : null}
+                      {isAdmin ? (
+                        <td>
+                          <div className="table-actions">
                           <button
                             className="icon-button"
-                            disabled={isPending || !canManage}
+                            disabled={isPending}
                             onClick={() => openEditForm(courier)}
-                            title={
-                              canManage
-                                ? "Editar"
-                                : "Seleccioná un comercio para editar"
-                            }
+                            title="Editar perfil universal"
                             type="button"
                           >
                             <Edit3 size={17} />
                           </button>
                           <button
                             className="icon-button danger-button"
-                            disabled={isPending || !canManage}
+                            disabled={isPending}
                             onClick={() => void handleDelete(courier)}
-                            title={
-                              canManage
-                                ? "Eliminar"
-                                : "Seleccioná un comercio para eliminar"
-                            }
+                            title="Eliminar perfil universal"
                             type="button"
                           >
                             <Trash2 size={17} />
                           </button>
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={isAdmin ? 10 : 9}>
+                  <td colSpan={tableColumnCount}>
                     <div className="empty-table-state">
                       <Truck aria-hidden="true" size={26} />
-                      <strong>Sin repartidores registrados</strong>
-                      <span>Creá un perfil o ajustá los filtros.</span>
+                      <strong>Sin repartidores para mostrar</strong>
+                      <span>
+                        {isAdmin
+                          ? "Creá un perfil universal o ajustá los filtros."
+                          : "Ajustá los filtros o consultá con un administrador."}
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -856,7 +990,7 @@ export function CouriersManager() {
         />
       </section>
 
-      {isFormOpen && typeof document !== "undefined"
+      {isAdmin && isFormOpen && typeof document !== "undefined"
         ? createPortal(
           <div
             className="catalog-modal-layer"
@@ -886,8 +1020,8 @@ export function CouriersManager() {
                 </h2>
                 <p className="muted">
                   {editingCourier
-                    ? `Perfil operativo asociado a ${courierMerchantName(editingCourier)}.`
-                    : `Creá la cuenta courier y su perfil operativo para ${scopeLabel}.`}
+                    ? "Los cambios se aplican al perfil compartido por todos los comercios."
+                    : "Creá una cuenta courier universal, sin asociarla a ningún comercio."}
                 </p>
               </div>
               <button
@@ -902,15 +1036,6 @@ export function CouriersManager() {
             </div>
 
             <form className="catalog-form" onSubmit={handleSubmit}>
-              {!editingCourier ? (
-                <AdminMerchantTargetField
-                  disabled={isSubmitting}
-                  id="courier-target-merchant"
-                  value={targetMerchantId}
-                  onChange={(value) => setMerchantTarget({ scopeKey, value })}
-                />
-              ) : null}
-
               {!editingCourier ? (
                 <div className="form-grid">
                   <div className="field-group">

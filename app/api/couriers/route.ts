@@ -7,35 +7,46 @@ import {
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
 import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
-import { merchantIdFromMutation } from "@/app/lib/auth/mutation-merchant";
 import {
-  createCourierForMerchant,
   createCourierUser,
-  listCouriersForAdminScope,
-  listCouriersForMerchant,
+  createUniversalCourier,
+  listAllFavoriteCouriers,
+  listAllUniversalCouriers,
 } from "@/app/lib/services/commerce-services";
 
-export async function GET(request: Request) {
+export async function GET() {
   const context = await getScopedCommerceRequestContextFromCookies();
 
   if (!context) {
     return unauthorizedCommerceResponse();
   }
 
-  const { searchParams } = new URL(request.url);
-
   try {
-    const couriers = context.isAdmin
-      ? await listCouriersForAdminScope({
-          accessToken: context.accessToken,
-          merchantId: context.scope.merchantId ?? undefined,
-        })
-      : await listCouriersForMerchant({
-          accessToken: context.accessToken,
-          limit: Number(searchParams.get("limit") ?? 100),
-        });
+    const [couriers, favorites] = await Promise.all([
+      listAllUniversalCouriers({ accessToken: context.accessToken }),
+      context.scope.mode === "merchant"
+        ? listAllFavoriteCouriers({
+            accessToken: context.accessToken,
+            merchantId: context.scope.merchantId,
+          })
+        : Promise.resolve({ data: [], cursor: null, truncated: false }),
+    ]);
+    const favoriteCourierIds = new Set(
+      favorites.data.map((favorite) => String(favorite.courier.id))
+    );
 
-    return NextResponse.json(couriers);
+    return NextResponse.json({
+      ...couriers,
+      truncated: couriers.truncated || favorites.truncated,
+      merchantId:
+        context.scope.mode === "merchant" ? context.scope.merchantId : null,
+      favoritesEnabled: context.scope.mode === "merchant",
+      favoriteCount: favoriteCourierIds.size,
+      data: couriers.data.map((courier) => ({
+        ...courier,
+        isFavorite: favoriteCourierIds.has(String(courier.id)),
+      })),
+    });
   } catch (error) {
     return serviceErrorResponse(
       error,
@@ -51,18 +62,14 @@ export async function POST(request: Request) {
     return unauthorizedCommerceResponse();
   }
 
-  const body = await request.json().catch(() => null);
-  const merchantId = merchantIdFromMutation(
-    context,
-    body && typeof body === "object" && "merchantId" in body
-      ? body.merchantId
-      : null
-  );
-
-  if (!merchantId) {
-    return badRequestResponse("Seleccioná el comercio del nuevo repartidor.");
+  if (!context.isAdmin) {
+    return NextResponse.json(
+      { message: "Solo un administrador puede crear repartidores universales." },
+      { status: 403 }
+    );
   }
 
+  const body = await request.json().catch(() => null);
   const payload = courierPayloadFromClient(body);
 
   if (!payload?.name) {
@@ -83,7 +90,6 @@ export async function POST(request: Request) {
         email: payload.email,
         password: payload.password,
         nickname: payload.nickname ?? payload.name,
-        merchantId,
         ...(payload.phone ? { phone: payload.phone } : {}),
       },
     });
@@ -93,7 +99,7 @@ export async function POST(request: Request) {
       throw new Error("El servicio no devolvió el usuario creado.");
     }
 
-    const courier = await createCourierForMerchant({
+    const courier = await createUniversalCourier({
       accessToken: context.accessToken,
       payload: {
         userId,

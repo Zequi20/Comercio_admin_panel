@@ -87,11 +87,16 @@ export type Courier = {
   id: number | string;
   name?: string | null;
   user?: EntityReference | null;
-  merchant?: EntityReference | null;
   isActive: boolean;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type FavoriteCourier = {
+  merchantId: number | string;
+  courier: Courier;
+  favoritedAt: string;
 };
 
 export type CourierPayload = {
@@ -105,7 +110,6 @@ export type CourierUserPayload = {
   password: string;
   nickname?: string | null;
   phone?: string | null;
-  merchantId?: number | string;
 };
 
 export type CourierUserCreateResponse = {
@@ -492,7 +496,7 @@ export async function importProductsForMerchant({
   );
 }
 
-export async function listCouriersForMerchant({
+export async function listUniversalCouriers({
   accessToken,
   cursor,
   limit = 100,
@@ -514,12 +518,10 @@ export async function listCouriersForMerchant({
   );
 }
 
-export async function listCouriersForAdminScope({
+export async function listAllUniversalCouriers({
   accessToken,
-  merchantId,
 }: {
   accessToken: string;
-  merchantId?: number | string;
 }) {
   const pageSize = 100;
   const maxCouriers = 2_000;
@@ -530,7 +532,7 @@ export async function listCouriersForAdminScope({
   let truncated = false;
 
   while (couriers.length < maxCouriers) {
-    const response = await listCouriersForMerchant({
+    const response = await listUniversalCouriers({
       accessToken,
       cursor,
       limit: pageSize,
@@ -565,32 +567,127 @@ export async function listCouriersForAdminScope({
     cursor = nextCursor ?? undefined;
   }
 
-  const directory = await listNotificationUsers({ accessToken });
-  const usersByCourierId = new Map<string, NotificationDirectoryUser>();
+  return {
+    cursor: null,
+    truncated,
+    data: couriers.slice(0, maxCouriers),
+  };
+}
 
-  for (const user of directory.data) {
-    if (user.courier?.id !== undefined) {
-      usersByCourierId.set(String(user.courier.id), user);
+export async function listFavoriteCouriers({
+  accessToken,
+  merchantId,
+  cursor,
+  limit = 100,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+  cursor?: number | string;
+  limit?: number;
+}) {
+  const url = `${serviceUrls.auth}/merchants/${encodeURIComponent(
+    String(merchantId)
+  )}/favorite-couriers${buildQuery({ limit, cursor })}`;
+
+  return requestJson<ListResponse<FavoriteCourier>>(
+    url,
+    { method: "GET", headers: authHeaders(accessToken) },
+    "No se pudo cargar la lista de repartidores favoritos."
+  );
+}
+
+export async function listAllFavoriteCouriers({
+  accessToken,
+  merchantId,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+}) {
+  const pageSize = 100;
+  const maxFavorites = 2_000;
+  const favorites: FavoriteCourier[] = [];
+  const seenCourierIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
+  let truncated = false;
+
+  while (favorites.length < maxFavorites) {
+    const response = await listFavoriteCouriers({
+      accessToken,
+      merchantId,
+      cursor,
+      limit: pageSize,
+    });
+
+    for (const favorite of response.data ?? []) {
+      const courierId = String(favorite.courier.id);
+      if (seenCourierIds.has(courierId)) continue;
+      seenCourierIds.add(courierId);
+      favorites.push(favorite);
     }
-  }
 
-  const enrichedCouriers = couriers.map((courier) => {
-    const directoryUser = usersByCourierId.get(String(courier.id));
-    return {
-      ...courier,
-      merchant: directoryUser?.merchant ?? null,
-    };
-  });
+    const nextCursor = response.cursor;
+    const cursorKey =
+      nextCursor === null || nextCursor === undefined ? "" : String(nextCursor);
+
+    if (
+      (response.data?.length ?? 0) < pageSize ||
+      !cursorKey ||
+      seenCursors.has(cursorKey)
+    ) {
+      break;
+    }
+
+    if (favorites.length >= maxFavorites) {
+      truncated = true;
+      break;
+    }
+
+    seenCursors.add(cursorKey);
+    cursor = nextCursor ?? undefined;
+  }
 
   return {
     cursor: null,
-    truncated: truncated || directory.truncated,
-    data: merchantId
-      ? enrichedCouriers.filter(
-          (courier) => String(courier.merchant?.id ?? "") === String(merchantId)
-        )
-      : enrichedCouriers,
+    truncated,
+    data: favorites.slice(0, maxFavorites),
   };
+}
+
+export async function addFavoriteCourier({
+  accessToken,
+  merchantId,
+  courierId,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+  courierId: number | string;
+}) {
+  return requestJson<FavoriteCourier>(
+    `${serviceUrls.auth}/merchants/${encodeURIComponent(
+      String(merchantId)
+    )}/favorite-couriers/${encodeURIComponent(String(courierId))}`,
+    { method: "PUT", headers: authHeaders(accessToken) },
+    "No se pudo marcar el repartidor como favorito."
+  );
+}
+
+export async function removeFavoriteCourier({
+  accessToken,
+  merchantId,
+  courierId,
+}: {
+  accessToken: string;
+  merchantId: number | string;
+  courierId: number | string;
+}) {
+  await requestJson<unknown>(
+    `${serviceUrls.auth}/merchants/${encodeURIComponent(
+      String(merchantId)
+    )}/favorite-couriers/${encodeURIComponent(String(courierId))}`,
+    { method: "DELETE", headers: authHeaders(accessToken) },
+    "No se pudo quitar el repartidor de favoritos."
+  );
 }
 
 export async function listNotificationUsers({
@@ -722,7 +819,7 @@ export async function createCourierUser({
   );
 }
 
-export async function createCourierForMerchant({
+export async function createUniversalCourier({
   accessToken,
   payload,
 }: {
@@ -740,7 +837,7 @@ export async function createCourierForMerchant({
   );
 }
 
-export async function getCourierForMerchant({
+export async function getUniversalCourier({
   accessToken,
   courierId,
 }: {
@@ -758,7 +855,7 @@ export async function getCourierForMerchant({
   );
 }
 
-export async function updateCourierForMerchant({
+export async function updateUniversalCourier({
   accessToken,
   courierId,
   payload,
@@ -778,7 +875,7 @@ export async function updateCourierForMerchant({
   );
 }
 
-export async function deleteCourierForMerchant({
+export async function deleteUniversalCourier({
   accessToken,
   courierId,
 }: {

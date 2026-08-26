@@ -68,6 +68,11 @@ export async function POST(request: Request) {
     body.merchantId !== undefined &&
     body.merchantId !== null &&
     body.merchantId !== "";
+  if (normalizedRole === "COURIER" && hasMerchantId) {
+    return badRequestResponse(
+      "Los usuarios repartidores son universales y no pueden asociarse a un comercio."
+    );
+  }
   const merchantId =
     !hasMerchantId
       ? null
@@ -87,7 +92,9 @@ export async function POST(request: Request) {
         nickname,
         role: normalizedRole as ManagedUserRole,
         ...(phone ? { phone } : {}),
-        ...(merchantId !== null ? { merchantId } : {}),
+        ...(normalizedRole !== "COURIER" && merchantId !== null
+          ? { merchantId }
+          : {}),
       },
     });
 

@@ -64,13 +64,15 @@ npm run lint     # Ejecuta ESLint
 - **Dashboard:** resumen operativo, ventas y pedidos que requieren atención.
 - **Catálogo:** alta, edición, eliminación e importación de productos desde Excel.
 - **Órdenes:** creación, seguimiento, actualización de estado y asignación de repartidores.
-- **Repartidores:** administración del equipo de entrega.
+- **Repartidores:** consulta del pool universal, favoritos por comercio y administración global para cuentas `ADMIN`.
 - **Notificaciones:** envío de notificaciones manuales a usuarios.
 - **Administración:** gestión de comercios, usuarios y roles para cuentas `ADMIN`.
 
 ## Acceso y arquitectura
 
 El portal admite usuarios con rol `MERCHANT` o `ADMIN` y permisos de gestión. Un usuario `MERCHANT` debe tener un comercio asociado; un `ADMIN` puede trabajar con alcance global o seleccionar un comercio.
+
+Las cuentas `COURIER` no se vinculan a un comercio. Los comercios seleccionan sus repartidores predilectos mediante el registro de favoritos, sin modificar el perfil universal ni impedir que otros comercios los utilicen.
 
 Los componentes del navegador consumen los Route Handlers de `app/api`. Esta capa valida la sesión y se comunica con los servicios externos, manteniendo los tokens de acceso y renovación en cookies `HttpOnly`.
 

@@ -13,8 +13,8 @@ import {
 } from "@/app/lib/order-status";
 import {
   assignOrderCourierForMerchant,
-  getCourierForMerchant,
   getOrderForMerchant,
+  getUniversalCourier,
 } from "@/app/lib/services/commerce-services";
 
 type OrderAssignRouteContext = {
@@ -48,7 +48,7 @@ export async function POST(request: Request, context: OrderAssignRouteContext) {
         accessToken: sessionContext.accessToken,
         orderId,
       }),
-      getCourierForMerchant({
+      getUniversalCourier({
         accessToken: sessionContext.accessToken,
         courierId: body.courierId,
       }),

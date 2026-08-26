@@ -5,11 +5,11 @@ import {
   serviceErrorResponse,
   unauthorizedCommerceResponse,
 } from "@/app/lib/api/responses";
-import { getCommerceRequestContextFromCookies } from "@/app/lib/auth/session";
+import { getScopedCommerceRequestContextFromCookies } from "@/app/lib/auth/portal-scope";
 import {
-  deleteCourierForMerchant,
-  getCourierForMerchant,
-  updateCourierForMerchant,
+  deleteUniversalCourier,
+  getUniversalCourier,
+  updateUniversalCourier,
 } from "@/app/lib/services/commerce-services";
 
 type CourierRouteContext = {
@@ -17,7 +17,7 @@ type CourierRouteContext = {
 };
 
 export async function GET(_request: Request, context: CourierRouteContext) {
-  const sessionContext = await getCommerceRequestContextFromCookies();
+  const sessionContext = await getScopedCommerceRequestContextFromCookies();
 
   if (!sessionContext) {
     return unauthorizedCommerceResponse();
@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: CourierRouteContext) {
   const { courierId } = await context.params;
 
   try {
-    const courier = await getCourierForMerchant({
+    const courier = await getUniversalCourier({
       accessToken: sessionContext.accessToken,
       courierId,
     });
@@ -38,17 +38,24 @@ export async function GET(_request: Request, context: CourierRouteContext) {
 }
 
 export async function PATCH(request: Request, context: CourierRouteContext) {
-  const sessionContext = await getCommerceRequestContextFromCookies();
+  const sessionContext = await getScopedCommerceRequestContextFromCookies();
 
   if (!sessionContext) {
     return unauthorizedCommerceResponse();
+  }
+
+  if (!sessionContext.isAdmin) {
+    return NextResponse.json(
+      { message: "Solo un administrador puede editar repartidores universales." },
+      { status: 403 }
+    );
   }
 
   const { courierId } = await context.params;
   const payload = courierPayloadFromClient(await request.json().catch(() => null));
 
   try {
-    const courier = await updateCourierForMerchant({
+    const courier = await updateUniversalCourier({
       accessToken: sessionContext.accessToken,
       courierId,
       payload: {
@@ -64,16 +71,23 @@ export async function PATCH(request: Request, context: CourierRouteContext) {
 }
 
 export async function DELETE(_request: Request, context: CourierRouteContext) {
-  const sessionContext = await getCommerceRequestContextFromCookies();
+  const sessionContext = await getScopedCommerceRequestContextFromCookies();
 
   if (!sessionContext) {
     return unauthorizedCommerceResponse();
   }
 
+  if (!sessionContext.isAdmin) {
+    return NextResponse.json(
+      { message: "Solo un administrador puede eliminar repartidores universales." },
+      { status: 403 }
+    );
+  }
+
   const { courierId } = await context.params;
 
   try {
-    await deleteCourierForMerchant({
+    await deleteUniversalCourier({
       accessToken: sessionContext.accessToken,
       courierId,
     });

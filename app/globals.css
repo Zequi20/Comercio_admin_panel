@@ -1395,6 +1395,21 @@ a {
   color: var(--tertiary);
 }
 
+.users-universal-courier-note {
+  margin: 0;
+}
+
+.users-universal-courier-note > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.users-universal-courier-note strong,
+.users-universal-courier-note span {
+  display: block;
+}
+
 .notification-user-list {
   max-height: 590px;
   overflow-y: auto;
@@ -1927,6 +1942,14 @@ a {
   grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.26fr) auto;
 }
 
+.couriers-filters.has-favorite-filter {
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(140px, 0.22fr)
+    minmax(150px, 0.24fr)
+    auto;
+}
+
 .catalog-filters .button-tonal {
   align-self: end;
 }
@@ -2385,6 +2408,32 @@ a {
 .table-actions .icon-button {
   width: 32px;
   height: 32px;
+}
+
+.favorite-toggle {
+  min-height: 32px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.favorite-toggle.is-favorite {
+  border-color: color-mix(in srgb, #d18b00 42%, var(--border-soft));
+  background: color-mix(in srgb, #f6b817 18%, var(--surface));
+  color: color-mix(in srgb, #9a6200 88%, var(--text));
+}
+
+.favorite-toggle.is-favorite svg {
+  fill: currentColor;
+}
+
+:root[data-theme="dark"] .favorite-toggle.is-favorite {
+  color: #ffd56a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .favorite-toggle.is-favorite {
+    color: #ffd56a;
+  }
 }
 
 .order-status-cell {
@@ -3025,6 +3074,12 @@ a {
   color: var(--text);
   padding: 3px 7px;
   font-weight: 700;
+}
+
+.assignment-courier-tags span.is-favorite {
+  border-color: color-mix(in srgb, #d18b00 42%, var(--border-soft));
+  background: color-mix(in srgb, #f6b817 18%, var(--surface));
+  color: color-mix(in srgb, #9a6200 88%, var(--text));
 }
 
 .order-items-modal-list {
@@ -4452,6 +4507,10 @@ a {
     grid-template-columns: minmax(0, 1fr) minmax(140px, 0.5fr);
   }
 
+  .couriers-filters.has-favorite-filter {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.5fr);
+  }
+
   .catalog-filters .button-tonal {
     grid-column: 1 / -1;
   }
@@ -4617,6 +4676,10 @@ a {
 
   .catalog-filters,
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .couriers-filters.has-favorite-filter {
     grid-template-columns: 1fr;
   }
 
