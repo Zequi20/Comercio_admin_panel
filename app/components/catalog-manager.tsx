@@ -4,6 +4,7 @@ import {
   Braces,
   CircleAlert,
   CircleCheck,
+  Copy,
   Download,
   Edit3,
   FileSpreadsheet,
@@ -656,6 +657,7 @@ export function CatalogManager() {
   const [viewingMetadataProduct, setViewingMetadataProduct] =
     useState<CatalogProduct | null>(null);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [catalogPagination, setCatalogPagination] =
@@ -806,6 +808,16 @@ export function CatalogManager() {
       document.body.classList.remove("modal-open");
     };
   }, [hasOpenModal]);
+
+  useEffect(() => {
+    if (!copiedProductId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setCopiedProductId(null);
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedProductId]);
 
   function resetCatalogPage() {
     setCatalogPagination((current) =>
@@ -964,6 +976,22 @@ export function CatalogManager() {
 
   function closeMetadataModal() {
     setViewingMetadataProduct(null);
+  }
+
+  async function handleCopySku(product: CatalogProduct) {
+    const sku = product.sku?.trim();
+
+    if (!sku) return;
+
+    try {
+      await navigator.clipboard.writeText(sku);
+      setError(null);
+      setCopiedProductId(String(product.id));
+    } catch {
+      setCopiedProductId(null);
+      setSuccess(null);
+      setError("No se pudo copiar el SKU. Intentá nuevamente.");
+    }
   }
 
   function validateForm() {
@@ -1511,16 +1539,45 @@ export function CatalogManager() {
                           </td>
                         ) : null}
                         <td className="catalog-secondary-column catalog-sku-column">
-                          <span
-                            className="catalog-sku-code"
-                            title={
-                              product.sku && product.sku.length > 16
-                                ? `SKU completo: ${product.sku}`
-                                : undefined
-                            }
-                          >
-                            {product.sku || "Sin código SKU"}
-                          </span>
+                          <div className="catalog-sku-content">
+                            <span
+                              className="catalog-sku-code"
+                              title={
+                                product.sku && product.sku.length > 16
+                                  ? `SKU completo: ${product.sku}`
+                                  : undefined
+                              }
+                            >
+                              {product.sku || "Sin código SKU"}
+                            </span>
+                            {product.sku ? (
+                              <button
+                                aria-label={
+                                  copiedProductId === String(product.id)
+                                    ? `SKU ${product.sku} copiado`
+                                    : `Copiar SKU ${product.sku}`
+                                }
+                                className={`icon-button catalog-copy-sku-button${
+                                  copiedProductId === String(product.id)
+                                    ? " is-copied"
+                                    : ""
+                                }`}
+                                onClick={() => void handleCopySku(product)}
+                                title={
+                                  copiedProductId === String(product.id)
+                                    ? "SKU copiado"
+                                    : "Copiar SKU"
+                                }
+                                type="button"
+                              >
+                                {copiedProductId === String(product.id) ? (
+                                  <CircleCheck aria-hidden="true" size={15} />
+                                ) : (
+                                  <Copy aria-hidden="true" size={15} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="catalog-secondary-column">
                           <span className="pill">

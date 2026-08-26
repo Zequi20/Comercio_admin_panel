@@ -2044,8 +2044,8 @@ a {
 }
 
 .catalog-data-table .catalog-sku-column {
-  width: 16ch;
-  max-width: 16ch;
+  width: 22ch;
+  max-width: 22ch;
 }
 
 .orders-data-table {
@@ -2661,6 +2661,7 @@ a {
 
 .catalog-sku-code {
   display: block;
+  min-width: 0;
   max-width: 16ch;
   overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -2671,6 +2672,40 @@ a {
 
 .catalog-sku-code[title] {
   cursor: help;
+}
+
+.catalog-sku-content {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: center;
+}
+
+.catalog-copy-sku-button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: var(--radius-sm);
+}
+
+.catalog-copy-sku-button.is-copied {
+  border-color: rgba(27, 94, 32, 0.28);
+  background: #e7f7eb;
+  color: #1b5e20;
+}
+
+:root[data-theme="dark"] .catalog-copy-sku-button.is-copied {
+  border-color: rgba(167, 232, 180, 0.28);
+  background: #12371d;
+  color: #a7e8b4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .catalog-copy-sku-button.is-copied {
+    border-color: rgba(167, 232, 180, 0.28);
+    background: #12371d;
+    color: #a7e8b4;
+  }
 }
 
 .catalog-merchant-group-row,
