@@ -712,7 +712,7 @@ export function CouriersManager() {
           <div>
             <h2 className="card-title">Red universal de repartidores</h2>
             <p className="muted">
-              {visibleCouriers.length} visibles · {activeCount} activos
+              {visibleCouriers.length} visibles · {activeCount} cuentas activas
               {scope.mode === "merchant" ? ` · ${favoriteCount} favoritos` : ""}
             </p>
           </div>
@@ -749,8 +749,8 @@ export function CouriersManager() {
             <strong>Pool compartido por todos los comercios</strong>
             <span>
               {scope.mode === "merchant"
-                ? `Las estrellas corresponden únicamente a los favoritos de ${scopeLabel}.`
-                : "Los perfiles son globales. Seleccioná un comercio para consultar y gestionar sus favoritos."}
+                ? `Solo se muestran usuarios con rol COURIER. Las estrellas corresponden únicamente a los favoritos de ${scopeLabel}.`
+                : "Solo se muestran usuarios con rol COURIER. Los perfiles son globales; seleccioná un comercio para consultar sus favoritos."}
             </span>
           </div>
         </div>
@@ -789,7 +789,7 @@ export function CouriersManager() {
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="couriers-filter-status">
-              Estado
+              Estado de cuenta
             </label>
             <select
               className="field-control"
@@ -802,8 +802,8 @@ export function CouriersManager() {
               }
             >
               <option value="ALL">Todos</option>
-              <option value="ACTIVE">Activos</option>
-              <option value="INACTIVE">Inactivos</option>
+              <option value="ACTIVE">Cuenta activa</option>
+              <option value="INACTIVE">Cuenta inactiva</option>
             </select>
           </div>
           {scope.mode === "merchant" ? (
@@ -891,7 +891,7 @@ export function CouriersManager() {
                             courier.isActive ? "pill success" : "pill pending"
                           }
                         >
-                          {courier.isActive ? "Activo" : "Inactivo"}
+                          {courier.isActive ? "Cuenta activa" : "Cuenta inactiva"}
                         </span>
                       </td>
                       <td>{area || "Sin zona"}</td>
@@ -906,10 +906,12 @@ export function CouriersManager() {
                             className={`button-tonal favorite-toggle${
                               courier.isFavorite ? " is-favorite" : ""
                             }`}
-                            disabled={isFavoritePending}
+                            disabled={isFavoritePending || !courier.isActive}
                             onClick={() => void handleFavoriteToggle(courier)}
                             title={
-                              courier.isFavorite
+                              !courier.isActive
+                                ? "La cuenta debe estar activa para gestionar favoritos"
+                                : courier.isFavorite
                                 ? "Quitar de favoritos"
                                 : "Marcar como favorito"
                             }
@@ -1157,7 +1159,7 @@ export function CouriersManager() {
               {editingCourier ? (
                 <div className="metadata-empty-state">
                   Usuario: {courierUserDetail(editingCourier)} · Estado actual:{" "}
-                  {editingCourier.isActive ? "Activo" : "Inactivo"}
+                  {editingCourier.isActive ? "Cuenta activa" : "Cuenta inactiva"}
                 </div>
               ) : null}
 

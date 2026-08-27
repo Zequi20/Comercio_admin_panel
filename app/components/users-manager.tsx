@@ -952,6 +952,15 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
       setRoleMessage({ kind: "error", text: "No podés quitar tu propio rol ADMIN." });
       return;
     }
+    if (
+      mode === "remove" &&
+      selectedRole === "COURIER" &&
+      !window.confirm(
+        `¿Quitar el rol COURIER a ${userName(editingUser)}? Dejará de aparecer en la red universal y no podrá recibir nuevas asignaciones. Sus pedidos históricos conservarán la referencia. Verificá antes que no tenga entregas activas: no se reasignan automáticamente.`
+      )
+    ) {
+      return;
+    }
 
     setRoleAction(mode);
     setRoleMessage(null);
@@ -1011,7 +1020,9 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
         text:
           mode === "add"
             ? `Rol ${selectedRole} asignado. El cambio ya está guardado.`
-            : `Rol ${selectedRole} retirado. El cambio ya está guardado.`,
+            : selectedRole === "COURIER"
+              ? "Rol COURIER retirado. El usuario ya no integra la red operativa ni puede recibir nuevas asignaciones."
+              : `Rol ${selectedRole} retirado. El cambio ya está guardado.`,
       });
     } catch (cause) {
       setRoleMessage({
