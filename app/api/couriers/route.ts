@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { courierPayloadFromClient } from "@/app/lib/api/couriers";
+import { buildMonthlyCourierRanking } from "@/app/lib/courier-ranking";
 import {
   badRequestResponse,
   serviceErrorResponse,
@@ -11,7 +12,9 @@ import {
   createCourierUser,
   createUniversalCourier,
   listAllFavoriteCouriers,
+  listAllOrdersForMerchant,
   listAllUniversalCouriers,
+  listOrdersForAdminScope,
 } from "@/app/lib/services/commerce-services";
 
 export async function GET() {
@@ -22,7 +25,7 @@ export async function GET() {
   }
 
   try {
-    const [couriers, favorites] = await Promise.all([
+    const [couriers, favorites, deliveredOrders] = await Promise.all([
       listAllUniversalCouriers({ accessToken: context.accessToken }),
       context.scope.mode === "merchant"
         ? listAllFavoriteCouriers({
@@ -30,6 +33,18 @@ export async function GET() {
             merchantId: context.scope.merchantId,
           })
         : Promise.resolve({ data: [], cursor: null, truncated: false }),
+      (context.isAdmin
+        ? listOrdersForAdminScope({
+            accessToken: context.accessToken,
+            merchantId: context.scope.merchantId ?? undefined,
+            status: "DELIVERED",
+            maxOrders: Number.POSITIVE_INFINITY,
+          })
+        : listAllOrdersForMerchant({
+            accessToken: context.accessToken,
+            status: "DELIVERED",
+          })
+      ).catch(() => null),
     ]);
     const favoriteCourierIds = new Set(
       favorites.data.map((favorite) => String(favorite.courier.id))
@@ -42,6 +57,12 @@ export async function GET() {
         context.scope.mode === "merchant" ? context.scope.merchantId : null,
       favoritesEnabled: context.scope.mode === "merchant",
       favoriteCount: favoriteCourierIds.size,
+      monthlyRanking: deliveredOrders
+        ? buildMonthlyCourierRanking({
+            couriers: couriers.data,
+            orders: deliveredOrders.data,
+          })
+        : null,
       data: couriers.data.map((courier) => ({
         ...courier,
         isFavorite: favoriteCourierIds.has(String(courier.id)),

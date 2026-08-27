@@ -961,17 +961,18 @@ export async function listOrdersForMerchant({
   );
 }
 
-export async function listOrdersForAdminScope({
+async function listAllOrdersForRoleScope({
   accessToken,
-  merchantId,
+  roleScope,
   status,
+  maxOrders = 2_000,
 }: {
   accessToken: string;
-  merchantId?: number | string;
+  roleScope: "merchant" | "admin";
   status?: string;
+  maxOrders?: number;
 }) {
   const pageSize = 100;
-  const maxOrders = 2_000;
   const orders: Order[] = [];
   const seenIds = new Set<string>();
   const seenCursors = new Set<string>();
@@ -982,7 +983,7 @@ export async function listOrdersForAdminScope({
     const response = await listOrdersForMerchant({
       accessToken,
       cursor,
-      roleScope: "admin",
+      roleScope,
       status,
       limit: pageSize,
     });
@@ -1017,11 +1018,51 @@ export async function listOrdersForAdminScope({
   }
 
   return {
-    data: merchantId
-      ? orders.filter((order) => orderBelongsToMerchant(order, merchantId))
-      : orders,
+    data: orders.slice(0, maxOrders),
     cursor: null,
     truncated,
+  };
+}
+
+export async function listAllOrdersForMerchant({
+  accessToken,
+  status,
+}: {
+  accessToken: string;
+  status?: string;
+}) {
+  return listAllOrdersForRoleScope({
+    accessToken,
+    roleScope: "merchant",
+    status,
+    maxOrders: Number.POSITIVE_INFINITY,
+  });
+}
+
+export async function listOrdersForAdminScope({
+  accessToken,
+  merchantId,
+  status,
+  maxOrders,
+}: {
+  accessToken: string;
+  merchantId?: number | string;
+  status?: string;
+  maxOrders?: number;
+}) {
+  const orders = await listAllOrdersForRoleScope({
+    accessToken,
+    roleScope: "admin",
+    status,
+    maxOrders,
+  });
+
+  return {
+    data: merchantId
+      ? orders.data.filter((order) => orderBelongsToMerchant(order, merchantId))
+      : orders.data,
+    cursor: null,
+    truncated: orders.truncated,
   };
 }
 

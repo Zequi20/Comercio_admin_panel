@@ -17,8 +17,10 @@ import { DashboardOrdersRealtime } from "../components/dashboard-orders-realtime
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
+import { MonthlyCourierRankingCard } from "../components/monthly-courier-ranking";
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
+import { buildMonthlyCourierRanking } from "../lib/courier-ranking";
 import { orderStatusLabel } from "../lib/order-status";
 import {
   orderContainsService,
@@ -28,10 +30,11 @@ import {
 import { isCustomDeliveryOrder } from "../lib/orders/order-type";
 import {
   listFavoriteCouriers,
+  listAllOrdersForMerchant,
+  listAllUniversalCouriers,
   listOrdersForAdminScope,
   listOrdersForMerchant,
   listProductsForMerchant,
-  listUniversalCouriers,
   type Order,
 } from "../lib/services/commerce-services";
 
@@ -195,30 +198,46 @@ async function loadDashboardData(
   isAdmin: boolean,
 ) {
   const dashboardListLimit = 100;
-  const [orders, products, couriers, favorites] = await Promise.all([
-    (isAdmin
-      ? listOrdersForAdminScope({
-          accessToken,
-          merchantId: scope.merchantId ?? undefined,
+  const [orders, products, couriers, favorites, deliveredOrders] =
+    await Promise.all([
+      (isAdmin
+        ? listOrdersForAdminScope({
+            accessToken,
+            merchantId: scope.merchantId ?? undefined,
+          })
+        : listOrdersForMerchant({ accessToken, limit: dashboardListLimit })
+      ).catch(() => null),
+      listProductsForMerchant({
+        accessToken,
+        merchantId: scope.merchantId ?? undefined,
+        limit: dashboardListLimit,
+      }).catch(() => null),
+      listAllUniversalCouriers({ accessToken }).catch(() => null),
+      scope.mode === "merchant"
+        ? listFavoriteCouriers({
+            accessToken,
+            merchantId: scope.merchantId,
+            limit: dashboardListLimit,
+          }).catch(() => null)
+        : Promise.resolve(null),
+      (isAdmin
+        ? listOrdersForAdminScope({
+            accessToken,
+            merchantId: scope.merchantId ?? undefined,
+            status: "DELIVERED",
+            maxOrders: Number.POSITIVE_INFINITY,
+          })
+        : listAllOrdersForMerchant({ accessToken, status: "DELIVERED" })
+      ).catch(() => null),
+    ]);
+
+  const monthlyCourierRanking =
+    couriers && deliveredOrders
+      ? buildMonthlyCourierRanking({
+          couriers: couriers.data ?? [],
+          orders: deliveredOrders.data ?? [],
         })
-      : listOrdersForMerchant({ accessToken, limit: dashboardListLimit })
-    ).catch(() => null),
-    listProductsForMerchant({
-      accessToken,
-      merchantId: scope.merchantId ?? undefined,
-      limit: dashboardListLimit,
-    }).catch(() => null),
-    listUniversalCouriers({ accessToken, limit: dashboardListLimit }).catch(
-      () => null
-    ),
-    scope.mode === "merchant"
-      ? listFavoriteCouriers({
-          accessToken,
-          merchantId: scope.merchantId,
-          limit: dashboardListLimit,
-        }).catch(() => null)
-      : Promise.resolve(null),
-  ]);
+      : null;
 
   return {
     orders: (orders?.data ?? []).filter(
@@ -227,6 +246,7 @@ async function loadDashboardData(
     products: products?.data ?? [],
     couriers: couriers?.data ?? [],
     favoriteCouriers: favorites?.data ?? [],
+    monthlyCourierRanking,
   };
 }
 
@@ -239,11 +259,13 @@ async function DashboardContent({
   isAdmin: boolean;
   scope: PortalScope;
 }) {
-  const { orders, products, couriers, favoriteCouriers } = await loadDashboardData(
-    accessToken,
-    scope,
-    isAdmin,
-  );
+  const {
+    orders,
+    products,
+    couriers,
+    favoriteCouriers,
+    monthlyCourierRanking,
+  } = await loadDashboardData(accessToken, scope, isAdmin);
   const dashboardMerchant = scope.merchant;
 
   const openOrders = orders.filter(isOrderOpen);
@@ -515,6 +537,16 @@ async function DashboardContent({
             </div>
           </section>
         )}
+
+        <MonthlyCourierRankingCard
+          compact
+          description={
+            scope.mode === "merchant"
+              ? "Top 10 del comercio por pedidos completados."
+              : "Top 10 global por pedidos completados."
+          }
+          ranking={monthlyCourierRanking}
+        />
 
         <section className="card">
           <div className="card-header">

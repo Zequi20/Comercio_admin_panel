@@ -25,7 +25,9 @@ import {
   type TablePaginationState,
 } from "@/app/components/table-pagination";
 import { useAdminScope } from "@/app/components/admin-scope-context";
+import { MonthlyCourierRankingCard } from "@/app/components/monthly-courier-ranking";
 import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
+import type { MonthlyCourierRanking } from "@/app/lib/courier-ranking";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 type FavoriteFilter = "ALL" | "FAVORITES" | "OTHERS";
@@ -54,6 +56,7 @@ type ListCouriersResponse = {
   favoritesEnabled?: boolean;
   favoriteCount?: number;
   merchantId?: number | string | null;
+  monthlyRanking?: MonthlyCourierRanking | null;
 };
 
 type CourierForm = {
@@ -120,6 +123,13 @@ function readCouriers(payload: unknown): Courier[] {
   }
 
   return [];
+}
+
+function readMonthlyRanking(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+
+  const ranking = (payload as ListCouriersResponse).monthlyRanking;
+  return ranking && Array.isArray(ranking.entries) ? ranking : null;
 }
 
 function buildCouriersUrl() {
@@ -272,6 +282,8 @@ function deactivateCourierModalLayers() {
 export function CouriersManager() {
   const { isAdmin, scope, scopeKey, scopeLabel } = useAdminScope();
   const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [monthlyRanking, setMonthlyRanking] =
+    useState<MonthlyCourierRanking | null>(null);
   const [form, setForm] = useState<CourierForm>(emptyForm);
   const [filters, setFilters] = useState<CourierFilters>(initialFilters);
   const [editingCourier, setEditingCourier] = useState<Courier | null>(null);
@@ -345,6 +357,7 @@ export function CouriersManager() {
       }
 
       const nextCouriers = readCouriers(payload);
+      setMonthlyRanking(readMonthlyRanking(payload));
       const nextVisibleCouriers = nextCouriers.filter((courier) => {
         const matchesStatus =
           filters.status === "ALL" ||
@@ -406,6 +419,7 @@ export function CouriersManager() {
           const nextCouriers = readCouriers(payload);
 
           setCouriers(nextCouriers);
+          setMonthlyRanking(readMonthlyRanking(payload));
           setCouriersPagination((current) => {
             const nextPage = paginateRows(nextCouriers, current).currentPage;
 
@@ -707,6 +721,16 @@ export function CouriersManager() {
 
   return (
     <div className="catalog-layout">
+      <MonthlyCourierRankingCard
+        description={
+          scope.mode === "merchant"
+            ? `Top 10 por pedidos completados en ${scopeLabel}.`
+            : "Top 10 global por pedidos completados."
+        }
+        isLoading={isLoading}
+        ranking={monthlyRanking}
+      />
+
       <section className="card card-lg catalog-table-card">
         <div className="card-header">
           <div>

@@ -1164,6 +1164,129 @@ a {
   min-width: 0;
 }
 
+.catalog-layout > .courier-ranking-card {
+  margin-bottom: 16px;
+}
+
+.courier-ranking-card {
+  min-width: 0;
+}
+
+.courier-ranking-card > .card-header .muted {
+  margin: 3px 0 0;
+}
+
+.courier-ranking-list,
+.courier-ranking-loading {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.courier-ranking-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-surface-muted);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  padding: 8px 10px;
+}
+
+.courier-ranking-position {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.courier-ranking-position.position-1 {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.courier-ranking-position.position-2 {
+  background: #e5e7eb;
+  color: #475569;
+}
+
+.courier-ranking-position.position-3 {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.courier-ranking-identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.courier-ranking-identity strong,
+.courier-ranking-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.courier-ranking-identity strong {
+  font-size: 13px;
+}
+
+.courier-ranking-identity span,
+.courier-ranking-summary {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.courier-ranking-total {
+  color: var(--primary);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.courier-ranking-total span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.courier-ranking-summary {
+  margin: 10px 0 0;
+  text-align: right;
+}
+
+.courier-ranking-loading .table-skeleton {
+  min-height: 54px;
+}
+
+.courier-ranking-empty {
+  min-height: 128px;
+}
+
+.courier-ranking-card-compact .courier-ranking-row {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding-inline: 8px;
+}
+
+.courier-ranking-card-compact .courier-ranking-position {
+  width: 28px;
+  height: 28px;
+}
+
+.courier-ranking-card-compact .courier-ranking-total span {
+  display: none;
+}
+
 .catalog-table-card {
   min-width: 0;
 }
