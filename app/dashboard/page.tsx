@@ -17,6 +17,7 @@ import { DashboardOrdersRealtime } from "../components/dashboard-orders-realtime
 import { MerchantAvatar } from "../components/merchant-avatar";
 import { MerchantMetadataEditor } from "../components/merchant-metadata-editor";
 import { MerchantOpenSwitch } from "../components/merchant-open-switch";
+import { MerchantOrderFlowSwitch } from "../components/merchant-order-flow-switch";
 import { MonthlyCourierRankingCard } from "../components/monthly-courier-ranking";
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
@@ -168,7 +169,7 @@ function priorityScore(order: Order) {
 
 function orderActionLabel(order: Order) {
   if (order.status === "PLACED") {
-    return "Confirmar pedido";
+    return "Marcar preparado";
   }
 
   if (isAssignableOrder(order)) {
@@ -488,6 +489,11 @@ async function DashboardContent({
             <MerchantOpenSwitch
               key={`dashboard-open-${dashboardMerchant.id}`}
               initialIsOpen={dashboardMerchant.isOpen}
+              merchantId={dashboardMerchant.id}
+            />
+            <MerchantOrderFlowSwitch
+              key={`dashboard-order-flow-${dashboardMerchant.id}`}
+              initialAutoConfirmOrders={dashboardMerchant.autoConfirmOrders}
               merchantId={dashboardMerchant.id}
             />
             <MerchantMetadataEditor

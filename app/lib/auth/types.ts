@@ -85,6 +85,7 @@ export type MerchantDetails = {
   email?: string | null;
   deliveryCost?: number | string | null;
   isOpen?: boolean | null;
+  autoConfirmOrders?: boolean | null;
   metadata?: Record<string, unknown> | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -104,6 +105,7 @@ export type CommerceSession = {
     contactEmail?: string | null;
     deliveryCost?: number | string | null;
     isOpen?: boolean | null;
+    autoConfirmOrders?: boolean | null;
     metadata?: Record<string, unknown> | null;
   } | null;
 };

@@ -106,6 +106,7 @@ function toSession({
             null,
           deliveryCost: merchant?.deliveryCost ?? null,
           isOpen: merchant?.isOpen ?? null,
+          autoConfirmOrders: merchant?.autoConfirmOrders ?? false,
           metadata: merchant?.metadata ?? null,
         }
       : null,

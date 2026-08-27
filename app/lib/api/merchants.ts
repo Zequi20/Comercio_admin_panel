@@ -2,13 +2,18 @@ import type { MerchantDetails } from "../auth/types";
 import { parseMetadataImageUrl } from "../image-url";
 
 export type MerchantPayload = Partial<
-  Pick<MerchantDetails, "isOpen" | "metadata">
+  Pick<MerchantDetails, "isOpen" | "autoConfirmOrders" | "metadata">
 >;
 
 export type AdminMerchantPayload = Partial<
   Pick<
     MerchantDetails,
-    "name" | "contactEmail" | "deliveryCost" | "isOpen" | "metadata"
+    | "name"
+    | "contactEmail"
+    | "deliveryCost"
+    | "isOpen"
+    | "autoConfirmOrders"
+    | "metadata"
   >
 >;
 
@@ -40,6 +45,14 @@ export function merchantPayloadFromClient(value: unknown): MerchantPayload | nul
     }
 
     payload.isOpen = input.isOpen;
+  }
+
+  if ("autoConfirmOrders" in input) {
+    if (typeof input.autoConfirmOrders !== "boolean") {
+      return null;
+    }
+
+    payload.autoConfirmOrders = input.autoConfirmOrders;
   }
 
   if ("metadata" in input) {
@@ -98,6 +111,16 @@ export function adminMerchantPayloadFromClient(
       return { ok: false, message: "El estado del comercio no es válido." };
     }
     payload.isOpen = input.isOpen;
+  }
+
+  if ("autoConfirmOrders" in input) {
+    if (typeof input.autoConfirmOrders !== "boolean") {
+      return {
+        ok: false,
+        message: "La modalidad de confirmación de pedidos no es válida.",
+      };
+    }
+    payload.autoConfirmOrders = input.autoConfirmOrders;
   }
 
   if ("metadata" in input) {

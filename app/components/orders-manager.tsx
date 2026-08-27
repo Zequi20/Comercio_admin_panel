@@ -704,7 +704,7 @@ function primaryStatusActionLabel(
   fulfillmentType?: FulfillmentType
 ) {
   const labels: Partial<Record<OrderStatus, string>> = {
-    CONFIRMED: "Confirmar",
+    CONFIRMED: "Marcar preparado",
     ASSIGNED: "Marcar asignado",
     PICKED_UP: "Marcar en camino",
     DELIVERED: "Marcar entregado",
@@ -1992,11 +1992,15 @@ export function OrdersManager() {
 
       updateOrderInTable(updatedOrder);
       markOrderAsRecentlyUpdated(String(updatedOrder.id));
+      const wasAutomaticallyAssigned =
+        toStatus === "CONFIRMED" && updatedOrder.status === "ASSIGNED";
       setSuccess(
-        `${orderCode(updatedOrder)} avanzó a ${statusLabelForFulfillment(
-          toStatus,
-          updatedOrder.fulfillmentType ?? order.fulfillmentType
-        )}.`
+        wasAutomaticallyAssigned
+          ? `${orderCode(updatedOrder)} fue preparado y asignado automáticamente.`
+          : `${orderCode(updatedOrder)} avanzó a ${statusLabelForFulfillment(
+              toStatus,
+              updatedOrder.fulfillmentType ?? order.fulfillmentType
+            )}.`
       );
     } catch (err) {
       setError(

@@ -47,6 +47,7 @@ type MerchantForm = {
   deliveryCost: string;
   imageUrl: string;
   isOpen: boolean;
+  autoConfirmOrders: boolean;
   metadata: string;
 };
 
@@ -59,6 +60,7 @@ const emptyForm: MerchantForm = {
   deliveryCost: "0",
   imageUrl: "",
   isOpen: true,
+  autoConfirmOrders: false,
   metadata: "",
 };
 
@@ -126,6 +128,7 @@ function merchantToForm(merchant: MerchantDetails): MerchantForm {
         : String(merchant.deliveryCost),
     imageUrl: metadataText(merchant.metadata, "imageUrl"),
     isOpen: merchant.isOpen !== false,
+    autoConfirmOrders: merchant.autoConfirmOrders === true,
     metadata: formatTechnicalMetadata(merchant.metadata),
   };
 }
@@ -164,7 +167,14 @@ function buildPayload(form: MerchantForm) {
   delete metadata.imageUrl;
   if (imageUrl) metadata.imageUrl = imageUrl;
 
-  return { name, contactEmail, deliveryCost, isOpen: form.isOpen, metadata };
+  return {
+    name,
+    contactEmail,
+    deliveryCost,
+    isOpen: form.isOpen,
+    autoConfirmOrders: form.autoConfirmOrders,
+    metadata,
+  };
 }
 
 async function requestMerchantDirectory() {
@@ -534,6 +544,7 @@ export function MerchantsManager() {
                 <th>Contacto</th>
                 <th>Envío</th>
                 <th>Estado</th>
+                <th>Flujo delivery</th>
                 <th>Campos técnicos</th>
                 <th>Actualizado</th>
                 <th>Acciones</th>
@@ -543,7 +554,7 @@ export function MerchantsManager() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -580,6 +591,16 @@ export function MerchantsManager() {
                       <td>
                         <span className={`pill ${merchant.isOpen === false ? "error" : "success"}`}>
                           {merchant.isOpen === false ? "Cerrado" : "Abierto"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`pill ${merchant.autoConfirmOrders ? "assigned" : "confirmed"}`}>
+                          {merchant.autoConfirmOrders ? "Automático" : "Al preparar"}
+                        </span>
+                        <span className="table-muted">
+                          {merchant.autoConfirmOrders
+                            ? "Confirmación con demora"
+                            : "Confirmación manual"}
                         </span>
                       </td>
                       <td>
@@ -624,7 +645,7 @@ export function MerchantsManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="empty-table-state">
                       <Store aria-hidden="true" size={28} />
                       <strong>No hay comercios para mostrar</strong>
@@ -760,6 +781,27 @@ export function MerchantsManager() {
                       />
                     </label>
                   </div>
+
+                  <label className="toggle-row merchants-open-toggle">
+                    <span>
+                      <strong>Confirmación automática de delivery</strong>
+                      <span>
+                        Usa las demoras configuradas para confirmar y asignar. Si está apagado, se asigna al marcar el pedido preparado.
+                      </span>
+                    </span>
+                    <input
+                      checked={form.autoConfirmOrders}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          autoConfirmOrders: event.target.checked,
+                        }))
+                      }
+                      role="switch"
+                      type="checkbox"
+                    />
+                  </label>
 
                   <div className="merchants-image-field">
                     <span

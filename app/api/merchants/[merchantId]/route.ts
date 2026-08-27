@@ -63,7 +63,7 @@ export async function PATCH(request: Request, context: MerchantRouteContext) {
     return badRequestResponse(
       isAdmin && adminPayload && !adminPayload.ok
         ? adminPayload.message
-        : "Enviá isOpen o metadata con un formato válido."
+        : "Enviá isOpen, autoConfirmOrders o metadata con un formato válido."
     );
   }
 
