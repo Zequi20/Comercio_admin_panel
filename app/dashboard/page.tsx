@@ -422,7 +422,15 @@ async function DashboardContent({
             </div>
           )}
         </section>
-
+<MonthlyCourierRankingCard
+          compact
+          description={
+            scope.mode === "merchant"
+              ? "Top 10 del comercio por pedidos completados."
+              : "Top 10 global por pedidos completados."
+          }
+          ranking={monthlyCourierRanking}
+        />
         <section className="card card-lg">
           <div className="card-header">
             <div>
@@ -538,15 +546,7 @@ async function DashboardContent({
           </section>
         )}
 
-        <MonthlyCourierRankingCard
-          compact
-          description={
-            scope.mode === "merchant"
-              ? "Top 10 del comercio por pedidos completados."
-              : "Top 10 global por pedidos completados."
-          }
-          ranking={monthlyCourierRanking}
-        />
+        
 
         <section className="card">
           <div className="card-header">
