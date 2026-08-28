@@ -786,7 +786,7 @@ export function MerchantsManager() {
                     <span>
                       <strong>Confirmación automática de delivery</strong>
                       <span>
-                        Usa las demoras configuradas para confirmar y asignar. Si está apagado, se asigna al marcar el pedido preparado.
+                        Usa las demoras por defecto para confirmar y asignar. Si está apagado, se asigna al marcar el pedido preparado.
                       </span>
                     </span>
                     <input
