@@ -93,8 +93,8 @@ export function MerchantOrderFlowSwitch({
         </span>
         <span className="merchant-open-hint">
           {autoConfirmOrders
-            ? "Confirma y asigna pedidos delivery usando las demoras configuradas."
-            : "Al marcar el pedido preparado, se asigna un repartidor automáticamente."}
+            ? "Confirma pedidos delivery y activa la búsqueda secuencial de repartidor."
+            : "Al confirmar el pedido, comienza la búsqueda automática hasta que un repartidor acepte."}
         </span>
       </div>
       <button

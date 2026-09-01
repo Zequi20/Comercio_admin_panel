@@ -24,7 +24,11 @@ import {
 import { useAdminScope } from "@/app/components/admin-scope-context";
 import { confirmFormClose } from "@/app/lib/confirm-dialog-close";
 import { customOrderNextStatuses } from "@/app/lib/orders/order-type";
-import { orderStatusLabel } from "@/app/lib/order-status";
+import {
+  isOrderSearchingCourier,
+  orderStatusLabel,
+  orderStatusLabelForOrder,
+} from "@/app/lib/order-status";
 
 type OrderStatus =
   | "PLACED"
@@ -900,12 +904,20 @@ export function CustomOrdersManager() {
                       </td>
                       <td>
                         <span className={`pill ${statusPillClass(order.status)}`}>
-                          {orderStatusLabel(order.status)}
+                          {orderStatusLabelForOrder(order)}
                         </span>
                       </td>
                       <td>
-                        <strong>{courierName(order)}</strong>
-                        <span className="table-muted">{courierDetail(order)}</span>
+                        <strong>
+                          {isOrderSearchingCourier(order)
+                            ? "Buscando aceptación"
+                            : courierName(order)}
+                        </strong>
+                        <span className="table-muted">
+                          {isOrderSearchingCourier(order)
+                            ? "La búsqueda automática continúa por rondas"
+                            : courierDetail(order)}
+                        </span>
                       </td>
                       <td>
                         <strong>

@@ -49,6 +49,8 @@ import {
   canAssignCourierToOrder,
   nextOrderStatuses,
   orderStatusLabel,
+  orderStatusLabelForOrder,
+  isOrderSearchingCourier,
 } from "@/app/lib/order-status";
 
 type OrderStatus =
@@ -210,18 +212,12 @@ const pickupWorkflowStatuses: OrderStatus[] = [
   "DELIVERED",
 ];
 
-type OrderRowAction =
-  | {
-      kind: "assign";
-      label: string;
-      title: string;
-    }
-  | {
-      kind: "status";
-      label: string;
-      title: string;
-      toStatus: OrderStatus;
-    };
+type OrderRowAction = {
+  kind: "status";
+  label: string;
+  title: string;
+  toStatus: OrderStatus;
+};
 
 let itemFieldCounter = 0;
 
@@ -681,7 +677,10 @@ function canAssignDelivery(order: CommerceOrder) {
 }
 
 function assignmentActionTitle(order: CommerceOrder) {
-  return assignmentBlockedReason(order) ?? "Asignar delivery";
+  return (
+    assignmentBlockedReason(order) ??
+    "Asignación manual de recuperación; detiene la búsqueda automática"
+  );
 }
 
 function workflowStatusesForOrder(order: CommerceOrder) {
@@ -694,6 +693,10 @@ function statusLabelForFulfillment(
   status: OrderStatus,
   fulfillmentType?: FulfillmentType
 ) {
+  if (status === "CONFIRMED" && fulfillmentType !== "PICKUP") {
+    return "Buscando repartidor";
+  }
+
   return status === "DELIVERED" && fulfillmentType === "PICKUP"
     ? "Retirado/Atendido"
     : statusConfig[status].label;
@@ -704,7 +707,7 @@ function primaryStatusActionLabel(
   fulfillmentType?: FulfillmentType
 ) {
   const labels: Partial<Record<OrderStatus, string>> = {
-    CONFIRMED: "Marcar preparado",
+    CONFIRMED: "Confirmar y buscar",
     ASSIGNED: "Marcar asignado",
     PICKED_UP: "Marcar en camino",
     DELIVERED: "Marcar entregado",
@@ -718,14 +721,6 @@ function primaryStatusActionLabel(
 }
 
 function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
-  if (canAssignCourierToOrder(order)) {
-    return {
-      kind: "assign",
-      label: "Asignar",
-      title: "Asignar repartidor",
-    };
-  }
-
   const nextStatus = nextOrderStatuses(order).find(
     (status) => status !== "CANCELED"
   );
@@ -1992,11 +1987,12 @@ export function OrdersManager() {
 
       updateOrderInTable(updatedOrder);
       markOrderAsRecentlyUpdated(String(updatedOrder.id));
-      const wasAutomaticallyAssigned =
-        toStatus === "CONFIRMED" && updatedOrder.status === "ASSIGNED";
+      const startedAutomaticSearch =
+        toStatus === "CONFIRMED" &&
+        updatedOrder.fulfillmentType !== "PICKUP";
       setSuccess(
-        wasAutomaticallyAssigned
-          ? `${orderCode(updatedOrder)} fue preparado y asignado automáticamente.`
+        startedAutomaticSearch
+          ? `${orderCode(updatedOrder)} fue confirmado. La búsqueda automática de repartidor ya está en curso.`
           : `${orderCode(updatedOrder)} avanzó a ${statusLabelForFulfillment(
               toStatus,
               updatedOrder.fulfillmentType ?? order.fulfillmentType
@@ -2264,10 +2260,9 @@ export function OrdersManager() {
                     recentlyUpdatedOrderId === String(order.id);
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
-                  const statusLabel = statusLabelForFulfillment(
-                    status,
-                    order.fulfillmentType
-                  );
+                  const statusLabel = isOrderSearchingCourier(order)
+                    ? orderStatusLabelForOrder(order)
+                    : statusLabelForFulfillment(status, order.fulfillmentType);
                   const items = order.items ?? [];
                   const containsService = orderContainsService(
                     items,
@@ -2277,10 +2272,7 @@ export function OrdersManager() {
                   const assignmentReason = assignmentBlockedReason(order);
                   const nextAction = nextPrimaryOrderAction(order);
                   const canUpdateStatus = canManage;
-                  const canRunNextAction =
-                    nextAction?.kind === "status"
-                      ? canUpdateStatus
-                      : canManage;
+                  const canRunNextAction = canUpdateStatus;
                   const rowStateClass = [
                     isUpdatingStatus ? "order-row-updating" : "",
                     isRecentlyUpdated ? "order-row-updated" : "",
@@ -2394,11 +2386,13 @@ export function OrdersManager() {
                             <span className="table-muted">
                               {order.fulfillmentType === "PICKUP"
                                 ? "No aplica"
-                                : "Sin asignar"}
+                                : isOrderSearchingCourier(order)
+                                  ? "Buscando aceptación"
+                                  : "Sin asignar"}
                             </span>
                             {canAssign ? (
                               <span className="delivery-ready-chip">
-                                Listo para asignar
+                                Asignación automática activa
                               </span>
                             ) : assignmentReason &&
                               order.fulfillmentType !== "PICKUP" ? (
@@ -2439,17 +2433,10 @@ export function OrdersManager() {
                                 order
                               )}`}
                               className={
-                                nextAction.kind === "assign"
-                                  ? "order-next-action-trigger assign"
-                                  : "order-next-action-trigger"
+                                "order-next-action-trigger"
                               }
                               disabled={isPending || !canRunNextAction}
                               onClick={() => {
-                                if (nextAction.kind === "assign") {
-                                  openAssignModal(order);
-                                  return;
-                                }
-
                                 void handleQuickStatusUpdate(
                                   order,
                                   nextAction.toStatus
@@ -2457,32 +2444,38 @@ export function OrdersManager() {
                               }}
                               title={
                                 !canRunNextAction
-                                  ? nextAction.kind === "status"
-                                    ? "Seleccioná un comercio para operar sobre esta orden"
-                                    : "Seleccioná un comercio para operar"
-                                  : nextAction.kind === "assign"
-                                    ? assignmentActionTitle(order)
-                                    : nextAction.title
+                                  ? "Seleccioná un comercio para operar sobre esta orden"
+                                  : nextAction.title
                               }
                               type="button"
                             >
-                              {isUpdatingStatus &&
-                              nextAction.kind === "status" ? (
+                              {isUpdatingStatus ? (
                                 <span
                                   aria-hidden="true"
                                   className="spinner"
                                 />
-                              ) : nextAction.kind === "assign" ? (
-                                <Truck size={16} />
                               ) : (
                                 <CircleCheck size={16} />
                               )}
                               <span>
-                                {isUpdatingStatus &&
-                                nextAction.kind === "status"
+                                {isUpdatingStatus
                                   ? "Actualizando"
                                   : nextAction.label}
                               </span>
+                            </button>
+                          ) : null}
+                          {canAssign ? (
+                            <button
+                              aria-label={`Asignar manualmente la orden ${orderCode(
+                                order
+                              )}`}
+                              className="icon-button"
+                              disabled={isPending || !canManage}
+                              onClick={() => openAssignModal(order)}
+                              title={assignmentActionTitle(order)}
+                              type="button"
+                            >
+                              <Truck size={17} />
                             </button>
                           ) : null}
                           <button
@@ -2909,7 +2902,7 @@ export function OrdersManager() {
             <div className="card-header">
               <div>
                 <h2 className="card-title">
-                  Asignar delivery {orderCode(assigningOrder)}
+                  Asignación manual {orderCode(assigningOrder)}
                 </h2>
                 <p className="muted">
                   {customerName(assigningOrder)} ·{" "}
@@ -2949,11 +2942,11 @@ export function OrdersManager() {
                   <strong>
                     {assignmentBlocker
                       ? "Asignación bloqueada"
-                      : "Pedido confirmado para delivery"}
+                      : "Recuperación manual disponible"}
                   </strong>
                   <span>
                     {assignmentBlocker ??
-                      "Al asignar, la orden avanza al estado Asignado."}
+                      "Usa esta opción sólo para intervenir la búsqueda automática. Al asignar, las ofertas pendientes se cancelan."}
                   </span>
                 </div>
               </div>
@@ -2962,7 +2955,7 @@ export function OrdersManager() {
                 <div>
                   <span>Estado</span>
                   <strong>
-                    {statusConfig[assigningOrder.status ?? "PLACED"].label}
+                    {orderStatusLabelForOrder(assigningOrder)}
                   </strong>
                 </div>
                 <div>
@@ -2981,7 +2974,7 @@ export function OrdersManager() {
                 </div>
                 <div>
                   <span>Flujo</span>
-                  <strong>Confirmado a Asignado</strong>
+                  <strong>Búsqueda automática a asignación manual</strong>
                 </div>
               </div>
 
@@ -3092,7 +3085,7 @@ export function OrdersManager() {
                   ) : (
                     <>
                       <Truck size={17} />
-                      Asignar
+                      Asignar manualmente
                     </>
                   )}
                 </button>

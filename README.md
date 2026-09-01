@@ -63,7 +63,7 @@ npm run lint     # Ejecuta ESLint
 
 - **Dashboard:** resumen operativo, ventas y pedidos que requieren atención.
 - **Catálogo:** alta, edición, eliminación e importación de productos desde Excel.
-- **Órdenes:** creación, seguimiento, actualización de estado y asignación de repartidores.
+- **Órdenes:** creación, seguimiento, búsqueda automática de repartidor por ofertas y asignación manual de recuperación.
 - **Repartidores:** consulta del pool universal, favoritos por comercio y administración global para cuentas `ADMIN`.
 - **Notificaciones:** envío de notificaciones manuales a usuarios.
 - **Administración:** gestión de comercios, usuarios y roles para cuentas `ADMIN`.

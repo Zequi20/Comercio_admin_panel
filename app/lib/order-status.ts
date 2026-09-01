@@ -48,16 +48,26 @@ function hasAssignedCourier(order: OrderWorkflowShape) {
   );
 }
 
-export function orderStatusLabel(value?: string | null) {
-  return statusLabels[normalizedOrderStatus(value)];
-}
-
-export function canAssignCourierToOrder(order: OrderWorkflowShape) {
+export function isOrderSearchingCourier(order: OrderWorkflowShape) {
   return (
     order.fulfillmentType !== "PICKUP" &&
     normalizedOrderStatus(order.status) === "CONFIRMED" &&
     !hasAssignedCourier(order)
   );
+}
+
+export function orderStatusLabel(value?: string | null) {
+  return statusLabels[normalizedOrderStatus(value)];
+}
+
+export function orderStatusLabelForOrder(order: OrderWorkflowShape) {
+  return isOrderSearchingCourier(order)
+    ? "Buscando repartidor"
+    : orderStatusLabel(order.status);
+}
+
+export function canAssignCourierToOrder(order: OrderWorkflowShape) {
+  return isOrderSearchingCourier(order);
 }
 
 export function assignmentBlockedReason(order: OrderWorkflowShape) {

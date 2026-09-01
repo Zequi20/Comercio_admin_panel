@@ -22,7 +22,9 @@ import { MonthlyCourierRankingCard } from "../components/monthly-courier-ranking
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
 import { buildMonthlyCourierRanking } from "../lib/courier-ranking";
-import { orderStatusLabel } from "../lib/order-status";
+import {
+  orderStatusLabelForOrder,
+} from "../lib/order-status";
 import {
   orderContainsService,
   orderFulfillmentLabel,
@@ -169,11 +171,11 @@ function priorityScore(order: Order) {
 
 function orderActionLabel(order: Order) {
   if (order.status === "PLACED") {
-    return "Marcar preparado";
+    return "Confirmar pedido";
   }
 
   if (isAssignableOrder(order)) {
-    return "Asignar repartidor";
+    return "Esperando aceptación";
   }
 
   if (order.status === "ASSIGNED") {
@@ -280,8 +282,7 @@ async function DashboardContent({
   const canceledToday = orders.filter(
     (order) => order.status === "CANCELED" && sameDay(order.updatedAt),
   );
-  const actionRequiredCount = pendingOrders.length + assignableOrders.length;
-  const problemCount = canceledToday.length + assignableOrders.length;
+  const actionRequiredCount = pendingOrders.length;
   const salesTodayTotal = soldTodayOrders.reduce((total, order) => {
     const amount = Number(order.total ?? 0);
     return Number.isFinite(amount) ? total + amount : total;
@@ -311,7 +312,7 @@ async function DashboardContent({
     {
       label: "Requieren acción",
       value: String(actionRequiredCount),
-      meta: `${pendingOrders.length} por confirmar · ${assignableOrders.length} por asignar`,
+      meta: `${pendingOrders.length} por confirmar · ${assignableOrders.length} en búsqueda automática`,
       icon: CircleAlert,
       pill: "Atención",
       pillClass: "pending",
@@ -333,12 +334,12 @@ async function DashboardContent({
       pillClass: "success",
     },
     {
-      label: "Problemas",
-      value: String(problemCount),
-      meta: `${assignableOrders.length} sin repartidor · ${canceledToday.length} cancelados`,
+      label: "Buscando reparto",
+      value: String(assignableOrders.length),
+      meta: `${assignableOrders.length} esperando aceptación · ${canceledToday.length} cancelados hoy`,
       icon: Truck,
-      pill: "Revisar",
-      pillClass: problemCount > 0 ? "error" : "success",
+      pill: "Automático",
+      pillClass: assignableOrders.length > 0 ? "assigned" : "success",
     },
   ];
 
@@ -406,7 +407,7 @@ async function DashboardContent({
                       statusPillClass[order.status ?? "PLACED"] ?? "pending"
                     }`}
                   >
-                    {orderStatusLabel(order.status)}
+                    {orderStatusLabelForOrder(order)}
                   </span>
                   <div className="order-row-value">
                     <strong>{formatPrice(order.total, order.currency)}</strong>
