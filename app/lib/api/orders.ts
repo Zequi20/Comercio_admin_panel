@@ -149,3 +149,24 @@ export function orderAssignmentPayloadFromClient(value: unknown):
       : {}),
   };
 }
+
+export function orderEstimatedDeliveryPayloadFromClient(value: unknown):
+  | {
+      estimatedDeliveryAt?: string;
+      expectedVersion?: number;
+    }
+  | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const estimatedDeliveryAt = readString(record.estimatedDeliveryAt);
+
+  return {
+    ...(estimatedDeliveryAt ? { estimatedDeliveryAt } : {}),
+    ...(typeof record.expectedVersion === "number"
+      ? { expectedVersion: record.expectedVersion }
+      : {}),
+  };
+}

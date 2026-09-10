@@ -182,6 +182,7 @@ export type Order = {
   notes?: string | null;
   customRequest?: CustomOrderRequest | null;
   estimatedDeliveryCost?: number | string | null;
+  estimatedDeliveryAt?: string;
   priceStatus?: "PENDING" | "CONFIRMED";
   total?: number | string;
   currency?: string;
@@ -1121,6 +1122,26 @@ export async function updateOrderStatusForMerchant({
       body: JSON.stringify(payload),
     },
     "No se pudo actualizar el estado del pedido."
+  );
+}
+
+export async function updateEstimatedDeliveryForMerchant({
+  accessToken,
+  orderId,
+  payload,
+}: {
+  accessToken: string;
+  orderId: number | string;
+  payload: { estimatedDeliveryAt: string; expectedVersion: number };
+}) {
+  return requestJson<Order>(
+    `${serviceUrls.orders}/orders/${orderId}/estimated-delivery`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+    "No se pudo actualizar la hora estimada del pedido."
   );
 }
 

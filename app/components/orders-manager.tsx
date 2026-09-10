@@ -37,6 +37,14 @@ import {
 import { isCustomDeliveryOrder } from "@/app/lib/orders/order-type";
 import { googleMapsUrlForAddress } from "@/app/lib/orders/order-address";
 import {
+  canEditEstimatedDelivery,
+  estimatedDeliveryChanged,
+  estimatedDeliveryInputValue,
+  estimatedDeliveryIsoFromInput,
+  formatEstimatedDelivery,
+  isFutureEstimatedDelivery,
+} from "@/app/lib/orders/estimated-delivery";
+import {
   orderContainsService,
   orderFulfillmentCompatibility,
   orderFulfillmentLabel,
@@ -101,6 +109,7 @@ type CommerceOrder = {
   total?: number | string;
   currency?: string;
   items?: OrderItem[];
+  estimatedDeliveryAt?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -151,6 +160,7 @@ type OrderForm = {
   notes: string;
   currency: string;
   status: OrderStatus;
+  estimatedDeliveryAt: string;
   items: OrderItemField[];
 };
 
@@ -241,6 +251,7 @@ function createEmptyForm(): OrderForm {
     notes: "",
     currency: "PYG",
     status: "PLACED",
+    estimatedDeliveryAt: "",
     items: [createItemField()],
   };
 }
@@ -860,6 +871,9 @@ function orderToForm(order: CommerceOrder): OrderForm {
     notes: order.notes ?? "",
     currency: order.currency ?? "PYG",
     status: order.status ?? "PLACED",
+    estimatedDeliveryAt: estimatedDeliveryInputValue(
+      order.estimatedDeliveryAt
+    ),
     items: [createItemField()],
   };
 }
@@ -1728,13 +1742,31 @@ export function OrdersManager() {
     }
 
     const itemsResult = itemFieldsToPayload(form.items);
+    const estimateChanged = estimatedDeliveryChanged(
+      order.estimatedDeliveryAt,
+      form.estimatedDeliveryAt
+    );
 
     if (!itemsResult.ok) {
       return itemsResult.message;
     }
 
-    if (form.status === order.status && !itemsResult.items.length) {
-      return "Cambiá el estado o agregá un ítem para actualizar.";
+    if (estimateChanged) {
+      const estimate = estimatedDeliveryIsoFromInput(form.estimatedDeliveryAt);
+      if (!canEditEstimatedDelivery(order.status)) {
+        return "La estimación no puede cambiarse en un pedido finalizado.";
+      }
+      if (!estimate || !isFutureEstimatedDelivery(estimate)) {
+        return "Seleccioná una fecha y hora futuras para la entrega.";
+      }
+    }
+
+    if (
+      form.status === order.status &&
+      !itemsResult.items.length &&
+      !estimateChanged
+    ) {
+      return "Cambiá el estado, la estimación o agregá un ítem para actualizar.";
     }
 
     if (itemsResult.items.length) {
@@ -1819,6 +1851,45 @@ export function OrdersManager() {
         );
       }
 
+      if (isOrder(payload)) {
+        latestOrder = payload;
+        expectedVersion = readVersion(latestOrder) ?? expectedVersion + 1;
+      } else {
+        expectedVersion += 1;
+      }
+    }
+
+    if (
+      estimatedDeliveryChanged(
+        latestOrder.estimatedDeliveryAt,
+        form.estimatedDeliveryAt
+      )
+    ) {
+      const estimatedDeliveryAt = estimatedDeliveryIsoFromInput(
+        form.estimatedDeliveryAt
+      );
+      if (!estimatedDeliveryAt) {
+        throw new Error("Seleccioná una fecha y hora válidas.");
+      }
+      const response = await fetch(
+        `/api/orders/${orderId}/estimated-delivery`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ estimatedDeliveryAt, expectedVersion }),
+        }
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          messageFromPayload(
+            payload,
+            "No se pudo actualizar la hora estimada del pedido."
+          )
+        );
+      }
       if (isOrder(payload)) {
         latestOrder = payload;
         expectedVersion = readVersion(latestOrder) ?? expectedVersion + 1;
@@ -2012,7 +2083,6 @@ export function OrdersManager() {
     event.preventDefault();
     setError(null);
     setSuccess(null);
-
     const validationError = editingOrder
       ? validateEditForm(editingOrder)
       : validateCreateForm();
@@ -2229,6 +2299,7 @@ export function OrdersManager() {
                 <th>Descripción</th>
                 <th>Dirección</th>
                 <th>Tipo</th>
+                <th>Entrega estimada</th>
                 <th>Estado</th>
                 <th>Repartidor</th>
                 <th>Total</th>
@@ -2246,7 +2317,7 @@ export function OrdersManager() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={isAdmin ? 12 : 11}>
+                    <td colSpan={isAdmin ? 13 : 12}>
                       <span className="skeleton table-skeleton" />
                     </td>
                   </tr>
@@ -2345,6 +2416,12 @@ export function OrdersManager() {
                               : "Entrega con repartidor"}
                           </span>
                         </div>
+                      </td>
+                      <td>
+                        <strong>
+                          {formatEstimatedDelivery(order.estimatedDeliveryAt)}
+                        </strong>
+                        <span className="table-muted">Hora local</span>
                       </td>
                       <td>
                         <div className="order-status-cell">
@@ -2503,7 +2580,7 @@ export function OrdersManager() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={isAdmin ? 12 : 11}>
+                  <td colSpan={isAdmin ? 13 : 12}>
                     <div className="empty-table-state">
                       <ReceiptText aria-hidden="true" size={26} />
                       <strong>Sin órdenes registradas</strong>
@@ -2613,6 +2690,32 @@ export function OrdersManager() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="field-group">
+                    <label
+                      className="field-label"
+                      htmlFor="order-estimated-delivery"
+                    >
+                      Entrega estimada
+                    </label>
+                    <input
+                      className="field-control"
+                      disabled={
+                        isSubmitting ||
+                        !canEditEstimatedDelivery(editingOrder.status)
+                      }
+                      id="order-estimated-delivery"
+                      required
+                      type="datetime-local"
+                      value={form.estimatedDeliveryAt}
+                      onChange={(event) =>
+                        updateForm("estimatedDeliveryAt", event.target.value)
+                      }
+                    />
+                    <span className="field-help">
+                      Se muestra al cliente y al repartidor en su hora local.
+                    </span>
                   </div>
 
                   <div className="field-group">
