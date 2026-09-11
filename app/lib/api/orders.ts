@@ -4,6 +4,7 @@ import type {
   OrderPayload,
   OrderStatus,
 } from "../services/commerce-services";
+import { normalizeCanonicalOrderStatus } from "../generated/order-status-contract";
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -14,24 +15,11 @@ function readFulfillmentType(value: unknown): OrderFulfillmentType {
 }
 
 function readStatus(value: unknown): OrderStatus | undefined {
-  const statuses = new Set<OrderStatus>([
-    "PLACED",
-    "CONFIRMED",
-    "ASSIGNED",
-    "PICKED_UP",
-    "DELIVERED",
-    "CANCELED",
-  ]);
-
   if (typeof value !== "string") {
     return undefined;
   }
 
-  const normalized = value === "CANCELLED" ? "CANCELED" : value;
-
-  return statuses.has(normalized as OrderStatus)
-    ? (normalized as OrderStatus)
-    : undefined;
+  return normalizeCanonicalOrderStatus(value);
 }
 
 function readPositiveInteger(value: unknown) {

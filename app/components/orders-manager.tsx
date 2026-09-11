@@ -59,16 +59,16 @@ import {
   orderStatusLabel,
   orderStatusLabelForOrder,
   isOrderSearchingCourier,
+  type OrderFulfillmentType,
+  type OrderStatus,
 } from "@/app/lib/order-status";
+import {
+  ORDER_STATUS_VALUES,
+  ORDER_STATUS_WORKFLOWS,
+  orderStatusContractLabel,
+} from "@/app/lib/generated/order-status-contract";
 
-type OrderStatus =
-  | "PLACED"
-  | "CONFIRMED"
-  | "ASSIGNED"
-  | "PICKED_UP"
-  | "DELIVERED"
-  | "CANCELED";
-type FulfillmentType = "DELIVERY" | "PICKUP";
+type FulfillmentType = OrderFulfillmentType;
 type StatusFilter = "ALL" | OrderStatus;
 
 type EntityReference = {
@@ -181,14 +181,11 @@ const initialFilters: OrderFilters = {
 
 const MAX_LOADED_ORDERS = 100;
 
-const statusOptions: Array<{ value: OrderStatus; label: string }> = [
-  { value: "PLACED", label: orderStatusLabel("PLACED") },
-  { value: "CONFIRMED", label: orderStatusLabel("CONFIRMED") },
-  { value: "ASSIGNED", label: orderStatusLabel("ASSIGNED") },
-  { value: "PICKED_UP", label: orderStatusLabel("PICKED_UP") },
-  { value: "DELIVERED", label: orderStatusLabel("DELIVERED") },
-  { value: "CANCELED", label: orderStatusLabel("CANCELED") },
-];
+const statusOptions: Array<{ value: OrderStatus; label: string }> =
+  ORDER_STATUS_VALUES.map((status) => ({
+    value: status,
+    label: orderStatusContractLabel(status, "merchant", "DELIVERY"),
+  }));
 
 const statusConfig: Record<
   OrderStatus,
@@ -209,18 +206,10 @@ const statusConfig: Record<
 };
 
 const deliveryWorkflowStatuses: OrderStatus[] = [
-  "PLACED",
-  "CONFIRMED",
-  "ASSIGNED",
-  "PICKED_UP",
-  "DELIVERED",
+  ...ORDER_STATUS_WORKFLOWS.DELIVERY,
 ];
 
-const pickupWorkflowStatuses: OrderStatus[] = [
-  "PLACED",
-  "CONFIRMED",
-  "DELIVERED",
-];
+const pickupWorkflowStatuses: OrderStatus[] = [...ORDER_STATUS_WORKFLOWS.PICKUP];
 
 type OrderRowAction = {
   kind: "status";

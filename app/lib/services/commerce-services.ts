@@ -1,6 +1,10 @@
 import "server-only";
 
 import { serviceUrls } from "../env";
+import type {
+  CanonicalOrderStatus,
+  OrderFulfillmentType as ContractOrderFulfillmentType,
+} from "../generated/order-status-contract";
 import { orderBelongsToMerchant } from "../orders/order-merchant";
 import { extractErrorMessage, parseJsonSafely } from "../problem-details";
 
@@ -58,15 +62,24 @@ export type ProductImportResponse = {
   errors: ProductImportError[];
 };
 
-export type OrderStatus =
-  | "PLACED"
-  | "CONFIRMED"
-  | "ASSIGNED"
-  | "PICKED_UP"
-  | "DELIVERED"
-  | "CANCELED";
+export type OrderStatus = CanonicalOrderStatus;
 
-export type OrderFulfillmentType = "DELIVERY" | "PICKUP";
+export type OrderStatusContract = {
+  schemaVersion: number;
+  canonicalStatuses: OrderStatus[];
+  fulfillmentTypes: OrderFulfillmentType[];
+  aliases: Record<string, OrderStatus>;
+  workflows: Record<OrderFulfillmentType, OrderStatus[]>;
+  visualTimelines: Record<string, Record<OrderFulfillmentType, string[]>>;
+  terminalStatuses: OrderStatus[];
+  courierTrackingStatuses: OrderStatus[];
+  labels: Record<
+    "customer" | "merchant" | "courier",
+    Record<OrderFulfillmentType, Record<OrderStatus, string>>
+  >;
+};
+
+export type OrderFulfillmentType = ContractOrderFulfillmentType;
 
 export type EntityReference = {
   id: number | string;
@@ -205,6 +218,18 @@ export type OrderPayload = {
   notes?: string;
   items: OrderItemPayload[];
 };
+
+export async function getOrderStatusContract({
+  accessToken,
+}: {
+  accessToken: string;
+}): Promise<OrderStatusContract> {
+  return requestJson<OrderStatusContract>(
+    `${serviceUrls.orders}/orders/status-contract`,
+    { method: "GET", headers: authHeaders(accessToken) },
+    "No se pudo cargar el contrato de estados del pedido."
+  );
+}
 
 export type OrderAssignmentPayload = {
   courierId: number;

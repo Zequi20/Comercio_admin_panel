@@ -28,15 +28,8 @@ import {
   isOrderSearchingCourier,
   orderStatusLabel,
   orderStatusLabelForOrder,
+  type OrderStatus,
 } from "@/app/lib/order-status";
-
-type OrderStatus =
-  | "PLACED"
-  | "CONFIRMED"
-  | "ASSIGNED"
-  | "PICKED_UP"
-  | "DELIVERED"
-  | "CANCELED";
 
 type EntityReference = {
   id?: number | string;

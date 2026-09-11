@@ -1,12 +1,14 @@
-export type OrderStatus =
-  | "PLACED"
-  | "CONFIRMED"
-  | "ASSIGNED"
-  | "PICKED_UP"
-  | "DELIVERED"
-  | "CANCELED";
+import {
+  normalizeCanonicalOrderStatus,
+  ORDER_STATUS_WORKFLOWS,
+  orderStatusContractLabel,
+  type CanonicalOrderStatus,
+  type OrderFulfillmentType as ContractFulfillmentType,
+} from "@/app/lib/generated/order-status-contract";
 
-export type OrderFulfillmentType = "DELIVERY" | "PICKUP";
+export type OrderStatus = CanonicalOrderStatus;
+
+export type OrderFulfillmentType = ContractFulfillmentType;
 
 export type OrderWorkflowShape = {
   status?: OrderStatus | string | null;
@@ -14,30 +16,8 @@ export type OrderWorkflowShape = {
   courier?: { id?: number | string | null } | null;
 };
 
-const statusLabels: Record<OrderStatus, string> = {
-  PLACED: "Creado",
-  CONFIRMED: "Confirmado",
-  ASSIGNED: "Asignado",
-  PICKED_UP: "En camino",
-  DELIVERED: "Entregado",
-  CANCELED: "Cancelado",
-};
-
-const statuses = new Set<OrderStatus>([
-  "PLACED",
-  "CONFIRMED",
-  "ASSIGNED",
-  "PICKED_UP",
-  "DELIVERED",
-  "CANCELED",
-]);
-
 function normalizedOrderStatus(value?: string | null): OrderStatus {
-  const normalized = value === "CANCELLED" ? "CANCELED" : value;
-
-  return statuses.has(normalized as OrderStatus)
-    ? (normalized as OrderStatus)
-    : "PLACED";
+  return normalizeCanonicalOrderStatus(value) ?? "PLACED";
 }
 
 function hasAssignedCourier(order: OrderWorkflowShape) {
@@ -57,7 +37,7 @@ export function isOrderSearchingCourier(order: OrderWorkflowShape) {
 }
 
 export function orderStatusLabel(value?: string | null) {
-  return statusLabels[normalizedOrderStatus(value)];
+  return orderStatusContractLabel(value, "merchant", "DELIVERY");
 }
 
 export function orderStatusLabelForOrder(order: OrderWorkflowShape) {
@@ -88,29 +68,32 @@ export function assignmentBlockedReason(order: OrderWorkflowShape) {
 
 export function nextOrderStatuses(order: OrderWorkflowShape): OrderStatus[] {
   const status = normalizedOrderStatus(order.status);
+  const deliveryWorkflow = ORDER_STATUS_WORKFLOWS.DELIVERY;
+  const pickupWorkflow = ORDER_STATUS_WORKFLOWS.PICKUP;
+  const canceled: OrderStatus = "CANCELED";
 
-  if (status === "PLACED") {
-    return ["CONFIRMED", "CANCELED"];
+  if (status === deliveryWorkflow[0]) {
+    return [deliveryWorkflow[1], canceled];
   }
 
-  if (status === "CONFIRMED") {
+  if (status === deliveryWorkflow[1]) {
     if (order.fulfillmentType === "PICKUP") {
-      return ["DELIVERED", "CANCELED"];
+      return [pickupWorkflow[2], canceled];
     }
 
     if (hasAssignedCourier(order)) {
-      return ["ASSIGNED", "CANCELED"];
+      return [deliveryWorkflow[2], canceled];
     }
 
-    return ["CANCELED"];
+    return [canceled];
   }
 
-  if (status === "ASSIGNED") {
-    return ["PICKED_UP", "CANCELED"];
+  if (status === deliveryWorkflow[2]) {
+    return [deliveryWorkflow[3], canceled];
   }
 
-  if (status === "PICKED_UP") {
-    return order.fulfillmentType === "PICKUP" ? [] : ["DELIVERED"];
+  if (status === deliveryWorkflow[3]) {
+    return order.fulfillmentType === "PICKUP" ? [] : [deliveryWorkflow[4]];
   }
 
   return [];

@@ -1,7 +1,15 @@
-const FINAL_ORDER_STATUSES = new Set(["DELIVERED", "CANCELED", "CANCELLED"]);
+import {
+  normalizeCanonicalOrderStatus,
+  ORDER_STATUS_TERMINAL_VALUES,
+} from "@/app/lib/generated/order-status-contract";
+
+const FINAL_ORDER_STATUSES: ReadonlySet<string> = new Set(
+  ORDER_STATUS_TERMINAL_VALUES,
+);
 
 export function canEditEstimatedDelivery(status?: string | null) {
-  return !FINAL_ORDER_STATUSES.has(status?.toUpperCase() ?? "");
+  const normalized = normalizeCanonicalOrderStatus(status);
+  return normalized === undefined || !FINAL_ORDER_STATUSES.has(normalized);
 }
 
 export function estimatedDeliveryInputValue(value?: string | null) {

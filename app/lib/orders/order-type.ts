@@ -1,3 +1,5 @@
+import { ORDER_STATUS_WORKFLOWS } from "@/app/lib/generated/order-status-contract";
+
 type OrderWithType = {
   orderType?: string | null;
   status?: string | null;
@@ -7,12 +9,14 @@ export function isCustomDeliveryOrder(order: OrderWithType) {
   return order.orderType === "CUSTOM";
 }
 
+const [placedStatus, confirmedStatus, assignedStatus, pickedUpStatus, deliveredStatus] =
+  ORDER_STATUS_WORKFLOWS.DELIVERY;
 const customStatusTransitions: Record<string, string[]> = {
-  PLACED: ["CANCELED"],
-  CONFIRMED: ["CANCELED"],
-  ASSIGNED: ["PICKED_UP", "CANCELED"],
-  PICKED_UP: ["DELIVERED"],
-  DELIVERED: [],
+  [placedStatus]: ["CANCELED"],
+  [confirmedStatus]: ["CANCELED"],
+  [assignedStatus]: [pickedUpStatus, "CANCELED"],
+  [pickedUpStatus]: [deliveredStatus],
+  [deliveredStatus]: [],
   CANCELED: [],
 };
 
