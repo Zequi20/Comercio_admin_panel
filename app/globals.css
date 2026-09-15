@@ -3568,6 +3568,12 @@ a {
   line-height: 1.45;
 }
 
+.merchants-category-help {
+  display: block;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .merchants-action-spinner {
   width: 14px;
   height: 14px;

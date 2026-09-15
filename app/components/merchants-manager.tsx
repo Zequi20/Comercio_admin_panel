@@ -40,6 +40,10 @@ import {
   isSupportedImageUrl,
   parseImageUrl,
 } from "@/app/lib/image-url";
+import {
+  MERCHANT_CATEGORY_OPTIONS,
+  MERCHANT_CATEGORY_VALUES,
+} from "@/app/lib/merchant-category-options";
 
 type MerchantForm = {
   name: string;
@@ -48,6 +52,7 @@ type MerchantForm = {
   imageUrl: string;
   isOpen: boolean;
   autoConfirmOrders: boolean;
+  category: string;
   metadata: string;
 };
 
@@ -61,6 +66,7 @@ const emptyForm: MerchantForm = {
   imageUrl: "",
   isOpen: true,
   autoConfirmOrders: false,
+  category: "",
   metadata: "",
 };
 
@@ -109,6 +115,7 @@ function metadataText(
 function technicalMetadata(metadata?: Record<string, unknown> | null) {
   const technical = { ...(metadata ?? {}) };
   delete technical.imageUrl;
+  delete technical.category;
   return technical;
 }
 
@@ -127,6 +134,7 @@ function merchantToForm(merchant: MerchantDetails): MerchantForm {
         ? "0"
         : String(merchant.deliveryCost),
     imageUrl: metadataText(merchant.metadata, "imageUrl"),
+    category: metadataText(merchant.metadata, "category"),
     isOpen: merchant.isOpen !== false,
     autoConfirmOrders: merchant.autoConfirmOrders === true,
     metadata: formatTechnicalMetadata(merchant.metadata),
@@ -149,6 +157,10 @@ function buildPayload(form: MerchantForm) {
   if (!isSupportedImageUrl(imageUrl)) {
     throw new Error("Ingresá una URL de imagen válida.");
   }
+  const category = form.category.trim();
+  if (!MERCHANT_CATEGORY_VALUES.has(category)) {
+    throw new Error("Seleccioná una categoría válida para el comercio.");
+  }
 
   let metadata: Record<string, unknown> = {};
   if (form.metadata.trim()) {
@@ -165,7 +177,9 @@ function buildPayload(form: MerchantForm) {
   }
 
   delete metadata.imageUrl;
+  delete metadata.category;
   if (imageUrl) metadata.imageUrl = imageUrl;
+  metadata.category = category;
 
   return {
     name,
@@ -858,6 +872,42 @@ export function MerchantsManager() {
                     </summary>
                     <div className="advanced-section-content">
                       <label className="field-group">
+                        <span className="field-label">Categoría del catálogo</span>
+                        <div className="merchant-category-field">
+                          <Store aria-hidden="true" size={16} />
+                          <select
+                            aria-describedby="merchant-category-help"
+                            className="field-control"
+                            disabled={isSaving}
+                            id="merchant-category"
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                category: event.target.value,
+                              }))
+                            }
+                            required
+                            value={form.category}
+                          >
+                            <option disabled value="">
+                              Seleccioná una categoría
+                            </option>
+                            {MERCHANT_CATEGORY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <span
+                          className="muted merchants-category-help"
+                          id="merchant-category-help"
+                        >
+                          Esta categoría se guardará como metadata.category y
+                          es la que verá el cliente en la app.
+                        </span>
+                      </label>
+                      <label className="field-group">
                         <span className="field-label">Objeto JSON</span>
                         <textarea
                           className="field-control textarea-control metadata-control"
@@ -868,13 +918,15 @@ export function MerchantsManager() {
                               metadata: event.target.value,
                             }))
                           }
-                          placeholder={'{"category": "restaurant", "city": "Asunción"}'}
+                          placeholder={'{"city": "Asunción"}'}
                           spellCheck={false}
                           value={form.metadata}
                         />
                       </label>
                       <p className="muted merchants-form-note">
-                        Reservado para integraciones y configuraciones avanzadas. La imagen se gestiona arriba.
+                        Reservado para integraciones y configuraciones avanzadas.
+                        La categoría se administra con el selector anterior y
+                        la imagen se gestiona arriba.
                       </p>
                     </div>
                   </details>
