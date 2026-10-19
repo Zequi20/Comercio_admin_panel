@@ -153,6 +153,11 @@ function userMerchantName(user: ManagedUser) {
   );
 }
 
+// La API anonimiza las cuentas eliminadas con este dominio y no permite reactivarlas.
+function userIsDeleted(user: ManagedUser) {
+  return Boolean(user.email?.trim().toLowerCase().endsWith("@deleted.invalid"));
+}
+
 function userIsActive(user: ManagedUser) {
   if (typeof user.isActive === "boolean") return user.isActive;
   const status = user.status?.trim().toLowerCase();
@@ -1249,6 +1254,7 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                   const roles = managedUserRoleNames(user);
                   const permissionsCount = managedUserPermissionNames(user).length;
                   const isActive = userIsActive(user);
+                  const isDeleted = userIsDeleted(user);
                   const isPending = pendingUserId === String(user.id);
                   const isSelf = currentUserId && String(user.id) === currentUserId;
 
@@ -1300,9 +1306,11 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                         >
                           {isActive === true
                             ? "Activo"
-                            : isActive === false
-                              ? "Inactivo"
-                              : "Sin estado"}
+                            : isDeleted
+                              ? "Eliminada"
+                              : isActive === false
+                                ? "Inactivo"
+                                : "Sin estado"}
                         </span>
                         {isSelf ? <span className="table-muted">Tu cuenta</span> : null}
                       </td>
@@ -1329,28 +1337,30 @@ export function UsersManager({ currentUserId }: { currentUserId?: string | null 
                           >
                             <KeyRound aria-hidden="true" size={16} />
                           </button>
-                          <button
-                            aria-label={`${isActive ? "Desactivar" : "Reactivar"} ${userName(user)}`}
-                            className={`icon-button${isActive ? " danger-button" : ""}`}
-                            disabled={isPending || isActive === undefined || Boolean(isSelf && isActive)}
-                            onClick={() => void toggleUserStatus(user)}
-                            title={
-                              isSelf && isActive
-                                ? "No podés desactivar tu propia cuenta"
-                                : isActive
-                                  ? "Desactivar usuario"
-                                  : "Reactivar usuario"
-                            }
-                            type="button"
-                          >
-                            {isPending ? (
-                              <span aria-hidden="true" className="spinner" />
-                            ) : isActive ? (
-                              <UserMinus aria-hidden="true" size={16} />
-                            ) : (
-                              <UserCheck aria-hidden="true" size={16} />
-                            )}
-                          </button>
+                          {isDeleted && !isActive ? null : (
+                            <button
+                              aria-label={`${isActive ? "Desactivar" : "Reactivar"} ${userName(user)}`}
+                              className={`icon-button${isActive ? " danger-button" : ""}`}
+                              disabled={isPending || isActive === undefined || Boolean(isSelf && isActive)}
+                              onClick={() => void toggleUserStatus(user)}
+                              title={
+                                isSelf && isActive
+                                  ? "No podés desactivar tu propia cuenta"
+                                  : isActive
+                                    ? "Desactivar usuario"
+                                    : "Reactivar usuario"
+                              }
+                              type="button"
+                            >
+                              {isPending ? (
+                                <span aria-hidden="true" className="spinner" />
+                              ) : isActive ? (
+                                <UserMinus aria-hidden="true" size={16} />
+                              ) : (
+                                <UserCheck aria-hidden="true" size={16} />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

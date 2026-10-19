@@ -5,7 +5,10 @@ import {
   badRequestResponse,
   serviceErrorResponse,
 } from "@/app/lib/api/responses";
-import { reactivateManagedUser } from "@/app/lib/services/auth-service";
+import {
+  reactivateManagedUser,
+  ServiceRequestError,
+} from "@/app/lib/services/auth-service";
 
 type UserRouteContext = {
   params: Promise<{ userId: string }>;
@@ -25,6 +28,19 @@ export async function POST(_request: Request, route: UserRouteContext) {
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    if (
+      error instanceof ServiceRequestError &&
+      error.status === 409 &&
+      error.title === "Account deleted"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "La cuenta fue eliminada a pedido del usuario y no se puede reactivar.",
+        },
+        { status: 409 }
+      );
+    }
     return serviceErrorResponse(error, "No se pudo reactivar el usuario.");
   }
 }

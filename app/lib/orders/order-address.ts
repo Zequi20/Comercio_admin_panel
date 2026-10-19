@@ -78,3 +78,21 @@ export function googleMapsUrlForAddress(address: string) {
   const query = new URLSearchParams({ api: "1", query: coordinates });
   return `https://www.google.com/maps/search/?${query.toString()}`;
 }
+
+export function googleMapsUrlForLocation(location: {
+  latitude: number;
+  longitude: number;
+}) {
+  if (
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
+    return null;
+  }
+
+  const query = new URLSearchParams({
+    api: "1",
+    query: `${location.latitude},${location.longitude}`,
+  });
+  return `https://www.google.com/maps/search/?${query.toString()}`;
+}

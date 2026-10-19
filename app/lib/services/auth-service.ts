@@ -46,6 +46,23 @@ export type ManagedRoleChangeResponse = {
   changed?: boolean;
 };
 
+export class ServiceRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly title: string | null
+  ) {
+    super(message);
+    this.name = "ServiceRequestError";
+  }
+}
+
+function problemTitle(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+  const title = (payload as { title?: unknown }).title;
+  return typeof title === "string" ? title : null;
+}
+
 async function requestJson<T>(
   input: string,
   init: RequestInit,
@@ -65,7 +82,11 @@ async function requestJson<T>(
   const parsed = text ? parseJsonSafely(text) : null;
 
   if (!response.ok) {
-    throw new Error(extractErrorMessage(parsed ?? text, fallbackError));
+    throw new ServiceRequestError(
+      extractErrorMessage(parsed ?? text, fallbackError),
+      response.status,
+      problemTitle(parsed)
+    );
   }
 
   if (!text) {
@@ -435,5 +456,64 @@ export async function logoutFromAuthService(refreshToken: string) {
       body: JSON.stringify({ refreshToken }),
     },
     "No se pudo cerrar sesión."
+  );
+}
+
+export type AccountDeletionRequestStatus = "PENDING" | "COMPLETED" | "REJECTED";
+
+export type AccountDeletionRequest = {
+  id: number;
+  email: string;
+  userId: number | null;
+  reason: string | null;
+  status: AccountDeletionRequestStatus;
+  resolvedAt: string | null;
+  resolvedById: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listAccountDeletionRequests({
+  accessToken,
+  status,
+}: {
+  accessToken: string;
+  status: AccountDeletionRequestStatus;
+}) {
+  const params = new URLSearchParams({ status, limit: "100" });
+
+  return requestJson<{ data: AccountDeletionRequest[] }>(
+    `${AUTH_BASE_URL}/account-deletion-requests?${params.toString()}`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+    "No se pudieron cargar las solicitudes de baja."
+  );
+}
+
+// COMPLETED borra la cuenta en todos los servicios; REJECTED solo cierra la solicitud.
+export async function resolveAccountDeletionRequest({
+  accessToken,
+  requestId,
+  status,
+}: {
+  accessToken: string;
+  requestId: number;
+  status: Exclude<AccountDeletionRequestStatus, "PENDING">;
+}) {
+  return requestJson<{
+    data: AccountDeletionRequest;
+    erasedUserId: number | null;
+  }>(
+    `${AUTH_BASE_URL}/account-deletion-requests/${encodeURIComponent(
+      String(requestId)
+    )}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ status }),
+    },
+    "No se pudo resolver la solicitud de baja."
   );
 }

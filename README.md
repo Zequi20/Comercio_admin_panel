@@ -30,7 +30,7 @@ Portal web para la operación de comercios. Permite administrar pedidos, catálo
    cp .env.example .env.local
    ```
 
-3. Ajustá las URLs en `.env.local` si los servicios se ejecutan en otro entorno:
+3. `.env.example` apunta a los servicios desplegados en Railway. Si ejecutás la API localmente, cambiá las URLs en `.env.local`:
 
    ```env
    AUTH=http://localhost:3001
@@ -66,7 +66,7 @@ npm run lint     # Ejecuta ESLint
 - **Órdenes:** creación, seguimiento, búsqueda automática de repartidor por ofertas y asignación manual de recuperación.
 - **Repartidores:** consulta del pool universal, favoritos por comercio y administración global para cuentas `ADMIN`.
 - **Notificaciones:** envío de notificaciones manuales a usuarios.
-- **Administración:** gestión de comercios, usuarios y roles para cuentas `ADMIN`.
+- **Administración:** gestión de comercios, usuarios, roles y solicitudes de baja de cuenta para cuentas `ADMIN`.
 
 ## Acceso y arquitectura
 

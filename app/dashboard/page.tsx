@@ -22,6 +22,7 @@ import { MonthlyCourierRankingCard } from "../components/monthly-courier-ranking
 import type { PortalScope } from "../lib/auth/types";
 import { getScopedCommerceRequestContextFromCookies } from "../lib/auth/portal-scope";
 import { buildMonthlyCourierRanking } from "../lib/courier-ranking";
+import { orderMerchandiseAmount } from "../lib/orders/order-amounts";
 import {
   orderStatusLabelForOrder,
 } from "../lib/order-status";
@@ -283,10 +284,10 @@ async function DashboardContent({
     (order) => order.status === "CANCELED" && sameDay(order.updatedAt),
   );
   const actionRequiredCount = pendingOrders.length;
-  const salesTodayTotal = soldTodayOrders.reduce((total, order) => {
-    const amount = Number(order.total ?? 0);
-    return Number.isFinite(amount) ? total + amount : total;
-  }, 0);
+  const salesTodayTotal = soldTodayOrders.reduce(
+    (total, order) => total + (orderMerchandiseAmount(order) ?? 0),
+    0,
+  );
   const averageTicket =
     soldTodayOrders.length > 0 ? salesTodayTotal / soldTodayOrders.length : 0;
   const priorityOrders = openOrders

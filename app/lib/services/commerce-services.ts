@@ -5,6 +5,10 @@ import type {
   CanonicalOrderStatus,
   OrderFulfillmentType as ContractOrderFulfillmentType,
 } from "../generated/order-status-contract";
+import type {
+  OrderDeliveryLocation,
+  OrderPaymentMethod,
+} from "../orders/order-amounts";
 import { orderBelongsToMerchant } from "../orders/order-merchant";
 import { extractErrorMessage, parseJsonSafely } from "../problem-details";
 
@@ -192,12 +196,20 @@ export type Order = {
   courier?: CourierReference | null;
   fulfillmentType?: OrderFulfillmentType;
   address?: string | null;
+  addressReference?: string | null;
+  deliveryLocation?: OrderDeliveryLocation | null;
+  contactPhone?: string | null;
   notes?: string | null;
   customRequest?: CustomOrderRequest | null;
   estimatedDeliveryCost?: number | string | null;
   estimatedDeliveryAt?: string;
   priceStatus?: "PENDING" | "CONFIRMED";
+  subtotal?: number | string | null;
+  deliveryFee?: number | string | null;
   total?: number | string;
+  paymentMethod?: OrderPaymentMethod | null;
+  cashAmount?: number | string | null;
+  changeDue?: number | string | null;
   currency?: string;
   items?: OrderItem[];
   createdAt?: string;
@@ -828,14 +840,17 @@ export async function sendManualNotifications({
 }
 
 export async function createCourierUser({
+  accessToken,
   payload,
 }: {
+  accessToken: string;
   payload: CourierUserPayload;
 }) {
   return requestJson<CourierUserCreateResponse>(
     `${serviceUrls.auth}/auth/register`,
     {
       method: "POST",
+      headers: authHeaders(accessToken),
       body: JSON.stringify({
         ...payload,
         role: "COURIER",

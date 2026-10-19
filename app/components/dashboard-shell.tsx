@@ -12,6 +12,7 @@ import {
   Truck,
   type LucideIcon,
   UsersRound,
+  UserX,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -60,6 +61,12 @@ const navItems: NavigationItem[] = [
     label: "Usuarios y roles",
     href: "/dashboard/usuarios",
     icon: UsersRound,
+    adminOnly: true,
+  },
+  {
+    label: "Solicitudes de baja",
+    href: "/dashboard/bajas",
+    icon: UserX,
     adminOnly: true,
   },
 ];
@@ -140,6 +147,7 @@ export function DashboardShell({
   const pathname = usePathname();
   const isGlobalAdministrationRoute =
     pathname === "/dashboard/usuarios" ||
+    pathname === "/dashboard/bajas" ||
     pathname === "/dashboard/comercios" ||
     pathname === "/dashboard/pedidos-custom";
 

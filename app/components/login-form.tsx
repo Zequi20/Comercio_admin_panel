@@ -34,7 +34,7 @@ export function LoginForm() {
       return;
     }
 
-    if (nextPassword.length < 8) {
+    if (!nextPassword) {
       setError("Ingresá tu contraseña.");
       return;
     }

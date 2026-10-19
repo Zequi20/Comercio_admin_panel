@@ -107,6 +107,7 @@ export async function POST(request: Request) {
 
   try {
     const createdUser = await createCourierUser({
+      accessToken: context.accessToken,
       payload: {
         email: payload.email,
         password: payload.password,

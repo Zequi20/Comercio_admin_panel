@@ -35,7 +35,18 @@ import {
   orderMerchantId,
 } from "@/app/lib/orders/order-merchant";
 import { isCustomDeliveryOrder } from "@/app/lib/orders/order-type";
-import { googleMapsUrlForAddress } from "@/app/lib/orders/order-address";
+import {
+  googleMapsUrlForAddress,
+  googleMapsUrlForLocation,
+} from "@/app/lib/orders/order-address";
+import {
+  orderAmount,
+  orderCashIsShort,
+  orderPaymentSummary,
+  telHref,
+  type OrderDeliveryLocation,
+  type OrderPaymentMethod,
+} from "@/app/lib/orders/order-amounts";
 import {
   canEditEstimatedDelivery,
   estimatedDeliveryChanged,
@@ -105,8 +116,16 @@ type CommerceOrder = {
   courier?: CourierReference | null;
   fulfillmentType?: FulfillmentType;
   address?: string | null;
+  addressReference?: string | null;
+  deliveryLocation?: OrderDeliveryLocation | null;
+  contactPhone?: string | null;
   notes?: string | null;
+  subtotal?: number | string | null;
+  deliveryFee?: number | string | null;
   total?: number | string;
+  paymentMethod?: OrderPaymentMethod | null;
+  cashAmount?: number | string | null;
+  changeDue?: number | string | null;
   currency?: string;
   items?: OrderItem[];
   estimatedDeliveryAt?: string;
@@ -248,11 +267,15 @@ function createEmptyForm(): OrderForm {
 function OrderAddress({
   address,
   className,
+  location,
 }: {
   address: string;
   className?: string;
+  location?: OrderDeliveryLocation | null;
 }) {
-  const googleMapsUrl = googleMapsUrlForAddress(address);
+  const googleMapsUrl =
+    (location ? googleMapsUrlForLocation(location) : null) ??
+    googleMapsUrlForAddress(address);
 
   if (!googleMapsUrl) {
     return <span className={className}>{address}</span>;
@@ -521,6 +544,30 @@ function formatPrice(value: number | string | undefined, currency = "PYG") {
   } catch {
     return `${currency} ${amount.toLocaleString("es-PY")}`;
   }
+}
+
+function orderPaymentText(order: CommerceOrder) {
+  const currency = order.currency ?? "PYG";
+  return orderPaymentSummary(order, (value) => formatPrice(value, currency));
+}
+
+function OrderContactPhone({
+  className,
+  phone,
+}: {
+  className?: string;
+  phone?: string | null;
+}) {
+  if (!phone) return null;
+
+  const href = telHref(phone);
+  if (!href) return <span className={className}>{phone}</span>;
+
+  return (
+    <a className={className} href={href} title="Llamar al cliente">
+      Tel. {phone}
+    </a>
+  );
 }
 
 function formatDate(value?: string) {
@@ -839,6 +886,8 @@ function orderMatchesQuery(order: CommerceOrder, query: string) {
     order.courier?.user?.email,
     order.courier?.user?.phone,
     order.address,
+    order.addressReference,
+    order.contactPhone,
     order.notes,
     ...(order.items ?? []).flatMap((item) => [
       item.productId,
@@ -904,6 +953,47 @@ function itemLineTotal(item: OrderItem, currency: string) {
   }
 
   return formatPrice(quantity * unitPrice, currency);
+}
+
+function OrderAmountsSummary({ order }: { order: CommerceOrder }) {
+  const currency = order.currency ?? "PYG";
+  const deliveryFee = orderAmount(order.deliveryFee);
+  const paymentText = orderPaymentText(order);
+
+  return (
+    <dl className="order-items-modal-totals">
+      {orderAmount(order.subtotal) !== null ? (
+        <div>
+          <dt>Subtotal</dt>
+          <dd>{formatPrice(order.subtotal ?? undefined, currency)}</dd>
+        </div>
+      ) : null}
+      {deliveryFee !== null ? (
+        <div>
+          <dt>Envío</dt>
+          <dd>
+            {deliveryFee > 0 ? formatPrice(deliveryFee, currency) : "Sin costo"}
+          </dd>
+        </div>
+      ) : null}
+      <div className="order-items-modal-total">
+        <dt>Total</dt>
+        <dd>{formatPrice(order.total, currency)}</dd>
+      </div>
+      {paymentText ? (
+        <div>
+          <dt>Pago</dt>
+          <dd>{paymentText}</dd>
+        </div>
+      ) : null}
+      {orderCashIsShort(order) ? (
+        <p className="order-payment-warning">
+          El efectivo informado ya no cubre el total. Coordiná el cobro con el
+          cliente.
+        </p>
+      ) : null}
+    </dl>
+  );
 }
 
 export function OrdersManager() {
@@ -2361,6 +2451,10 @@ export function OrdersManager() {
                         <span className="table-muted">
                           {customerDetail(order)}
                         </span>
+                        <OrderContactPhone
+                          className="table-muted"
+                          phone={order.contactPhone}
+                        />
                       </td>
                       <td>
                         {order.notes ? (
@@ -2373,10 +2467,21 @@ export function OrdersManager() {
                       </td>
                       <td>
                         {order.address ? (
-                          <OrderAddress
-                            address={order.address}
-                            className="table-muted order-address-cell"
-                          />
+                          <>
+                            <OrderAddress
+                              address={order.address}
+                              className="table-muted order-address-cell"
+                              location={order.deliveryLocation}
+                            />
+                            {order.addressReference ? (
+                              <span
+                                className="table-muted order-address-cell"
+                                title={order.addressReference}
+                              >
+                                Ref.: {order.addressReference}
+                              </span>
+                            ) : null}
+                          </>
                         ) : (
                           <span className="table-muted">
                             {order.fulfillmentType === "PICKUP"
@@ -2472,7 +2577,28 @@ export function OrdersManager() {
                           </>
                         )}
                       </td>
-                      <td>{formatPrice(order.total, order.currency ?? "PYG")}</td>
+                      <td>
+                        {formatPrice(order.total, order.currency ?? "PYG")}
+                        {(orderAmount(order.deliveryFee) ?? 0) > 0 ? (
+                          <span className="table-muted">
+                            Incluye envío{" "}
+                            {formatPrice(
+                              order.deliveryFee ?? undefined,
+                              order.currency ?? "PYG"
+                            )}
+                          </span>
+                        ) : null}
+                        {orderPaymentText(order) ? (
+                          <span className="table-muted">
+                            {orderPaymentText(order)}
+                          </span>
+                        ) : null}
+                        {orderCashIsShort(order) ? (
+                          <span className="table-muted order-payment-warning">
+                            El efectivo no cubre el total
+                          </span>
+                        ) : null}
+                      </td>
                       <td>
                         {items.length ? (
                           <button
@@ -3054,7 +3180,10 @@ export function OrdersManager() {
                   <span>Dirección</span>
                   <strong>
                     {assigningOrder.address ? (
-                      <OrderAddress address={assigningOrder.address} />
+                      <OrderAddress
+                        address={assigningOrder.address}
+                        location={assigningOrder.deliveryLocation}
+                      />
                     ) : (
                       "Sin dirección"
                     )}
@@ -3266,6 +3395,8 @@ export function OrdersManager() {
                 Sin productos en esta orden.
               </div>
             )}
+
+            <OrderAmountsSummary order={viewingItemsOrder} />
           </section>
         </div>
       ) : null}
