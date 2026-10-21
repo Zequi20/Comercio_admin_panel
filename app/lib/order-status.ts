@@ -40,7 +40,16 @@ export function orderStatusLabel(value?: string | null) {
   return orderStatusContractLabel(value, "merchant", "DELIVERY");
 }
 
-export function orderStatusLabelForOrder(order: OrderWorkflowShape) {
+// A service order (PICKUP with service lines) reads "Confirmado" and
+// "Realizado": the merchant arranges it with the customer.
+export function orderStatusLabelForOrder(
+  order: OrderWorkflowShape,
+  isServiceOrder = false
+) {
+  if (isServiceOrder) {
+    return orderStatusContractLabel(order.status, "merchant", "SERVICE");
+  }
+
   return isOrderSearchingCourier(order)
     ? "Buscando repartidor"
     : orderStatusLabel(order.status);

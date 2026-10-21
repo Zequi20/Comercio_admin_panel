@@ -6,7 +6,6 @@ import {
   isSupportedImageUrl,
   parseImageUrl,
 } from "../image-url";
-import { isDeliveryOnlyService } from "../orders/order-fulfillment";
 
 const TECHNICAL_HEADERS = ["imageurl", "category", "servicemode"] as const;
 const SERVICE_MODES: Record<string, string> = {
@@ -153,14 +152,6 @@ export async function normalizeProductImportFile(file: File) {
 
     if (serviceMode) {
       metadata.serviceMode = serviceMode;
-    }
-
-    const type = valueForHeader(row, columns, "type").toUpperCase();
-
-    if (isDeliveryOnlyService(type, metadata)) {
-      throw new ProductImportNormalizationError(
-        `El servicio de la fila ${rowNumber} no puede ser solo DELIVERY por ahora. Usá PICKUP o BOTH.`
-      );
     }
 
     metadataCell.value = JSON.stringify(metadata);

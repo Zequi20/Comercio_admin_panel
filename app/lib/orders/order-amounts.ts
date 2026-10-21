@@ -82,3 +82,16 @@ export function telHref(phone: string) {
   const dialable = phone.replace(/[^\d+]/g, "");
   return dialable ? `tel:${dialable}` : null;
 }
+
+// WhatsApp needs the international number; local Paraguayan numbers start
+// with 0 (0981 123 456 -> 595981123456).
+export function whatsappHref(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const international =
+    phone.trim().startsWith("+") || digits.startsWith("595")
+      ? digits
+      : `595${digits.replace(/^0+/, "")}`;
+  return `https://wa.me/${international}`;
+}

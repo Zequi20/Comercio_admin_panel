@@ -44,6 +44,7 @@ import {
   orderCashIsShort,
   orderPaymentSummary,
   telHref,
+  whatsappHref,
   type OrderDeliveryLocation,
   type OrderPaymentMethod,
 } from "@/app/lib/orders/order-amounts";
@@ -56,10 +57,13 @@ import {
   isFutureEstimatedDelivery,
 } from "@/app/lib/orders/estimated-delivery";
 import {
+  isServiceOrder,
   orderContainsService,
   orderFulfillmentCompatibility,
   orderFulfillmentLabel,
   orderFulfillmentValidationMessage,
+  SERVICE_ORDER_MIXED_MESSAGE,
+  servicePlaceLabel,
   serviceProductIdSet,
 } from "@/app/lib/orders/order-fulfillment";
 import {
@@ -554,14 +558,38 @@ function orderPaymentText(order: CommerceOrder) {
 function OrderContactPhone({
   className,
   phone,
+  serviceOrder = false,
 }: {
   className?: string;
   phone?: string | null;
+  serviceOrder?: boolean;
 }) {
   if (!phone) return null;
 
   const href = telHref(phone);
   if (!href) return <span className={className}>{phone}</span>;
+
+  // A service is arranged by phone, so its contact goes first and clickable.
+  if (serviceOrder) {
+    const whatsapp = whatsappHref(phone);
+    return (
+      <span className="order-service-contact">
+        <a href={href} title="Llamar al cliente para coordinar el servicio">
+          Llamar {phone}
+        </a>
+        {whatsapp ? (
+          <a
+            href={whatsapp}
+            rel="noopener noreferrer"
+            target="_blank"
+            title="Escribir al cliente por WhatsApp"
+          >
+            WhatsApp
+          </a>
+        ) : null}
+      </span>
+    );
+  }
 
   return (
     <a className={className} href={href} title="Llamar al cliente">
@@ -705,7 +733,10 @@ function courierArea(courier?: Courier | null) {
   return courier ? metadataText(courier.metadata, "area") : "";
 }
 
-function statusOptionsForOrder(order: CommerceOrder | null) {
+function statusOptionsForOrder(
+  order: CommerceOrder | null,
+  serviceOrder = false
+) {
   if (!order) {
     return statusOptions;
   }
@@ -715,7 +746,11 @@ function statusOptionsForOrder(order: CommerceOrder | null) {
     .filter((status) => allowedStatuses.has(status.value))
     .map((status) => ({
       ...status,
-      label: statusLabelForFulfillment(status.value, order.fulfillmentType),
+      label: statusLabelForFulfillment(
+        status.value,
+        order.fulfillmentType,
+        serviceOrder
+      ),
     }));
 }
 
@@ -736,22 +771,30 @@ function workflowStatusesForOrder(order: CommerceOrder) {
     : deliveryWorkflowStatuses;
 }
 
+// Service orders (PICKUP with service lines) read "Confirmado" and
+// "Realizado": the merchant arranges them with the customer by phone.
 function statusLabelForFulfillment(
   status: OrderStatus,
-  fulfillmentType?: FulfillmentType
+  fulfillmentType?: FulfillmentType,
+  serviceOrder = false
 ) {
+  if (serviceOrder) {
+    return orderStatusContractLabel(status, "merchant", "SERVICE");
+  }
+
   if (status === "CONFIRMED" && fulfillmentType !== "PICKUP") {
     return "Buscando repartidor";
   }
 
   return status === "DELIVERED" && fulfillmentType === "PICKUP"
-    ? "Retirado/Atendido"
+    ? "Retirado"
     : statusConfig[status].label;
 }
 
 function primaryStatusActionLabel(
   status: OrderStatus,
-  fulfillmentType?: FulfillmentType
+  fulfillmentType?: FulfillmentType,
+  serviceOrder = false
 ) {
   const labels: Partial<Record<OrderStatus, string>> = {
     CONFIRMED: "Confirmar y buscar",
@@ -760,14 +803,25 @@ function primaryStatusActionLabel(
     DELIVERED: "Marcar entregado",
   };
 
+  if (status === "CONFIRMED" && fulfillmentType === "PICKUP") {
+    return "Confirmar";
+  }
+
+  if (status === "DELIVERED" && serviceOrder) {
+    return "Marcar realizado";
+  }
+
   if (status === "DELIVERED" && fulfillmentType === "PICKUP") {
-    return "Marcar retirado/atendido";
+    return "Marcar retirado";
   }
 
   return labels[status] ?? statusConfig[status].label;
 }
 
-function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
+function nextPrimaryOrderAction(
+  order: CommerceOrder,
+  serviceOrder = false
+): OrderRowAction | null {
   const nextStatus = nextOrderStatuses(order).find(
     (status) => status !== "CANCELED"
   );
@@ -778,16 +832,27 @@ function nextPrimaryOrderAction(order: CommerceOrder): OrderRowAction | null {
 
   return {
     kind: "status",
-    label: primaryStatusActionLabel(nextStatus, order.fulfillmentType),
+    label: primaryStatusActionLabel(
+      nextStatus,
+      order.fulfillmentType,
+      serviceOrder
+    ),
     title: `Avanzar a ${statusLabelForFulfillment(
       nextStatus,
-      order.fulfillmentType
+      order.fulfillmentType,
+      serviceOrder
     )}`,
     toStatus: nextStatus,
   };
 }
 
-function OrderStatusStepper({ order }: { order: CommerceOrder }) {
+function OrderStatusStepper({
+  order,
+  serviceOrder = false,
+}: {
+  order: CommerceOrder;
+  serviceOrder?: boolean;
+}) {
   const currentStatus = order.status ?? "PLACED";
 
   if (currentStatus === "CANCELED") {
@@ -816,11 +881,19 @@ function OrderStatusStepper({ order }: { order: CommerceOrder }) {
           <li
             className={`order-status-step ${stepState}`}
             key={status}
-            title={statusLabelForFulfillment(status, order.fulfillmentType)}
+            title={statusLabelForFulfillment(
+              status,
+              order.fulfillmentType,
+              serviceOrder
+            )}
           >
             <span className="order-status-step-dot" />
             <span className="order-status-step-label">
-              {statusLabelForFulfillment(status, order.fulfillmentType)}
+              {statusLabelForFulfillment(
+                status,
+                order.fulfillmentType,
+                serviceOrder
+              )}
             </span>
           </li>
         );
@@ -1716,7 +1789,9 @@ export function OrdersManager() {
 
     if (!compatibility.allowedFulfillmentTypes.length) {
       setError(
-        "Este ítem no comparte una modalidad con el resto del pedido. Creá un pedido separado."
+        compatibility.isMixed
+          ? SERVICE_ORDER_MIXED_MESSAGE
+          : "Este ítem no comparte una modalidad con el resto del pedido. Creá un pedido separado."
       );
       return;
     }
@@ -1876,9 +1951,10 @@ export function OrdersManager() {
       body: JSON.stringify({
         ...(targetMerchantId ? { merchantId: targetMerchantId } : {}),
         fulfillmentType: form.fulfillmentType,
+        // A service at the customer's address keeps it for the visit.
         address:
-          form.fulfillmentType === "DELIVERY"
-            ? form.address.trim()
+          form.fulfillmentType === "DELIVERY" || formContainsService
+            ? form.address.trim() || undefined
             : undefined,
         notes: form.notes.trim() || undefined,
         currency: form.currency.trim().toUpperCase() || "PYG",
@@ -2145,7 +2221,11 @@ export function OrdersManager() {
           ? `${orderCode(updatedOrder)} fue confirmado. La búsqueda automática de repartidor ya está en curso.`
           : `${orderCode(updatedOrder)} avanzó a ${statusLabelForFulfillment(
               toStatus,
-              updatedOrder.fulfillmentType ?? order.fulfillmentType
+              updatedOrder.fulfillmentType ?? order.fulfillmentType,
+              isServiceOrder(
+                order.fulfillmentType,
+                orderContainsService(order.items, serviceProductIds)
+              )
             )}.`
       );
     } catch (err) {
@@ -2410,17 +2490,25 @@ export function OrdersManager() {
                     recentlyUpdatedOrderId === String(order.id);
                   const status = order.status ?? "PLACED";
                   const config = statusConfig[status];
-                  const statusLabel = isOrderSearchingCourier(order)
-                    ? orderStatusLabelForOrder(order)
-                    : statusLabelForFulfillment(status, order.fulfillmentType);
                   const items = order.items ?? [];
                   const containsService = orderContainsService(
                     items,
                     serviceProductIds
                   );
+                  const serviceOrder = isServiceOrder(
+                    order.fulfillmentType,
+                    containsService
+                  );
+                  const statusLabel = isOrderSearchingCourier(order)
+                    ? orderStatusLabelForOrder(order)
+                    : statusLabelForFulfillment(
+                        status,
+                        order.fulfillmentType,
+                        serviceOrder
+                      );
                   const canAssign = canAssignDelivery(order);
                   const assignmentReason = assignmentBlockedReason(order);
-                  const nextAction = nextPrimaryOrderAction(order);
+                  const nextAction = nextPrimaryOrderAction(order, serviceOrder);
                   const canUpdateStatus = canManage;
                   const canRunNextAction = canUpdateStatus;
                   const rowStateClass = [
@@ -2454,6 +2542,7 @@ export function OrdersManager() {
                         <OrderContactPhone
                           className="table-muted"
                           phone={order.contactPhone}
+                          serviceOrder={serviceOrder}
                         />
                       </td>
                       <td>
@@ -2484,9 +2573,11 @@ export function OrdersManager() {
                           </>
                         ) : (
                           <span className="table-muted">
-                            {order.fulfillmentType === "PICKUP"
-                              ? "Retiro/asistencia al local"
-                              : "Sin dirección"}
+                            {serviceOrder
+                              ? "El cliente asiste al local"
+                              : order.fulfillmentType === "PICKUP"
+                                ? "Retiro en el local"
+                                : "Sin dirección"}
                           </span>
                         )}
                       </td>
@@ -2494,9 +2585,11 @@ export function OrdersManager() {
                         <div className="order-fulfillment-cell">
                           <span
                             className={`pill order-fulfillment-pill ${
-                              order.fulfillmentType === "PICKUP"
-                                ? "pickup"
-                                : "delivery"
+                              serviceOrder
+                                ? "service"
+                                : order.fulfillmentType === "PICKUP"
+                                  ? "pickup"
+                                  : "delivery"
                             }`}
                           >
                             {orderFulfillmentLabel(
@@ -2505,17 +2598,32 @@ export function OrdersManager() {
                             )}
                           </span>
                           <span className="table-muted">
-                            {order.fulfillmentType === "PICKUP"
-                              ? "Cliente retira/asiste al local"
-                              : "Entrega con repartidor"}
+                            {serviceOrder
+                              ? `${servicePlaceLabel(order.address)} · coordinar por teléfono`
+                              : order.fulfillmentType === "PICKUP"
+                                ? "El cliente retira en el local"
+                                : "Entrega con repartidor"}
                           </span>
                         </div>
                       </td>
                       <td>
-                        <strong>
-                          {formatEstimatedDelivery(order.estimatedDeliveryAt)}
-                        </strong>
-                        <span className="table-muted">Hora local</span>
+                        {serviceOrder ? (
+                          <>
+                            <strong>A coordinar</strong>
+                            <span className="table-muted">
+                              Acordá día y hora con el cliente
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <strong>
+                              {formatEstimatedDelivery(
+                                order.estimatedDeliveryAt
+                              )}
+                            </strong>
+                            <span className="table-muted">Hora local</span>
+                          </>
+                        )}
                       </td>
                       <td>
                         <div className="order-status-cell">
@@ -2541,7 +2649,10 @@ export function OrdersManager() {
                               </span>
                             ) : null}
                           </div>
-                          <OrderStatusStepper order={order} />
+                          <OrderStatusStepper
+                            order={order}
+                            serviceOrder={serviceOrder}
+                          />
                         </div>
                       </td>
                       <td>
@@ -2799,7 +2910,16 @@ export function OrdersManager() {
                         updateForm("status", event.target.value as OrderStatus)
                       }
                     >
-                      {statusOptionsForOrder(editingOrder).map((status) => (
+                      {statusOptionsForOrder(
+                        editingOrder,
+                        isServiceOrder(
+                          editingOrder.fulfillmentType,
+                          orderContainsService(
+                            editingOrder.items,
+                            serviceProductIds
+                          )
+                        )
+                      ).map((status) => (
                         <option key={status.value} value={status.value}>
                           {status.label}
                         </option>
@@ -2870,32 +2990,44 @@ export function OrdersManager() {
                       <label className="field-label" htmlFor="order-type">
                         Modalidad
                       </label>
-                      <select
-                        className="field-control"
-                        disabled={isSubmitting}
-                        id="order-type"
-                        value={form.fulfillmentType}
-                        onChange={(event) =>
-                          updateForm(
-                            "fulfillmentType",
-                            event.target.value as FulfillmentType
-                          )
-                        }
-                      >
-                        {formFulfillmentCompatibility.allowedFulfillmentTypes.map(
-                          (fulfillmentType) => (
-                            <option
-                              key={fulfillmentType}
-                              value={fulfillmentType}
-                            >
-                              {orderFulfillmentLabel(
-                                fulfillmentType,
-                                formContainsService
-                              )}
-                            </option>
-                          )
-                        )}
-                      </select>
+                      {formContainsService ? (
+                        // Services never use a courier: the order is fixed.
+                        <>
+                          <input
+                            className="field-control"
+                            disabled
+                            id="order-type"
+                            value="Servicio"
+                          />
+                          <span className="field-hint">
+                            Se coordina con el cliente por teléfono.
+                          </span>
+                        </>
+                      ) : (
+                        <select
+                          className="field-control"
+                          disabled={isSubmitting}
+                          id="order-type"
+                          value={form.fulfillmentType}
+                          onChange={(event) =>
+                            updateForm(
+                              "fulfillmentType",
+                              event.target.value as FulfillmentType
+                            )
+                          }
+                        >
+                          {formFulfillmentCompatibility.allowedFulfillmentTypes.map(
+                            (fulfillmentType) => (
+                              <option
+                                key={fulfillmentType}
+                                value={fulfillmentType}
+                              >
+                                {orderFulfillmentLabel(fulfillmentType, false)}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      )}
                     </div>
 
                     <div className="field-group">
@@ -2918,10 +3050,12 @@ export function OrdersManager() {
                     </div>
                   </div>
 
-                  {form.fulfillmentType === "DELIVERY" ? (
+                  {form.fulfillmentType === "DELIVERY" || formContainsService ? (
                     <div className="field-group">
                       <label className="field-label" htmlFor="order-address">
-                        Dirección
+                        {formContainsService
+                          ? "Dirección del cliente (si el servicio es a domicilio)"
+                          : "Dirección"}
                       </label>
                       <input
                         className="field-control"
@@ -3047,14 +3181,7 @@ export function OrdersManager() {
                 </div>
                 {formFulfillmentCompatibility.isMixed ? (
                   <div className="metadata-empty-state" role="status">
-                    Pedido mixto compatible: los productos y servicios comparten
-                    {" "}
-                    {formFulfillmentCompatibility.allowedFulfillmentTypes
-                      .map((fulfillmentType) =>
-                        orderFulfillmentLabel(fulfillmentType, true)
-                      )
-                      .join(" o ")}
-                    .
+                    {SERVICE_ORDER_MIXED_MESSAGE}
                   </div>
                 ) : null}
               </div>

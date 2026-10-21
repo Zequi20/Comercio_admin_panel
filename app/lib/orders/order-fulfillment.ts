@@ -48,9 +48,16 @@ export function orderContainsService(
   );
 }
 
+// A service is always PICKUP: its serviceMode only says where it is performed
+// (the professional goes to the customer, or the customer attends), and the
+// merchant arranges it by phone. No courier is ever searched for it.
 export function productFulfillmentTypes(
   product: ServiceAwareProduct
 ): readonly OrderFulfillmentType[] {
+  if (product.type === "SERVICE") {
+    return ["PICKUP"];
+  }
+
   const serviceMode = product.metadata?.serviceMode;
   const normalizedMode =
     typeof serviceMode === "string" ? serviceMode.trim().toUpperCase() : "";
@@ -66,60 +73,61 @@ export function productFulfillmentTypes(
   return ORDER_FULFILLMENT_TYPES;
 }
 
-// A delivery order searches for a courier, so for now a service cannot be
-// delivery-only: the customer app sends every service order as pickup.
-export function isDeliveryOnlyService(
-  type: string | null | undefined,
-  metadata: Record<string, unknown> | null | undefined
-) {
-  if (type !== "SERVICE") {
-    return false;
-  }
-
-  const serviceMode = metadata?.serviceMode ?? metadata?.service_mode;
-
-  return (
-    typeof serviceMode === "string" &&
-    serviceMode.trim().toUpperCase() === "DELIVERY"
-  );
-}
-
+// Services are ordered on their own: the professional cannot be counted on to
+// carry products. The orders API rejects mixed orders too.
 export function orderFulfillmentCompatibility(
   products: ServiceAwareProduct[]
 ) {
   const containsService = products.some(
     (product) => product.type === "SERVICE"
   );
-  // Same rule as isDeliveryOnlyService: an order with services goes as pickup.
-  const allowedFulfillmentTypes = ORDER_FULFILLMENT_TYPES.filter(
-    (fulfillmentType) =>
-      !(containsService && fulfillmentType === "DELIVERY") &&
-      products.every((product) =>
-        productFulfillmentTypes(product).includes(fulfillmentType)
-      )
-  );
   const containsProduct = products.some(
     (product) => product.type !== "SERVICE"
   );
+  const isMixed = containsProduct && containsService;
+  const allowedFulfillmentTypes = isMixed
+    ? []
+    : ORDER_FULFILLMENT_TYPES.filter((fulfillmentType) =>
+        products.every((product) =>
+          productFulfillmentTypes(product).includes(fulfillmentType)
+        )
+      );
 
   return {
     allowedFulfillmentTypes,
     containsProduct,
     containsService,
-    isMixed: containsProduct && containsService,
+    isMixed,
   };
+}
+
+// Service orders are PICKUP orders with service lines. Older DELIVERY orders
+// with services kept the courier flow and read as delivery.
+export function isServiceOrder(
+  fulfillmentType: string | null | undefined,
+  containsService: boolean
+) {
+  return fulfillmentType === "PICKUP" && containsService;
 }
 
 export function orderFulfillmentLabel(
   fulfillmentType: "DELIVERY" | "PICKUP" | string | null | undefined,
   containsService: boolean
 ) {
-  if (containsService) {
-    return fulfillmentType === "PICKUP" ? "En local" : "A domicilio";
+  if (isServiceOrder(fulfillmentType, containsService)) {
+    return "Servicio";
   }
 
   return fulfillmentType === "PICKUP" ? "Retiro" : "Delivery";
 }
+
+// The customer app only sends an address when the professional goes there.
+export function servicePlaceLabel(address: string | null | undefined) {
+  return address?.trim() ? "En el domicilio del cliente" : "En el local";
+}
+
+export const SERVICE_ORDER_MIXED_MESSAGE =
+  "Los servicios se piden por separado. Creá un pedido para los servicios y otro para los productos.";
 
 export function orderFulfillmentValidationMessage(
   products: ServiceAwareProduct[],
@@ -127,23 +135,22 @@ export function orderFulfillmentValidationMessage(
 ) {
   const compatibility = orderFulfillmentCompatibility(products);
 
+  if (compatibility.isMixed) {
+    return SERVICE_ORDER_MIXED_MESSAGE;
+  }
+
   if (compatibility.containsService && fulfillmentType === "DELIVERY") {
-    return "Por ahora los pedidos con servicios no pueden ser a domicilio. Usá En local o hacé un pedido aparte para el servicio.";
+    return "Los servicios no usan repartidor: se cargan como pedido de servicio y se coordinan con el cliente.";
   }
 
   if (!compatibility.allowedFulfillmentTypes.length) {
-    return "Los ítems seleccionados no comparten una modalidad compatible. Separá los productos y servicios en pedidos distintos.";
+    return "Los ítems seleccionados no comparten una modalidad compatible. Separá el pedido.";
   }
 
   if (!compatibility.allowedFulfillmentTypes.includes(fulfillmentType)) {
-    const requestedLabel = orderFulfillmentLabel(
-      fulfillmentType,
-      compatibility.containsService
-    );
+    const requestedLabel = orderFulfillmentLabel(fulfillmentType, false);
     const availableLabels = compatibility.allowedFulfillmentTypes
-      .map((type) =>
-        orderFulfillmentLabel(type, compatibility.containsService)
-      )
+      .map((type) => orderFulfillmentLabel(type, false))
       .join(" o ");
 
     return `La modalidad ${requestedLabel} no es compatible con todos los ítems. Usá ${availableLabels} o separá el pedido.`;

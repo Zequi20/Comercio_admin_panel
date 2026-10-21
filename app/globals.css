@@ -2571,6 +2571,19 @@ a {
   color: var(--primary);
 }
 
+.order-fulfillment-pill.service {
+  border-color: color-mix(in srgb, var(--secondary) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--secondary) 12%, var(--surface));
+  color: var(--secondary);
+}
+
+.order-service-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-weight: 600;
+}
+
 .order-status-head,
 .order-status-feedback {
   display: flex;

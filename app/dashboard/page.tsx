@@ -27,6 +27,7 @@ import {
   orderStatusLabelForOrder,
 } from "../lib/order-status";
 import {
+  isServiceOrder,
   orderContainsService,
   orderFulfillmentLabel,
   serviceProductIdSet,
@@ -170,7 +171,7 @@ function priorityScore(order: Order) {
   return 5;
 }
 
-function orderActionLabel(order: Order) {
+function orderActionLabel(order: Order, serviceOrder: boolean) {
   if (order.status === "PLACED") {
     return "Confirmar pedido";
   }
@@ -188,6 +189,10 @@ function orderActionLabel(order: Order) {
   }
 
   if (order.status === "CONFIRMED") {
+    if (serviceOrder) {
+      return "Coordinar con el cliente";
+    }
+
     return order.fulfillmentType === "PICKUP"
       ? "Preparar retiro"
       : "Preparar pedido";
@@ -380,7 +385,17 @@ async function DashboardContent({
 
           {priorityOrders.length ? (
             <div className="orders-list">
-              {priorityOrders.map((order) => (
+              {priorityOrders.map((order) => {
+                const containsService = orderContainsService(
+                  order.items,
+                  serviceProductIds,
+                );
+                const serviceOrder = isServiceOrder(
+                  order.fulfillmentType,
+                  containsService,
+                );
+
+                return (
                 <article
                   className="order-row priority-order-row"
                   key={order.id}
@@ -399,7 +414,7 @@ async function DashboardContent({
                         : ""}
                       {orderFulfillmentLabel(
                         order.fulfillmentType,
-                        orderContainsService(order.items, serviceProductIds),
+                        containsService,
                       )}
                     </div>
                   </div>
@@ -408,14 +423,15 @@ async function DashboardContent({
                       statusPillClass[order.status ?? "PLACED"] ?? "pending"
                     }`}
                   >
-                    {orderStatusLabelForOrder(order)}
+                    {orderStatusLabelForOrder(order, serviceOrder)}
                   </span>
                   <div className="order-row-value">
                     <strong>{formatPrice(order.total, order.currency)}</strong>
-                    <span>{orderActionLabel(order)}</span>
+                    <span>{orderActionLabel(order, serviceOrder)}</span>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="empty-table-state">

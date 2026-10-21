@@ -10,6 +10,8 @@ export const ORDER_STATUS_VALUES = [
 ] as const;
 export type CanonicalOrderStatus = "PLACED" | "CONFIRMED" | "ASSIGNED" | "PICKED_UP" | "DELIVERED" | "CANCELED";
 export type OrderFulfillmentType = "DELIVERY" | "PICKUP";
+/** SERVICE orders are PICKUP; the profile only changes how they are presented. */
+export type OrderStatusProfile = OrderFulfillmentType | "SERVICE";
 
 export const ORDER_STATUS_ALIASES: Readonly<Record<string, CanonicalOrderStatus>> = {
   "PENDING": "PLACED",
@@ -75,6 +77,11 @@ export const ORDER_STATUS_VISUAL_TIMELINES = {
       "CREATED",
       "CONFIRMED",
       "DELIVERED"
+    ],
+    "SERVICE": [
+      "CREATED",
+      "CONFIRMED",
+      "DELIVERED"
     ]
   },
   "merchant": {
@@ -89,6 +96,11 @@ export const ORDER_STATUS_VISUAL_TIMELINES = {
       "PLACED",
       "CONFIRMED",
       "DELIVERED"
+    ],
+    "SERVICE": [
+      "PLACED",
+      "CONFIRMED",
+      "DELIVERED"
     ]
   },
   "courier": {
@@ -98,6 +110,11 @@ export const ORDER_STATUS_VISUAL_TIMELINES = {
       "DELIVERED"
     ],
     "PICKUP": [
+      "ASSIGNED",
+      "PICKED_UP",
+      "DELIVERED"
+    ],
+    "SERVICE": [
       "ASSIGNED",
       "PICKED_UP",
       "DELIVERED"
@@ -121,6 +138,14 @@ export const ORDER_STATUS_LABELS = {
       "PICKED_UP": "Listo para retirar",
       "DELIVERED": "Retirado",
       "CANCELED": "Cancelado"
+    },
+    "SERVICE": {
+      "PLACED": "Recibido",
+      "CONFIRMED": "Confirmado",
+      "ASSIGNED": "Confirmado",
+      "PICKED_UP": "Confirmado",
+      "DELIVERED": "Realizado",
+      "CANCELED": "Cancelado"
     }
   },
   "merchant": {
@@ -139,6 +164,14 @@ export const ORDER_STATUS_LABELS = {
       "PICKED_UP": "Retirado",
       "DELIVERED": "Retirado",
       "CANCELED": "Cancelado"
+    },
+    "SERVICE": {
+      "PLACED": "Creado",
+      "CONFIRMED": "Confirmado",
+      "ASSIGNED": "Confirmado",
+      "PICKED_UP": "Confirmado",
+      "DELIVERED": "Realizado",
+      "CANCELED": "Cancelado"
     }
   },
   "courier": {
@@ -151,6 +184,14 @@ export const ORDER_STATUS_LABELS = {
       "CANCELED": "Cancelado"
     },
     "PICKUP": {
+      "PLACED": "Recibido",
+      "CONFIRMED": "Listo para retirar en local",
+      "ASSIGNED": "Repartidor asignado",
+      "PICKED_UP": "En camino",
+      "DELIVERED": "Entregado",
+      "CANCELED": "Cancelado"
+    },
+    "SERVICE": {
       "PLACED": "Recibido",
       "CONFIRMED": "Listo para retirar en local",
       "ASSIGNED": "Repartidor asignado",
@@ -173,8 +214,8 @@ export function normalizeCanonicalOrderStatus(value: unknown): CanonicalOrderSta
 export function orderStatusContractLabel(
   status: unknown,
   audience: "customer" | "merchant" | "courier" = "merchant",
-  fulfillmentType: OrderFulfillmentType = "DELIVERY",
+  profile: OrderStatusProfile = "DELIVERY",
 ): string {
   const canonical = normalizeCanonicalOrderStatus(status) ?? "PLACED";
-  return ORDER_STATUS_LABELS[audience][fulfillmentType][canonical];
+  return ORDER_STATUS_LABELS[audience][profile][canonical];
 }

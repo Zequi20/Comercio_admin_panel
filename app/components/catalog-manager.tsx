@@ -43,7 +43,6 @@ import {
   isSupportedImageUrl,
   parseImageUrl,
 } from "@/app/lib/image-url";
-import { isDeliveryOnlyService } from "@/app/lib/orders/order-fulfillment";
 
 type ProductType = "PRODUCT" | "SERVICE";
 type ProductAvailabilityStatus =
@@ -214,12 +213,33 @@ const metadataSuggestions = [
 
 const productImageMetadataKey = "imageUrl";
 
-const serviceModeOptions = [
+const productServiceModeOptions = [
   { value: "", label: "Seleccionar" },
   { value: "DELIVERY", label: "A domicilio" },
   { value: "PICKUP", label: "En local" },
   { value: "BOTH", label: "A domicilio y en local" },
 ];
+
+// For a service the mode only says where it is performed: services never use
+// a courier, the merchant arranges them with the customer by phone.
+const serviceServiceModeOptions = [
+  { value: "", label: "Seleccionar" },
+  { value: "DELIVERY", label: "En el domicilio del cliente" },
+  { value: "PICKUP", label: "En el local" },
+  { value: "BOTH", label: "En el domicilio o en el local" },
+];
+
+function serviceModeOptionsFor(type: ProductType) {
+  return type === "SERVICE"
+    ? serviceServiceModeOptions
+    : productServiceModeOptions;
+}
+
+function metadataFieldLabel(key: string, type: ProductType) {
+  return key === "serviceMode" && type === "SERVICE"
+    ? "Dónde se realiza"
+    : metadataLabelForKey(key);
+}
 
 let metadataFieldCounter = 0;
 
@@ -1021,10 +1041,6 @@ export function CatalogManager() {
       return metadataResult.message;
     }
 
-    if (isDeliveryOnlyService(form.type, metadataResult.metadata)) {
-      return "Por ahora los servicios no pueden ser solo a domicilio. Elegí En local o A domicilio y en local.";
-    }
-
     return null;
   }
 
@@ -1725,6 +1741,13 @@ export function CatalogManager() {
                     <option value="PRODUCT">Producto</option>
                     <option value="SERVICE">Servicio</option>
                   </select>
+                  {form.type === "SERVICE" ? (
+                    <span className="field-hint">
+                      Los servicios no usan repartidor: el cliente deja su
+                      teléfono y coordinás con él el día, la hora y el lugar.
+                      Indicá dónde se realiza en los detalles técnicos.
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="field-group">
@@ -1953,7 +1976,7 @@ export function CatalogManager() {
                         <div className="metadata-field-row" key={field.id}>
                           {field.lockedKey ? (
                             <span className="metadata-key-pill">
-                              {metadataLabelForKey(field.key)}
+                              {metadataFieldLabel(field.key, form.type)}
                             </span>
                           ) : (
                             <input
@@ -1985,23 +2008,18 @@ export function CatalogManager() {
                               }
                             >
                               {field.value &&
-                              !serviceModeOptions.some(
+                              !serviceModeOptionsFor(form.type).some(
                                 (option) => option.value === field.value
                               ) ? (
                                 <option value={field.value}>{field.value}</option>
                               ) : null}
-                              {serviceModeOptions.map((option) => (
-                                <option
-                                  disabled={
-                                    form.type === "SERVICE" &&
-                                    option.value === "DELIVERY"
-                                  }
-                                  key={option.value}
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </option>
-                              ))}
+                              {serviceModeOptionsFor(form.type).map(
+                                (option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                )
+                              )}
                             </select>
                           ) : (
                             <input
