@@ -43,6 +43,7 @@ import {
   isSupportedImageUrl,
   parseImageUrl,
 } from "@/app/lib/image-url";
+import { isDeliveryOnlyService } from "@/app/lib/orders/order-fulfillment";
 
 type ProductType = "PRODUCT" | "SERVICE";
 type ProductAvailabilityStatus =
@@ -217,7 +218,7 @@ const serviceModeOptions = [
   { value: "", label: "Seleccionar" },
   { value: "DELIVERY", label: "A domicilio" },
   { value: "PICKUP", label: "En local" },
-  { value: "DELIVERY_PICKUP", label: "A domicilio y en local" },
+  { value: "BOTH", label: "A domicilio y en local" },
 ];
 
 let metadataFieldCounter = 0;
@@ -1018,6 +1019,10 @@ export function CatalogManager() {
 
     if (!metadataResult.ok) {
       return metadataResult.message;
+    }
+
+    if (isDeliveryOnlyService(form.type, metadataResult.metadata)) {
+      return "Por ahora los servicios no pueden ser solo a domicilio. Elegí En local o A domicilio y en local.";
     }
 
     return null;
@@ -1986,7 +1991,14 @@ export function CatalogManager() {
                                 <option value={field.value}>{field.value}</option>
                               ) : null}
                               {serviceModeOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
+                                <option
+                                  disabled={
+                                    form.type === "SERVICE" &&
+                                    option.value === "DELIVERY"
+                                  }
+                                  key={option.value}
+                                  value={option.value}
+                                >
                                   {option.label}
                                 </option>
                               ))}

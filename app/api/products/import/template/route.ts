@@ -48,8 +48,8 @@ const fieldGuideRows = [
   [
     "serviceMode",
     "No",
-    "Para servicios: DELIVERY, PICKUP o DELIVERY_PICKUP.",
-    "DELIVERY_PICKUP",
+    "DELIVERY, PICKUP o BOTH. Por ahora un servicio no puede ser solo DELIVERY.",
+    "BOTH",
   ],
   [
     "metadata",
@@ -96,7 +96,7 @@ const exampleRows = [
     "SERVICE",
     "https://ejemplo.com/entrega.jpg",
     "envíos",
-    "DELIVERY_PICKUP",
+    "BOTH",
     "",
   ],
 ];
@@ -387,7 +387,7 @@ function createTemplateWorkbook() {
           { range: "G2:G1001", values: ["PRODUCT", "SERVICE"] },
           {
             range: "J2:J1001",
-            values: ["DELIVERY", "PICKUP", "DELIVERY_PICKUP"],
+            values: ["DELIVERY", "PICKUP", "BOTH"],
           },
         ],
         widths: [18, 28, 34, 16, 14, 14, 16, 42, 22, 24, 36],

@@ -66,17 +66,37 @@ export function productFulfillmentTypes(
   return ORDER_FULFILLMENT_TYPES;
 }
 
+// A delivery order searches for a courier, so for now a service cannot be
+// delivery-only: the customer app sends every service order as pickup.
+export function isDeliveryOnlyService(
+  type: string | null | undefined,
+  metadata: Record<string, unknown> | null | undefined
+) {
+  if (type !== "SERVICE") {
+    return false;
+  }
+
+  const serviceMode = metadata?.serviceMode ?? metadata?.service_mode;
+
+  return (
+    typeof serviceMode === "string" &&
+    serviceMode.trim().toUpperCase() === "DELIVERY"
+  );
+}
+
 export function orderFulfillmentCompatibility(
   products: ServiceAwareProduct[]
 ) {
+  const containsService = products.some(
+    (product) => product.type === "SERVICE"
+  );
+  // Same rule as isDeliveryOnlyService: an order with services goes as pickup.
   const allowedFulfillmentTypes = ORDER_FULFILLMENT_TYPES.filter(
     (fulfillmentType) =>
+      !(containsService && fulfillmentType === "DELIVERY") &&
       products.every((product) =>
         productFulfillmentTypes(product).includes(fulfillmentType)
       )
-  );
-  const containsService = products.some(
-    (product) => product.type === "SERVICE"
   );
   const containsProduct = products.some(
     (product) => product.type !== "SERVICE"
@@ -106,6 +126,10 @@ export function orderFulfillmentValidationMessage(
   fulfillmentType: OrderFulfillmentType
 ) {
   const compatibility = orderFulfillmentCompatibility(products);
+
+  if (compatibility.containsService && fulfillmentType === "DELIVERY") {
+    return "Por ahora los pedidos con servicios no pueden ser a domicilio. Usá En local o hacé un pedido aparte para el servicio.";
+  }
 
   if (!compatibility.allowedFulfillmentTypes.length) {
     return "Los ítems seleccionados no comparten una modalidad compatible. Separá los productos y servicios en pedidos distintos.";

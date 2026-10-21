@@ -6,9 +6,16 @@ import {
   isSupportedImageUrl,
   parseImageUrl,
 } from "../image-url";
+import { isDeliveryOnlyService } from "../orders/order-fulfillment";
 
 const TECHNICAL_HEADERS = ["imageurl", "category", "servicemode"] as const;
-const SERVICE_MODES = new Set(["DELIVERY", "PICKUP", "DELIVERY_PICKUP"]);
+const SERVICE_MODES: Record<string, string> = {
+  DELIVERY: "DELIVERY",
+  PICKUP: "PICKUP",
+  BOTH: "BOTH",
+  // Earlier templates offered this value; the API only accepts BOTH.
+  DELIVERY_PICKUP: "BOTH",
+};
 
 export class ProductImportNormalizationError extends Error {
   constructor(message: string) {
@@ -124,11 +131,11 @@ export async function normalizeProductImportFile(file: File) {
       );
     }
 
-    const serviceMode = serviceModeValue.toUpperCase();
+    const serviceMode = SERVICE_MODES[serviceModeValue.toUpperCase()];
 
-    if (serviceMode && !SERVICE_MODES.has(serviceMode)) {
+    if (serviceModeValue && !serviceMode) {
       throw new ProductImportNormalizationError(
-        `El modo de servicio de la fila ${rowNumber} debe ser DELIVERY, PICKUP o DELIVERY_PICKUP.`
+        `El modo de servicio de la fila ${rowNumber} debe ser DELIVERY, PICKUP o BOTH.`
       );
     }
 
@@ -146,6 +153,14 @@ export async function normalizeProductImportFile(file: File) {
 
     if (serviceMode) {
       metadata.serviceMode = serviceMode;
+    }
+
+    const type = valueForHeader(row, columns, "type").toUpperCase();
+
+    if (isDeliveryOnlyService(type, metadata)) {
+      throw new ProductImportNormalizationError(
+        `El servicio de la fila ${rowNumber} no puede ser solo DELIVERY por ahora. Usá PICKUP o BOTH.`
+      );
     }
 
     metadataCell.value = JSON.stringify(metadata);
