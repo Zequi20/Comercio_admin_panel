@@ -111,6 +111,38 @@ export async function loginToAuthService(email: string, password: string) {
   );
 }
 
+// El servicio responde 202 exista o no la cuenta, para no revelar qué emails están registrados.
+export async function requestPasswordReset(email: string) {
+  await requestJson<unknown>(
+    `${AUTH_BASE_URL}/auth/password/reset/request`,
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+    "No se pudo enviar el código."
+  );
+}
+
+// Un cambio exitoso cierra todas las sesiones abiertas del usuario.
+export async function confirmPasswordReset({
+  code,
+  email,
+  newPassword,
+}: {
+  code: string;
+  email: string;
+  newPassword: string;
+}) {
+  await requestJson<unknown>(
+    `${AUTH_BASE_URL}/auth/password/reset/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify({ email, code, newPassword }),
+    },
+    "No se pudo cambiar la contraseña."
+  );
+}
+
 export async function refreshAuthSession(refreshToken: string) {
   return requestJson<AuthLoginResponse>(
     `${AUTH_BASE_URL}/auth/refresh`,

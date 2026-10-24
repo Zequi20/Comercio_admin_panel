@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   Mail,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
@@ -118,6 +119,16 @@ export function LoginForm() {
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         </div>
+        <Link
+          className="text-link"
+          href={
+            isValidEmail(email.trim().toLowerCase())
+              ? `/recuperar-contrasena?email=${encodeURIComponent(email.trim().toLowerCase())}`
+              : "/recuperar-contrasena"
+          }
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
       </div>
 
       {error ? (
