@@ -7,6 +7,7 @@ import {
   Package,
   PackageSearch,
   ReceiptText,
+  Route,
   ShoppingBag,
   Store,
   Truck,
@@ -46,6 +47,16 @@ const navItems: NavigationItem[] = [
     adminOnly: true,
   },
   { label: "Repartidores", href: "/dashboard/repartidores", icon: Truck },
+  ...(process.env.NEXT_PUBLIC_LOGISTICS_ENABLED === "true"
+    ? [
+        {
+          label: "Logística",
+          href: "/dashboard/logistica",
+          icon: Route,
+          adminOnly: true,
+        },
+      ]
+    : []),
   {
     label: "Difusión",
     href: "/dashboard/notificaciones",
