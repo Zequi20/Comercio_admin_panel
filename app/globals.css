@@ -4975,3 +4975,58 @@ a {
     width: 100%;
   }
 }
+
+/* Logistics (carrier route sheets) */
+.logistics-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.logistics-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.logistics-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.logistics-issues {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.logistics-issue-error {
+  color: var(--error);
+}
+
+.logistics-issue-warning {
+  color: var(--text-secondary);
+}
+
+.logistics-row-error td {
+  background: color-mix(in srgb, var(--error) 7%, transparent);
+}
+
+.logistics-row-excluded td {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.logistics-address-cell {
+  min-width: 220px;
+  max-width: 360px;
+  white-space: normal;
+}
+
+.logistics-history ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
