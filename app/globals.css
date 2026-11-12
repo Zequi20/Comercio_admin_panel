@@ -5304,6 +5304,12 @@ a {
   }
 }
 
+/* The previous page stays readable while the next one loads. */
+.lg-table-loading {
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
 .lg-cell-note {
   display: block;
   font-size: 0.78rem;

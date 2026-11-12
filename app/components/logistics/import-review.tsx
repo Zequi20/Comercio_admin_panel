@@ -22,6 +22,7 @@ import {
 } from "@/app/lib/logistics/client";
 import type { ImportRow, LogisticsRoute, ShipmentImport } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
+import { paginateRows, TablePagination, type TablePaginationState } from "@/app/components/table-pagination";
 
 type RowFilter = "all" | "blocking" | "warnings" | "noLocation" | "duplicates" | "excluded";
 
@@ -30,6 +31,8 @@ const LOCATION_LABEL = {
   PLUS_CODE: "Plus code",
   ADDRESS_TEXT: "Solo texto",
 } as const;
+
+const ROWS_PAGE_SIZE = 25;
 
 const DUPLICATE_CODES = new Set(["TRACKING_DUPLICATED_IN_FILE", "TRACKING_ALREADY_IMPORTED"]);
 
@@ -229,6 +232,13 @@ export function ImportReview({ importId }: { importId: number }) {
     [allRows]
   );
   const rows = useMemo(() => allRows.filter(FILTERS[filter].test), [allRows, filter]);
+  // A sheet has every row loaded, so they are paged here; a new filter starts at page 1.
+  const [rowsPagination, setRowsPagination] = useState<TablePaginationState>({ page: 1, pageSize: ROWS_PAGE_SIZE });
+  const rowsPage = useMemo(() => paginateRows(rows, rowsPagination), [rows, rowsPagination]);
+  const selectFilter = (next: RowFilter) => {
+    setFilter(next);
+    setRowsPagination((current) => ({ ...current, page: 1 }));
+  };
   const blockingRows = useMemo(() => allRows.filter(FILTERS.blocking.test), [allRows]);
   const courier = couriers.find((candidate) => String(candidate.id) === courierId) ?? null;
 
@@ -285,7 +295,10 @@ export function ImportReview({ importId }: { importId: number }) {
   const goToFirstError = () => {
     const first = blockingRows[0];
     if (!first) return;
+    // Show every row and open the page that holds the first blocking one.
+    const index = allRows.findIndex((row) => row.rowNumber === first.rowNumber);
     setFilter("all");
+    setRowsPagination((current) => ({ ...current, page: Math.floor(Math.max(index, 0) / current.pageSize) + 1 }));
     setFocusRow(first.rowNumber);
     window.setTimeout(
       () => document.getElementById(`row-${first.rowNumber}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
@@ -546,7 +559,7 @@ export function ImportReview({ importId }: { importId: number }) {
               type="button"
               className="lg-chip"
               aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
+              onClick={() => selectFilter(key)}
             >
               {FILTERS[key].label} · {counts[key]}
             </button>
@@ -572,7 +585,7 @@ export function ImportReview({ importId }: { importId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {rowsPage.rows.map((row) => {
                   const raw = row.raw as Record<string, unknown>;
                   const data = row.normalized;
                   return (
@@ -634,6 +647,18 @@ export function ImportReview({ importId }: { importId: number }) {
             </table>
           </div>
         )}
+        {rows.length > 0 ? (
+          <TablePagination
+            currentPage={rowsPage.currentPage}
+            itemLabelPlural="filas"
+            itemLabelSingular="fila"
+            pageSize={rowsPage.pageSize}
+            totalItems={rowsPage.totalItems}
+            totalPages={rowsPage.totalPages}
+            onPageChange={(page) => setRowsPagination((current) => ({ ...current, page }))}
+            onPageSizeChange={(pageSize) => setRowsPagination({ page: 1, pageSize })}
+          />
+        ) : null}
       </section>
 
       <ConfirmImpactDialog

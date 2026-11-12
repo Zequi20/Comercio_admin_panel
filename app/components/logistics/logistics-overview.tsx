@@ -29,6 +29,8 @@ import {
 } from "@/app/lib/logistics/client";
 import type { Carrier, LogisticsRoute, ShipmentImport } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
+import { listPath, usePagedList, type PagedResult } from "@/app/lib/logistics/use-paged-list";
+import { TablePagination, type TablePaginationState } from "@/app/components/table-pagination";
 
 type Tab = "routes" | "imports";
 
@@ -328,33 +330,67 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
   );
 }
 
+const ROUTE_PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** The status filter shown to the merchant, as API query parameters. */
+const statusQuery = (status: string): Record<string, string | undefined> => {
+  switch (status) {
+    case "FINISHED":
+      return { status: "IN_PROGRESS", finished: "true" };
+    case "IN_PROGRESS":
+      return { status: "IN_PROGRESS", finished: "false" };
+    default:
+      return { status: status || undefined };
+  }
+};
+
+const totalPagesOf = (total: number, pageSize: number) => Math.max(1, Math.ceil(total / pageSize));
+
+/**
+ * Routes, one page at a time from the API. Filters and the search run on the server, so they cover
+ * every route and not only the ones on screen; changing any of them goes back to page 1.
+ */
 function RoutesTable({
-  routes,
   nameOf,
   couriers,
+  refreshKey,
 }: {
-  routes: LogisticsRoute[] | null;
   nameOf: (id: number) => string;
   couriers: { id: number; name: string }[];
+  refreshKey: number;
 }) {
   const [status, setStatus] = useState("");
   const [businessDate, setBusinessDate] = useState("");
   const [courierId, setCourierId] = useState("");
   const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [pagination, setPagination] = useState<TablePaginationState>({ page: 1, pageSize: ROUTE_PAGE_SIZE });
 
-  const visible = useMemo(() => {
-    const text = query.trim().toLowerCase();
-    return (routes ?? []).filter(
-      (route) =>
-        (!status || routeDisplayStatus(route) === status) &&
-        (!businessDate || route.businessDate === businessDate) &&
-        (!courierId || String(route.courierId) === courierId) &&
-        (!text ||
-          `#${route.id} ${route.import.sheetNumber} ${nameOf(route.courierId)} ${route.carrier.name}`
-            .toLowerCase()
-            .includes(text))
-    );
-  }, [routes, status, businessDate, courierId, query, nameOf]);
+  // The search waits for a pause in typing instead of asking the API on every key.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const path = listPath("routes", {
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    search,
+    courierId,
+    businessDate,
+    ...statusQuery(status),
+  });
+  const { result, loading, error } = usePagedList<LogisticsRoute>(path, refreshKey);
+  const filtered = Boolean(status || businessDate || courierId || search);
+  const totalPages = result ? totalPagesOf(result.total, result.pageSize) : 1;
+  // A refresh can leave the current page past the end (routes removed by a filter elsewhere).
+  const currentPage = Math.min(pagination.page, totalPages);
+
+  const changeFilter = (apply: () => void) => {
+    apply();
+    setPagination((page) => ({ ...page, page: 1 }));
+  };
 
   return (
     <>
@@ -365,16 +401,16 @@ function RoutesTable({
             <input
               className="field-control"
               type="search"
-              placeholder="Planilla, repartidor o n.º de recorrido"
+              placeholder="N.º de planilla o de recorrido"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => changeFilter(() => setQuery(event.target.value))}
             />
             <Search size={16} aria-hidden="true" style={{ position: "absolute", right: 12, top: 12, opacity: 0.6 }} />
           </span>
         </label>
         <label className="field-group">
           <span className="field-label">Estado</span>
-          <select className="field-control" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select className="field-control" value={status} onChange={(event) => changeFilter(() => setStatus(event.target.value))}>
             <option value="">Todos</option>
             {Object.entries(ROUTE_STATUS).map(([value, spec]) => (
               <option key={value} value={value}>
@@ -385,7 +421,11 @@ function RoutesTable({
         </label>
         <label className="field-group">
           <span className="field-label">Repartidor</span>
-          <select className="field-control" value={courierId} onChange={(event) => setCourierId(event.target.value)}>
+          <select
+            className="field-control"
+            value={courierId}
+            onChange={(event) => changeFilter(() => setCourierId(event.target.value))}
+          >
             <option value="">Todos</option>
             {couriers.map((courier) => (
               <option key={courier.id} value={courier.id}>
@@ -396,132 +436,192 @@ function RoutesTable({
         </label>
         <label className="field-group">
           <span className="field-label">Fecha</span>
-          <input className="field-control" type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} />
+          <input
+            className="field-control"
+            type="date"
+            value={businessDate}
+            onChange={(event) => changeFilter(() => setBusinessDate(event.target.value))}
+          />
         </label>
       </div>
-      {routes === null ? (
+      {error ? <div className="error-box">{error}</div> : null}
+      {result === null ? (
         <div className="skeleton table-skeleton" />
-      ) : visible.length === 0 ? (
+      ) : result.total === 0 ? (
         <p className="empty-table-state">
-          {routes.length === 0 ? "Todavía no hay recorridos: importá una planilla para crear el primero." : "No hay recorridos con estos filtros."}
+          {filtered ? "No hay recorridos con estos filtros." : "Todavía no hay recorridos: importá una planilla para crear el primero."}
         </p>
       ) : (
-        <div className="table-wrap">
-          <table className="data-table lg-table">
-            <caption className="sr-only">Recorridos</caption>
-            <thead>
-              <tr>
-                <th scope="col">Planilla</th>
-                <th scope="col">Repartidor</th>
-                <th scope="col">Estado</th>
-                <th scope="col">Avance</th>
-                <th scope="col" className="lg-col-optional">Fecha</th>
-                <th scope="col" className="lg-col-optional">Empresa</th>
-                <th scope="col" className="lg-col-optional">Cobrado</th>
-                <th scope="col"><span className="sr-only">Acción</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((route) => (
-                <tr key={route.id}>
-                  <td data-label="Planilla">
-                    <span>
-                      <strong>{route.import.sheetNumber}</strong>
-                      <span className="table-muted"> · recorrido #{route.id}</span>
-                    </span>
-                  </td>
-                  <td data-label="Repartidor">{nameOf(route.courierId)}</td>
-                  <td data-label="Estado">
-                    <StatusPill kind="route" status={routeDisplayStatus(route)} />
-                  </td>
-                  <td data-label="Avance" style={{ minWidth: 170 }}>
-                    <ProgressSummary done={routeDone(route)} total={route.summary.shipments} />
-                  </td>
-                  <td data-label="Fecha" className="lg-col-optional">{formatDate(route.businessDate)}</td>
-                  <td data-label="Empresa" className="lg-col-optional">{route.carrier.name}</td>
-                  <td data-label="Cobrado" className="lg-col-optional">
-                    <span>
-                      {formatGs(route.summary.collectedAmount)}
-                      <span className="lg-cell-note">
-                        de {formatGs(route.summary.deliveredExpectedAmount)} a cobrar por lo entregado
-                      </span>
-                    </span>
-                  </td>
-                  <td data-label="">
-                    <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${route.id}`}>
-                      Ver recorrido
-                    </Link>
-                  </td>
+        <>
+          <div className="table-wrap" aria-busy={loading}>
+            <table className={`data-table lg-table${loading ? " lg-table-loading" : ""}`}>
+              <caption className="sr-only">Recorridos</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Planilla</th>
+                  <th scope="col">Repartidor</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Avance</th>
+                  <th scope="col" className="lg-col-optional">Fecha</th>
+                  <th scope="col" className="lg-col-optional">Empresa</th>
+                  <th scope="col" className="lg-col-optional">Cobrado</th>
+                  <th scope="col"><span className="sr-only">Acción</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {result.data.map((route) => (
+                  <tr key={route.id}>
+                    <td data-label="Planilla">
+                      <span>
+                        <strong>{route.import.sheetNumber}</strong>
+                        <span className="table-muted"> · recorrido #{route.id}</span>
+                      </span>
+                    </td>
+                    <td data-label="Repartidor">{nameOf(route.courierId)}</td>
+                    <td data-label="Estado">
+                      <StatusPill kind="route" status={routeDisplayStatus(route)} />
+                    </td>
+                    <td data-label="Avance" style={{ minWidth: 170 }}>
+                      <ProgressSummary done={routeDone(route)} total={route.summary.shipments} />
+                    </td>
+                    <td data-label="Fecha" className="lg-col-optional">{formatDate(route.businessDate)}</td>
+                    <td data-label="Empresa" className="lg-col-optional">{route.carrier.name}</td>
+                    <td data-label="Cobrado" className="lg-col-optional">
+                      <span>
+                        {formatGs(route.summary.collectedAmount)}
+                        <span className="lg-cell-note">
+                          de {formatGs(route.summary.deliveredExpectedAmount)} a cobrar por lo entregado
+                        </span>
+                      </span>
+                    </td>
+                    <td data-label="">
+                      <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${route.id}`}>
+                        Ver recorrido
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            currentPage={currentPage}
+            itemLabelPlural="recorridos"
+            itemLabelSingular="recorrido"
+            pageSize={pagination.pageSize}
+            totalItems={result.total}
+            totalPages={totalPages}
+            onPageChange={(page) => setPagination((current) => ({ ...current, page }))}
+            onPageSizeChange={(pageSize) => setPagination({ page: 1, pageSize })}
+          />
+        </>
       )}
     </>
   );
 }
 
-function ImportsTable({ imports }: { imports: ShipmentImport[] | null }) {
-  if (imports === null) return <div className="skeleton table-skeleton" />;
-  if (imports.length === 0) {
+function ImportsTable({ refreshKey }: { refreshKey: number }) {
+  const [pagination, setPagination] = useState<TablePaginationState>({ page: 1, pageSize: ROUTE_PAGE_SIZE });
+  const path = listPath("imports", { page: pagination.page, pageSize: pagination.pageSize });
+  const { result, loading, error } = usePagedList<ShipmentImport>(path, refreshKey);
+  const totalPages = result ? totalPagesOf(result.total, result.pageSize) : 1;
+  const currentPage = Math.min(pagination.page, totalPages);
+
+  if (error && result === null) return <div className="error-box">{error}</div>;
+  if (result === null) return <div className="skeleton table-skeleton" />;
+  if (result.total === 0) {
     return <p className="empty-table-state">Todavía no se importó ninguna planilla.</p>;
   }
   return (
-    <div className="table-wrap">
-      <table className="data-table lg-table">
-        <caption className="sr-only">Importaciones</caption>
-        <thead>
-          <tr>
-            <th scope="col">Planilla</th>
-            <th scope="col">Estado</th>
-            <th scope="col">Guías</th>
-            <th scope="col">Filas bloqueantes</th>
-            <th scope="col" className="lg-col-optional">Empresa</th>
-            <th scope="col" className="lg-col-optional">Cargada</th>
-            <th scope="col"><span className="sr-only">Acción</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {imports.map((item) => (
-            <tr key={item.id}>
-              <td data-label="Planilla">
-                <strong>{item.sheetNumber}</strong>
-              </td>
-              <td data-label="Estado">
-                <StatusPill kind="import" status={item.status} />
-              </td>
-              <td data-label="Guías">{item.summary.totalRows}</td>
-              <td data-label="Filas bloqueantes">{item.summary.rowsWithErrors}</td>
-              <td data-label="Empresa" className="lg-col-optional">{item.carrier.name}</td>
-              <td data-label="Cargada" className="lg-col-optional">{formatDateTime(item.createdAt)}</td>
-              <td data-label="">
-                {item.routeId ? (
-                  <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${item.routeId}`}>
-                    Ver recorrido
-                  </Link>
-                ) : (
-                  <Link
-                    className={item.status === "DRAFT" ? "button-primary" : "button-secondary"}
-                    href={`/dashboard/logistica/importaciones/${item.id}`}
-                  >
-                    {item.status === "DRAFT" ? "Revisar" : "Ver"}
-                  </Link>
-                )}
-              </td>
+    <>
+      {error ? <div className="error-box">{error}</div> : null}
+      <div className="table-wrap" aria-busy={loading}>
+        <table className={`data-table lg-table${loading ? " lg-table-loading" : ""}`}>
+          <caption className="sr-only">Importaciones</caption>
+          <thead>
+            <tr>
+              <th scope="col">Planilla</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Guías</th>
+              <th scope="col">Filas bloqueantes</th>
+              <th scope="col" className="lg-col-optional">Empresa</th>
+              <th scope="col" className="lg-col-optional">Cargada</th>
+              <th scope="col"><span className="sr-only">Acción</span></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {result.data.map((item) => (
+              <tr key={item.id}>
+                <td data-label="Planilla">
+                  <strong>{item.sheetNumber}</strong>
+                </td>
+                <td data-label="Estado">
+                  <StatusPill kind="import" status={item.status} />
+                </td>
+                <td data-label="Guías">{item.summary.totalRows}</td>
+                <td data-label="Filas bloqueantes">{item.summary.rowsWithErrors}</td>
+                <td data-label="Empresa" className="lg-col-optional">{item.carrier.name}</td>
+                <td data-label="Cargada" className="lg-col-optional">{formatDateTime(item.createdAt)}</td>
+                <td data-label="">
+                  {item.routeId ? (
+                    <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${item.routeId}`}>
+                      Ver recorrido
+                    </Link>
+                  ) : (
+                    <Link
+                      className={item.status === "DRAFT" ? "button-primary" : "button-secondary"}
+                      href={`/dashboard/logistica/importaciones/${item.id}`}
+                    >
+                      {item.status === "DRAFT" ? "Revisar" : "Ver"}
+                    </Link>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <TablePagination
+        currentPage={currentPage}
+        itemLabelPlural="importaciones"
+        itemLabelSingular="importación"
+        pageSize={pagination.pageSize}
+        totalItems={result.total}
+        totalPages={totalPages}
+        onPageChange={(page) => setPagination((current) => ({ ...current, page }))}
+        onPageSizeChange={(pageSize) => setPagination({ page: 1, pageSize })}
+      />
+    </>
   );
+}
+
+/** Everything the "Acción requerida" cards look at, independent of the page shown in the tables. */
+type AttentionData = { drafts: ShipmentImport[]; routes: LogisticsRoute[] };
+
+const ATTENTION_PAGE = { page: 1, pageSize: 100 };
+
+async function loadAttention(now: number): Promise<AttentionData | null> {
+  const closedSince = new Date(now - RECENT_CLOSE_MS).toISOString();
+  const [drafts, finished, assigned, closed] = await Promise.all([
+    logisticsFetch<PagedResult<ShipmentImport>>(listPath("imports", { status: "DRAFT", ...ATTENTION_PAGE })),
+    logisticsFetch<PagedResult<LogisticsRoute>>(
+      listPath("routes", { status: "IN_PROGRESS", finished: "true", ...ATTENTION_PAGE })
+    ),
+    logisticsFetch<PagedResult<LogisticsRoute>>(listPath("routes", { status: "ASSIGNED", ...ATTENTION_PAGE })),
+    logisticsFetch<PagedResult<LogisticsRoute>>(listPath("routes", { status: "CLOSED", closedSince, ...ATTENTION_PAGE })),
+  ]);
+  if (!drafts.ok || !finished.ok || !assigned.ok || !closed.ok) return null;
+  return {
+    drafts: drafts.data.data,
+    routes: [...finished.data.data, ...assigned.data.data, ...closed.data.data],
+  };
 }
 
 export function LogisticsOverview() {
   const [tab, setTab] = useState<Tab>("routes");
   const [carriers, setCarriers] = useState<Carrier[] | null>(null);
-  const [routes, setRoutes] = useState<LogisticsRoute[] | null>(null);
-  const [imports, setImports] = useState<ShipmentImport[] | null>(null);
+  const [attention, setAttention] = useState<AttentionData | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { couriers, nameOf } = useCouriers();
@@ -529,10 +629,9 @@ export function LogisticsOverview() {
   const [showAllActions, setShowAllActions] = useState(false);
 
   const load = useCallback(async () => {
-    const [carrierResult, routeResult, importResult] = await Promise.all([
+    const [carrierResult, attentionResult] = await Promise.all([
       logisticsFetch<{ data: Carrier[] }>("carriers"),
-      logisticsFetch<{ data: LogisticsRoute[] }>("routes?limit=50"),
-      logisticsFetch<{ data: ShipmentImport[] }>("imports?limit=50"),
+      loadAttention(Date.now()),
     ]);
     if (!carrierResult.ok) {
       setError(
@@ -544,23 +643,28 @@ export function LogisticsOverview() {
     }
     setError(null);
     setCarriers(carrierResult.data.data);
-    if (routeResult.ok) setRoutes(routeResult.data.data);
-    if (importResult.ok) setImports(importResult.data.data);
+    if (attentionResult) setAttention(attentionResult);
     setLoadedAt(Date.now());
   }, []);
+
+  /** Reloads the cards and the page shown in the open table. */
+  const refresh = useCallback(() => {
+    setRefreshKey((key) => key + 1);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     async function loadInitial() {
       await load();
     }
     void loadInitial();
-    const timer = window.setInterval(() => void load(), REFRESH_MS);
+    const timer = window.setInterval(refresh, REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, refresh]);
 
   const actions = useMemo(
-    () => buildActions((imports ?? []).filter((item) => item.status === "DRAFT"), routes ?? [], nameOf, now),
-    [imports, routes, nameOf, now]
+    () => (attention ? buildActions(attention.drafts, attention.routes, nameOf, now) : []),
+    [attention, nameOf, now]
   );
 
   if (error) return <div className="error-box">{error}</div>;
@@ -621,7 +725,7 @@ export function LogisticsOverview() {
                 {stale ? "Datos desactualizados · " : ""}Actualizado {relativeTime(loadedAt, now)}
               </span>
             ) : null}
-            <button className="icon-button" type="button" onClick={() => void load()} aria-label="Actualizar listados">
+            <button className="icon-button" type="button" onClick={refresh} aria-label="Actualizar listados">
               <RefreshCw size={16} aria-hidden="true" />
             </button>
           </div>
@@ -633,9 +737,9 @@ export function LogisticsOverview() {
           className="logistics-layout"
         >
           {tab === "routes" ? (
-            <RoutesTable routes={routes} nameOf={nameOf} couriers={couriers} />
+            <RoutesTable nameOf={nameOf} couriers={couriers} refreshKey={refreshKey} />
           ) : (
-            <ImportsTable imports={imports} />
+            <ImportsTable refreshKey={refreshKey} />
           )}
         </div>
       </section>

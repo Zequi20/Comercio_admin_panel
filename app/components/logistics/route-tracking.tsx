@@ -48,8 +48,10 @@ import type {
   Shipment,
 } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
+import { paginateRows, TablePagination, type TablePaginationState } from "@/app/components/table-pagination";
 
 const REFRESH_MS = 30_000;
+const GUIDES_PAGE_SIZE = 25;
 const STALE_AFTER_MS = 90_000;
 
 type ShipmentFilter = "ALL" | "PENDING" | "DELIVERED" | "FAILED" | "RETURN_PENDING" | "MISSING" | "DIFFERENCE";
@@ -204,6 +206,13 @@ export function RouteTracking({ routeId }: { routeId: number }) {
     [route]
   );
   const visible = useMemo(() => shipments.filter(({ shipment }) => matches(shipment, filter)), [shipments, filter]);
+  // The whole route is already loaded, so the guides are paged here; a new filter starts at page 1.
+  const [guidesPagination, setGuidesPagination] = useState<TablePaginationState>({ page: 1, pageSize: GUIDES_PAGE_SIZE });
+  const guidesPage = useMemo(() => paginateRows(visible, guidesPagination), [visible, guidesPagination]);
+  const selectFilter = (next: ShipmentFilter) => {
+    setFilter(next);
+    setGuidesPagination((current) => ({ ...current, page: 1 }));
+  };
 
   const reassign = async () => {
     if (!route || !newCourierId) return;
@@ -282,7 +291,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
           title: `${describeMoneyDifference(difference)} en la rendición.`,
           detail: `${differenceCount} ${differenceCount === 1 ? "guía entregada se cobró" : "guías entregadas se cobraron"} por otro monto.`,
           actionLabel: "Ver esas guías",
-          onAction: () => setFilter("DIFFERENCE"),
+          onAction: () => selectFilter("DIFFERENCE"),
         }}
       />
     ) : route.status === "ASSIGNED" ? (
@@ -353,7 +362,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
                 : undefined
             }
             active={filter === "PENDING"}
-            onSelect={() => setFilter("PENDING")}
+            onSelect={() => selectFilter("PENDING")}
           />
           <MetricCard
             label="Entregadas"
@@ -361,7 +370,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             tone="success"
             icon={CheckCircle2}
             active={filter === "DELIVERED"}
-            onSelect={() => setFilter("DELIVERED")}
+            onSelect={() => selectFilter("DELIVERED")}
           />
           <MetricCard
             label="No entregadas"
@@ -370,7 +379,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             icon={AlertCircle}
             hint="Se pueden reintentar hasta cerrar"
             active={filter === "FAILED"}
-            onSelect={() => setFilter("FAILED")}
+            onSelect={() => selectFilter("FAILED")}
           />
           <MetricCard
             label="Para devolver"
@@ -379,7 +388,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             icon={Undo2}
             hint={`Vuelven a ${carrierName}`}
             active={filter === "RETURN_PENDING"}
-            onSelect={() => setFilter("RETURN_PENDING")}
+            onSelect={() => selectFilter("RETURN_PENDING")}
           />
           <MetricCard
             label="No recibidas"
@@ -388,7 +397,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             icon={PackageX}
             hint={`${carrierName} no se las entregó al repartidor`}
             active={filter === "MISSING"}
-            onSelect={() => setFilter("MISSING")}
+            onSelect={() => selectFilter("MISSING")}
           />
           <MetricCard
             label="Cobrado"
@@ -401,7 +410,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             expected={expected}
             collected={collected}
             active={filter === "DIFFERENCE"}
-            onSelect={() => setFilter("DIFFERENCE")}
+            onSelect={() => selectFilter("DIFFERENCE")}
           />
         </div>
         {route.status === "ASSIGNED" ? (
@@ -520,7 +529,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         </div>
         <div className="lg-filters" role="group" aria-label="Filtrar guías">
           {(Object.keys(FILTER_LABEL) as ShipmentFilter[]).map((key) => (
-            <button key={key} type="button" className="lg-chip" aria-pressed={filter === key} onClick={() => setFilter(key)}>
+            <button key={key} type="button" className="lg-chip" aria-pressed={filter === key} onClick={() => selectFilter(key)}>
               {FILTER_LABEL[key]}
             </button>
           ))}
@@ -545,7 +554,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {visible.map(({ stop, shipment }) => {
+                {guidesPage.rows.map(({ stop, shipment }) => {
                   const reason = shipment.lastAttempt?.result === "FAILED" ? shipment.lastAttempt.reason : null;
                   const open = openShipment === shipment.id;
                   return [
@@ -594,6 +603,18 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             </table>
           </div>
         )}
+        {visible.length > 0 ? (
+          <TablePagination
+            currentPage={guidesPage.currentPage}
+            itemLabelPlural="guías"
+            itemLabelSingular="guía"
+            pageSize={guidesPage.pageSize}
+            totalItems={guidesPage.totalItems}
+            totalPages={guidesPage.totalPages}
+            onPageChange={(page) => setGuidesPagination((current) => ({ ...current, page }))}
+            onPageSizeChange={(pageSize) => setGuidesPagination({ page: 1, pageSize })}
+          />
+        ) : null}
       </section>
 
       <ConfirmImpactDialog
