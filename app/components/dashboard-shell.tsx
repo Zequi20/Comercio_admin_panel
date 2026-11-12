@@ -112,12 +112,14 @@ function NavigationLinks({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const pendingSheets = usePendingLogisticsSheets(isAdmin, pathname);
 
   return (
     <nav className="sidebar-nav" aria-label="Apartados principales">
       {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
         const Icon = item.icon;
         const isActive = isActiveRoute(pathname, item.href);
+        const badge = item.href === LOGISTICS_HREF ? pendingSheets : 0;
 
         return (
           <Link
@@ -129,11 +131,39 @@ function NavigationLinks({
           >
             <Icon size={18} />
             <span>{item.label}</span>
+            {badge > 0 ? (
+              <span className="nav-badge" aria-label={`${badge} ${badge === 1 ? "planilla pendiente" : "planillas pendientes"} de revisión`}>
+                {badge}
+              </span>
+            ) : null}
           </Link>
         );
       })}
     </nav>
   );
+}
+
+const LOGISTICS_HREF = "/dashboard/logistica";
+
+/** Sheets waiting for review, shown as a badge on "Logística" (admins only). */
+function usePendingLogisticsSheets(isAdmin: boolean, pathname: string): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!isAdmin || process.env.NEXT_PUBLIC_LOGISTICS_ENABLED !== "true") return;
+    let active = true;
+    async function load() {
+      const response = await fetch("/api/logistics/imports?status=DRAFT&limit=50", { cache: "no-store" }).catch(
+        () => null
+      );
+      const body = (await response?.json().catch(() => null)) as { data?: unknown[] } | null;
+      if (active && response?.ok) setCount(body?.data?.length ?? 0);
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, pathname]);
+  return count;
 }
 
 export function DashboardShell({

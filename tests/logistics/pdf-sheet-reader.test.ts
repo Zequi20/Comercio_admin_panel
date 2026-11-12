@@ -171,9 +171,8 @@ describe("buildTemplateCsv", () => {
     assert.equal(back.sheetNumber, "16523");
     assert.equal(back.sheetDate, "2026-10-29");
     assert.deepEqual(back.declaredTotals, sheet.declaredTotals);
-    assert.deepEqual(
-      back.rows.map(({ rowNumber: _rowNumber, ...rest }) => rest),
-      sheet.rows.map(({ rowNumber: _rowNumber, ...rest }) => rest)
-    );
+    const withoutRowNumber = (rows: typeof sheet.rows) =>
+      rows.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "rowNumber")));
+    assert.deepEqual(withoutRowNumber(back.rows), withoutRowNumber(sheet.rows));
   });
 });
