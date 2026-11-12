@@ -8,6 +8,7 @@ import {
   CircleDot,
   CloudUpload,
   FileClock,
+  Flag,
   Info,
   Lock,
   type LucideIcon,
@@ -21,11 +22,13 @@ import {
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { formatGs } from "@/app/lib/logistics/client";
+import { describeMoneyDifference } from "@/app/lib/logistics/client";
+import type { LogisticsRoute } from "@/app/lib/logistics/types";
 
 /**
  * Shared visual language of the logistics module. Every status has text, color and icon; the same
- * taxonomy is used in the courier app.
+ * taxonomy is used in the courier app. One name per state: guides are feminine ("Entregada"),
+ * routes masculine ("Cerrado"). Red is reserved for what blocks work or cash that is missing.
  */
 
 export type Tone = "neutral" | "info" | "progress" | "success" | "danger" | "warning" | "closed" | "sync";
@@ -33,19 +36,30 @@ export type Tone = "neutral" | "info" | "progress" | "success" | "danger" | "war
 type StatusSpec = { label: string; tone: Tone; icon: LucideIcon };
 
 export const SHIPMENT_STATUS: Record<string, StatusSpec> = {
-  PENDING_RECEIPT: { label: "Por recibir", tone: "neutral", icon: Package },
-  RECEIVED: { label: "Por entregar", tone: "info", icon: Truck },
-  MISSING: { label: "Faltante", tone: "danger", icon: PackageX },
-  DELIVERED: { label: "Entregado", tone: "success", icon: CheckCircle2 },
-  FAILED: { label: "No entregado", tone: "danger", icon: AlertCircle },
-  RETURN_PENDING: { label: "A devolver", tone: "warning", icon: Undo2 },
+  /** The courier has not confirmed having the package yet. */
+  PENDING_RECEIPT: { label: "Esperando recepción", tone: "neutral", icon: Package },
+  /** On the street, still to deliver. */
+  RECEIVED: { label: "Pendiente", tone: "info", icon: Truck },
+  /** The carrier did not hand it to the courier. */
+  MISSING: { label: "No recibida", tone: "warning", icon: PackageX },
+  DELIVERED: { label: "Entregada", tone: "success", icon: CheckCircle2 },
+  /** A failed attempt; it can be retried until the route closes. */
+  FAILED: { label: "No entregada", tone: "warning", icon: AlertCircle },
+  /** Goes back to the logistics company at the close. */
+  RETURN_PENDING: { label: "Para devolver", tone: "neutral", icon: Undo2 },
 };
 
 export const ROUTE_STATUS: Record<string, StatusSpec> = {
-  ASSIGNED: { label: "Por recibir", tone: "neutral", icon: Package },
+  ASSIGNED: { label: "Esperando al repartidor", tone: "neutral", icon: Package },
   IN_PROGRESS: { label: "En curso", tone: "progress", icon: Route },
+  /** Shown, not stored: in progress with every guide resolved. */
+  FINISHED: { label: "Terminado · falta cerrar", tone: "warning", icon: Flag },
   CLOSED: { label: "Cerrado", tone: "closed", icon: Lock },
 };
+
+/** What the merchant should read: an in-progress route with nothing left is waiting to be closed. */
+export const routeDisplayStatus = (route: Pick<LogisticsRoute, "status" | "summary">): string =>
+  route.status === "IN_PROGRESS" && route.summary.pending === 0 ? "FINISHED" : route.status;
 
 export const IMPORT_STATUS: Record<string, StatusSpec> = {
   DRAFT: { label: "Por revisar", tone: "warning", icon: FileClock },
@@ -79,7 +93,7 @@ export function StatusPill({
 export function ProgressSummary({
   done,
   total,
-  label = "guías",
+  label = "guías resueltas",
 }: {
   done: number;
   total: number;
@@ -100,7 +114,7 @@ export function ProgressSummary({
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        aria-label={`${done} de ${total} ${label} con resultado`}
+        aria-label={`${done} de ${total} ${label}`}
       >
         <span className="lg-progress-fill" style={{ width: `${percent}%` }} />
       </div>
@@ -149,6 +163,24 @@ export function ActionRequiredCard({ item }: { item: ActionItem }) {
         </button>
       ) : null}
     </section>
+  );
+}
+
+/** Context that asks nothing of the user; it must not look like "Acción requerida". */
+export function InfoNote({
+  children,
+  icon: Icon = Info,
+  tone = "info",
+}: {
+  children: ReactNode;
+  icon?: LucideIcon;
+  tone?: Tone;
+}) {
+  return (
+    <p className={`lg-info-note lg-tone-${tone}`} role="status">
+      <Icon size={16} aria-hidden="true" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -262,14 +294,14 @@ export function MoneyDifferenceCard({
   const tone = differenceTone(difference);
   const hint =
     difference === 0
-      ? "Conciliado: lo cobrado coincide con lo entregado."
+      ? "Lo cobrado coincide con lo que corresponde por las guías entregadas."
       : difference < 0
-        ? `Faltan ${formatGs(-difference)} respecto de las guías entregadas.`
-        : `Se cobraron ${formatGs(difference)} de más.`;
+        ? "El repartidor cobró menos de lo que corresponde por las guías entregadas."
+        : "El repartidor cobró más de lo que corresponde por las guías entregadas.";
   return (
     <MetricCard
-      label="Diferencia"
-      value={`${difference > 0 ? "+" : ""}${formatGs(difference)}`}
+      label="Diferencia de cobro"
+      value={describeMoneyDifference(difference)}
       tone={tone}
       icon={TONE_ICON[tone]}
       hint={hint}

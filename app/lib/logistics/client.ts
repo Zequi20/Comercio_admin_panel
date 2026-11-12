@@ -1,4 +1,4 @@
-import type { LogisticsProblem, RouteStatus, ShipmentStatus } from "./types";
+import type { LogisticsProblem } from "./types";
 
 export type ApiResult<T> =
   | { ok: true; status: number; data: T }
@@ -61,50 +61,47 @@ export const formatGs = (value: number | string | null | undefined): string => {
   return Number.isFinite(numeric) ? guaranies.format(numeric) : "—";
 };
 
+const dateTime = new Intl.DateTimeFormat("es-PY", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/Asuncion",
+});
+
+/** "12/11/2026 09:32", always day/month/year and 24 h. */
 export const formatDateTime = (value: string | null | undefined): string =>
-  value
-    ? new Intl.DateTimeFormat("es-PY", {
-        dateStyle: "short",
-        timeStyle: "short",
-        timeZone: "America/Asuncion",
-      }).format(new Date(value))
-    : "—";
+  value ? dateTime.format(new Date(value)).replace(",", "") : "—";
 
-export const ROUTE_STATUS_LABEL: Record<RouteStatus, string> = {
-  ASSIGNED: "Asignado",
-  IN_PROGRESS: "En curso",
-  CLOSED: "Cerrado",
+/** Business dates come as "2026-11-12"; shown as "12/11/2026" without time-zone shifts. */
+export const formatDate = (value: string | null | undefined): string => {
+  if (!value) return "—";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 };
 
-export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
-  PENDING_RECEIPT: "Por recibir",
-  RECEIVED: "Recibido",
-  MISSING: "Faltante",
-  DELIVERED: "Entregado",
-  FAILED: "No entregado",
-  RETURN_PENDING: "A devolver",
-};
+/**
+ * A money difference in words, never with a bare sign: "Faltan Gs. 30.000", "Sobran Gs. 5.000" or
+ * "Sin diferencia". `difference` is collected minus what should have been collected.
+ */
+export const describeMoneyDifference = (difference: number): string =>
+  difference === 0
+    ? "Sin diferencia"
+    : difference < 0
+      ? `Faltan ${formatGs(-difference)}`
+      : `Sobran ${formatGs(difference)}`;
 
-/** Maps statuses onto the pill colors already defined in globals.css. */
-export const statusPillClass = (status: ShipmentStatus | RouteStatus | string): string => {
-  switch (status) {
-    case "DELIVERED":
-    case "CLOSED":
-      return "pill done";
-    case "FAILED":
-    case "MISSING":
-    case "RETURN_PENDING":
-      return "pill error";
-    case "IN_PROGRESS":
-    case "RECEIVED":
-      return "pill assigned";
-    case "ASSIGNED":
-    case "PENDING_RECEIPT":
-      return "pill pending";
-    default:
-      return "pill";
-  }
-};
+/** "2 guías menos que la planilla", "1 bulto más que la planilla" or "Igual que la planilla". */
+export const describeCountDifference = (
+  difference: number,
+  singular: string,
+  plural: string
+): string =>
+  difference === 0
+    ? "Igual que la planilla"
+    : `${Math.abs(difference)} ${Math.abs(difference) === 1 ? singular : plural} ${difference < 0 ? "menos" : "más"} que la planilla`;
 
 export const newIdempotencyKey = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

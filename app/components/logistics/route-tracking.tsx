@@ -19,16 +19,19 @@ import {
   ActionRequiredCard,
   BlockedReason,
   ConfirmImpactDialog,
+  InfoNote,
   MetricCard,
   MoneyDifferenceCard,
   ProgressSummary,
   StatusPill,
   differenceTone,
   relativeTime,
+  routeDisplayStatus,
   useNow,
-  type ActionItem,
 } from "@/app/components/logistics/logistics-ui";
 import {
+  describeMoneyDifference,
+  formatDate,
   formatDateTime,
   formatGs,
   logisticsFetch,
@@ -55,9 +58,9 @@ const FILTER_LABEL: Record<ShipmentFilter, string> = {
   PENDING: "Pendientes",
   DELIVERED: "Entregadas",
   FAILED: "No entregadas",
-  RETURN_PENDING: "A devolver",
-  MISSING: "Faltantes",
-  DIFFERENCE: "Con diferencia de cobro",
+  RETURN_PENDING: "Para devolver",
+  MISSING: "No recibidas",
+  DIFFERENCE: "Cobradas por otro monto",
 };
 
 const hasCollectionDifference = (shipment: Shipment) =>
@@ -79,9 +82,9 @@ const matches = (shipment: Shipment, filter: ShipmentFilter) => {
 const ACTION_LABEL: Record<string, string> = {
   SHIPMENT_CREATED: "Guía importada",
   SHIPMENT_RECEIVED: "Paquete recibido",
-  SHIPMENT_MISSING: "Marcado como faltante",
-  ATTEMPT_DELIVERED: "Entregado",
-  ATTEMPT_FAILED: "No entregado",
+  SHIPMENT_MISSING: "Marcada como no recibida",
+  ATTEMPT_DELIVERED: "Entregada",
+  ATTEMPT_FAILED: "No entregada",
   COLLECTION_RECORDED: "Cobro registrado",
   COLLECTION_VOIDED: "Cobro anulado",
   SHIPMENT_RETURN_PENDING: "Pasa a devolver",
@@ -107,7 +110,7 @@ function ShipmentHistory({ shipment, reasons }: { shipment: Shipment; reasons: M
         <ul>
           {shipment.attempts.map((attempt) => (
             <li key={attempt.id}>
-              {formatDateTime(attempt.occurredAt)} · {attempt.result === "DELIVERED" ? "Entregado" : "No entregado"}
+              {formatDateTime(attempt.occurredAt)} · {attempt.result === "DELIVERED" ? "Entregada" : "No entregada"}
               {attempt.reason ? ` · ${reasons.get(attempt.reason) ?? attempt.reason}` : ""}
               {attempt.note ? ` · “${attempt.note}”` : ""}
             </li>
@@ -235,50 +238,53 @@ export function RouteTracking({ routeId }: { routeId: number }) {
   const differenceCount = shipments.filter(({ shipment }) => hasCollectionDifference(shipment)).length;
   const stale = loadedAt !== null && route.status !== "CLOSED" && now - loadedAt > STALE_AFTER_MS;
 
-  const action: ActionItem =
-    route.status === "ASSIGNED"
-      ? {
-          id: "receipt",
-          tone: "info",
-          title: `Esperando que ${courierName} confirme los paquetes recibidos.`,
-          detail: "Hasta entonces podés cambiar el repartidor.",
-        }
-      : route.status === "IN_PROGRESS" && route.summary.pending === 0
-        ? {
-            id: "close",
-            tone: "progress",
-            title: "Todas las guías tienen resultado.",
-            detail: "Cerrá el recorrido para fijar la rendición.",
-            actionLabel: "Cerrar y rendir",
-            onAction: () => setClosing(true),
-          }
-        : route.status === "IN_PROGRESS"
-          ? {
-              id: "progress",
-              tone: "progress",
-              title: `${route.summary.pending} ${route.summary.pending === 1 ? "guía pendiente" : "guías pendientes"} de ${courierName}.`,
-              detail: "El avance se actualiza solo cada 30 segundos.",
-              actionLabel: "Ver pendientes",
-              onAction: () => setFilter("PENDING"),
-            }
-          : difference !== 0
-            ? {
-                id: "difference",
-                tone: differenceTone(difference),
-                title: `La rendición tiene una diferencia de ${formatGs(difference)}.`,
-                detail: `${differenceCount} ${differenceCount === 1 ? "guía entregada tiene" : "guías entregadas tienen"} un cobro distinto al esperado.`,
-                actionLabel: "Ver guías con diferencia",
-                onAction: () => setFilter("DIFFERENCE"),
-              }
-            : {
-                id: "settled",
-                tone: "success",
-                title: "Rendición conciliada.",
-                detail: `Se cobró ${formatGs(collected)}, lo esperado por las guías entregadas.`,
-              };
+  const carrierName = route.carrier.name;
+  const displayStatus = routeDisplayStatus(route);
+  const returnsAtClose = route.summary.pending + byStatus.RETURN_PENDING;
+
+  // Only what the admin has to do is an "Acción requerida"; the rest is context.
+  const attention =
+    displayStatus === "FINISHED" ? (
+      <ActionRequiredCard
+        item={{
+          id: "close",
+          tone: "warning",
+          title: "Todas las guías tienen resultado: falta cerrar el recorrido.",
+          detail: "Al cerrarlo se guarda la rendición final.",
+          actionLabel: "Cerrar recorrido",
+          onAction: () => setClosing(true),
+        }}
+      />
+    ) : route.status === "CLOSED" && difference !== 0 ? (
+      <ActionRequiredCard
+        item={{
+          id: "difference",
+          tone: differenceTone(difference),
+          title: `${describeMoneyDifference(difference)} en la rendición.`,
+          detail: `${differenceCount} ${differenceCount === 1 ? "guía entregada se cobró" : "guías entregadas se cobraron"} por otro monto.`,
+          actionLabel: "Ver esas guías",
+          onAction: () => setFilter("DIFFERENCE"),
+        }}
+      />
+    ) : route.status === "ASSIGNED" ? (
+      <InfoNote tone="neutral">
+        Esperando que {courierName} confirme que tiene los paquetes. Mientras tanto podés cambiar el repartidor.
+      </InfoNote>
+    ) : route.status === "IN_PROGRESS" ? (
+      <InfoNote tone="info">
+        {route.summary.pending} {route.summary.pending === 1 ? "guía pendiente" : "guías pendientes"}. El avance se
+        actualiza solo cada 30 segundos.
+      </InfoNote>
+    ) : (
+      <InfoNote tone="success" icon={CheckCircle2}>
+        Rendición sin diferencias: se cobró {formatGs(collected)}, lo que correspondía por las guías entregadas.
+      </InfoNote>
+    );
 
   const closeBlocked =
-    route.status === "ASSIGNED" ? "El repartidor todavía no confirmó la recepción de los paquetes." : null;
+    route.status === "ASSIGNED"
+      ? "No se puede cerrar todavía: el repartidor no confirmó que tiene los paquetes."
+      : null;
 
   return (
     <div className="logistics-layout">
@@ -286,17 +292,18 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         <div className="card-header">
           <div>
             <h2 className="card-title">
-              Recorrido #{route.id} · {courierName}
+              Planilla {route.import.sheetNumber} · {courierName}
             </h2>
             <div className="lg-header-meta">
-              <StatusPill kind="route" status={route.status} />
+              <StatusPill kind="route" status={displayStatus} />
               <span>
-                {route.carrier.name} · planilla {route.import.sheetNumber} · {route.businessDate}
+                {carrierName} · {formatDate(route.businessDate)} · recorrido #{route.id}
               </span>
               <span>
-                {route.receivedAt ? `Recibido ${formatDateTime(route.receivedAt)}` : "Sin recepción confirmada"}
-                {route.closedAt ? ` · cerrado ${formatDateTime(route.closedAt)}` : ""}
+                Total de la planilla: {formatGs(route.summary.expectedAmount)} en {route.summary.shipments} guías
               </span>
+              {route.receivedAt ? <span>Paquetes recibidos el {formatDateTime(route.receivedAt)}</span> : null}
+              {route.closedAt ? <span>Cerrado el {formatDateTime(route.closedAt)}</span> : null}
             </div>
           </div>
           <div className="lg-header-meta">
@@ -311,7 +318,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             </button>
           </div>
         </div>
-        <ActionRequiredCard item={action} />
+        {attention}
         <ProgressSummary done={done} total={route.summary.shipments} />
         <div className="lg-metrics">
           <MetricCard
@@ -319,6 +326,11 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             value={route.summary.pending}
             tone="info"
             icon={Truck}
+            hint={
+              byStatus.FAILED > 0
+                ? `Incluye ${byStatus.FAILED} no ${byStatus.FAILED === 1 ? "entregada" : "entregadas"} para reintentar`
+                : undefined
+            }
             active={filter === "PENDING"}
             onSelect={() => setFilter("PENDING")}
           />
@@ -333,24 +345,27 @@ export function RouteTracking({ routeId }: { routeId: number }) {
           <MetricCard
             label="No entregadas"
             value={byStatus.FAILED}
-            tone="danger"
+            tone="neutral"
             icon={AlertCircle}
+            hint="Se pueden reintentar hasta cerrar"
             active={filter === "FAILED"}
             onSelect={() => setFilter("FAILED")}
           />
           <MetricCard
-            label="A devolver"
+            label="Para devolver"
             value={byStatus.RETURN_PENDING}
-            tone="warning"
+            tone="neutral"
             icon={Undo2}
+            hint={`Vuelven a ${carrierName}`}
             active={filter === "RETURN_PENDING"}
             onSelect={() => setFilter("RETURN_PENDING")}
           />
           <MetricCard
-            label="Faltantes"
+            label="No recibidas"
             value={byStatus.MISSING}
-            tone="danger"
+            tone={byStatus.MISSING > 0 ? "warning" : "neutral"}
             icon={PackageX}
+            hint={`${carrierName} no se las entregó al repartidor`}
             active={filter === "MISSING"}
             onSelect={() => setFilter("MISSING")}
           />
@@ -359,7 +374,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             value={formatGs(collected)}
             tone="neutral"
             icon={Banknote}
-            hint={`Esperado por entregas: ${formatGs(expected)}`}
+            hint={`De ${formatGs(expected)} a cobrar por lo entregado`}
           />
           <MoneyDifferenceCard
             expected={expected}
@@ -395,10 +410,10 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         ) : (
           <div className="form-actions">
             <a className="button-primary" href={`/api/logistics/routes/${route.id}/export?format=xlsx`}>
-              <Download size={16} aria-hidden="true" /> Rendición en Excel
+              <Download size={16} aria-hidden="true" /> Descargar rendición (Excel)
             </a>
             <a className="button-secondary" href={`/api/logistics/routes/${route.id}/export?format=csv`}>
-              <Download size={16} aria-hidden="true" /> CSV
+              <Download size={16} aria-hidden="true" /> Descargar CSV
             </a>
           </div>
         )}
@@ -408,17 +423,21 @@ export function RouteTracking({ routeId }: { routeId: number }) {
       {snapshot && snapshot.bySender.length > 0 ? (
         <section className="card card-lg logistics-layout" aria-labelledby="senders-title">
           <h2 className="card-title" id="senders-title">
-            {route.status === "CLOSED" ? "Rendición por remitente" : "Rendición parcial por remitente"}
+            {route.status === "CLOSED" ? "Rendición por remitente" : "Rendición por remitente (hasta ahora)"}
           </h2>
+          <p className="muted">
+            El remitente es quien envía el paquete (por ejemplo, la tienda). {carrierName} es la empresa de logística
+            que lo transporta.
+          </p>
           <div className="table-wrap">
             <table className="data-table lg-table lg-no-sticky" style={{ minWidth: 0 }}>
               <thead>
                 <tr>
                   <th scope="col">Remitente</th>
                   <th scope="col">Entregadas</th>
-                  <th scope="col">A devolver</th>
-                  <th scope="col">Faltantes</th>
-                  <th scope="col">Esperado</th>
+                  <th scope="col">Para devolver</th>
+                  <th scope="col">No recibidas</th>
+                  <th scope="col">A cobrar por lo entregado</th>
                   <th scope="col">Cobrado</th>
                 </tr>
               </thead>
@@ -427,9 +446,9 @@ export function RouteTracking({ routeId }: { routeId: number }) {
                   <tr key={sender.senderName}>
                     <td data-label="Remitente">{sender.senderName}</td>
                     <td data-label="Entregadas">{sender.delivered}</td>
-                    <td data-label="A devolver">{sender.returnPending}</td>
-                    <td data-label="Faltantes">{sender.missing}</td>
-                    <td data-label="Esperado">{formatGs(sender.expectedAmount)}</td>
+                    <td data-label="Para devolver">{sender.returnPending}</td>
+                    <td data-label="No recibidas">{sender.missing}</td>
+                    <td data-label="A cobrar por lo entregado">{formatGs(sender.expectedAmount)}</td>
                     <td data-label="Cobrado">{formatGs(sender.collectedAmount)}</td>
                   </tr>
                 ))}
@@ -528,14 +547,14 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         title="Cerrar el recorrido"
         tone={route.summary.pending > 0 || difference !== 0 ? "warning" : "progress"}
         busy={busy}
-        confirmLabel="Cerrar y fijar la rendición"
+        confirmLabel="Cerrar y guardar la rendición"
         impacts={[
           route.summary.pending > 0
-            ? `${route.summary.pending} guías sin resultado pasan a devolver.`
+            ? `${route.summary.pending} ${route.summary.pending === 1 ? "guía sin entregar pasa" : "guías sin entregar pasan"} a devolver.`
             : "Todas las guías tienen resultado.",
-          `Cobrado ${formatGs(collected)} de ${formatGs(expected)} esperados${difference !== 0 ? ` (diferencia ${formatGs(difference)})` : ""}.`,
-          `${route.summary.pending + byStatus.RETURN_PENDING} guías para devolver a ${route.carrier.name} y ${byStatus.MISSING} faltantes.`,
-          "La rendición queda fija y ya no se pueden registrar entregas ni cobros.",
+          `Se cobró ${formatGs(collected)} de ${formatGs(expected)} a cobrar por lo entregado${difference !== 0 ? ` (${describeMoneyDifference(difference).toLowerCase()})` : ""}.`,
+          `${returnsAtClose} ${returnsAtClose === 1 ? "guía vuelve" : "guías vuelven"} a ${carrierName}${byStatus.MISSING > 0 ? ` y ${byStatus.MISSING} no se ${byStatus.MISSING === 1 ? "recibió" : "recibieron"}` : ""}.`,
+          "La rendición final queda guardada: después no se pueden registrar entregas ni cobros.",
         ]}
         onConfirm={() => void close()}
         onCancel={() => setClosing(false)}

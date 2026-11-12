@@ -8,6 +8,7 @@ import {
   TEMPLATE_HEADER_LABELS,
   type SheetCellValue,
 } from "./sheet-reader";
+import { describeMoneyDifference, formatDate, formatDateTime } from "./client";
 import type { LogisticsRoute, RouteSettlement } from "./types";
 
 export const XLSX_MIME =
@@ -105,28 +106,29 @@ export async function buildSettlementWorkbook(
   const workbook = new ExcelJS.Workbook();
   const summary = workbook.addWorksheet("Resumen");
   summary.addRows([
-    ["Rendición del recorrido", route.id],
-    ["Empresa", route.carrier.name],
     ["Planilla", route.import.sheetNumber],
-    ["Fecha del recorrido", route.businessDate],
+    ["Empresa de logística", route.carrier.name],
+    ["Recorrido", route.id],
+    ["Fecha del recorrido", formatDate(route.businessDate)],
     ["Repartidor (id)", route.courierId],
-    ["Cerrado", settlement.generatedAt],
+    ["Cerrado el", formatDateTime(settlement.generatedAt)],
     [],
-    ["Importe esperado (entregadas)", money(settlement.expectedAmount)],
-    ["Importe cobrado", money(settlement.collectedAmount)],
-    ["Diferencia", money(settlement.differenceAmount)],
+    ["A cobrar por lo entregado", money(settlement.expectedAmount)],
+    ["Cobrado", money(settlement.collectedAmount)],
+    ["Diferencia (cobrado − a cobrar)", money(settlement.differenceAmount)],
+    ["Situación", describeMoneyDifference(money(settlement.differenceAmount))],
     ["Moneda", settlement.currency],
     [],
     ["Guías", snapshot.counts.shipments],
     ["Entregadas", snapshot.counts.delivered],
-    ["A devolver", snapshot.counts.returnPending],
-    ["Faltantes", snapshot.counts.missing],
-    ["Entregadas con diferencia de cobro", snapshot.counts.deliveredWithCollectionDifference],
+    ["Para devolver", snapshot.counts.returnPending],
+    ["No recibidas", snapshot.counts.missing],
+    ["Entregadas y cobradas por otro monto", snapshot.counts.deliveredWithCollectionDifference],
     ["Bultos entregados", snapshot.packages.delivered],
-    ["Bultos a devolver", snapshot.packages.returnPending],
-    ["Bultos faltantes", snapshot.packages.missing],
+    ["Bultos para devolver", snapshot.packages.returnPending],
+    ["Bultos no recibidos", snapshot.packages.missing],
     [],
-    ["Remitente", "Entregadas", "A devolver", "Faltantes", "Esperado", "Cobrado"],
+    ["Remitente", "Entregadas", "Para devolver", "No recibidas", "A cobrar por lo entregado", "Cobrado"],
     ...snapshot.bySender.map((sender) => [
       sender.senderName,
       sender.delivered,
@@ -153,7 +155,7 @@ export async function buildSettlementWorkbook(
     ]);
   }
 
-  const returns = workbook.addWorksheet("A devolver y faltantes");
+  const returns = workbook.addWorksheet("Para devolver y no recibidas");
   returns.addRow(["Guía", "Remitente", "Remito", "Bultos", "A cobrar", "Situación", "Motivo"]).font = { bold: true };
   for (const line of snapshot.toReturn) {
     returns.addRow([
@@ -162,7 +164,7 @@ export async function buildSettlementWorkbook(
       line.remito ?? "",
       line.packages,
       line.amountToCollect,
-      "A devolver",
+      "Para devolver",
       line.reason ? reasonLabel(line.reason) : REASON_FALLBACK,
     ]);
   }
@@ -173,7 +175,7 @@ export async function buildSettlementWorkbook(
       line.remito ?? "",
       line.packages,
       line.amountToCollect,
-      "Faltante (no recibido)",
+      "No recibida",
       "",
     ]);
   }
@@ -210,7 +212,7 @@ export function buildSettlementCsv(
       "",
     ]),
     ...snapshot.toReturn.map((line) => [
-      "a_devolver",
+      "para_devolver",
       line.trackingNumber,
       line.senderName,
       line.remito,
@@ -221,7 +223,7 @@ export function buildSettlementCsv(
       line.reason ? reasonLabel(line.reason) : REASON_FALLBACK,
     ]),
     ...snapshot.missing.map((line) => [
-      "faltante",
+      "no_recibida",
       line.trackingNumber,
       line.senderName,
       line.remito,

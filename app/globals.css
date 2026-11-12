@@ -5235,8 +5235,89 @@ a {
   border-color: transparent;
 }
 
-.lg-step-blocked {
-  color: var(--lg-danger-fg);
+/* A step that is not reachable yet is not an error: gray, never red. */
+.lg-step-blocked,
+.lg-step-pending {
+  color: var(--text-secondary);
+}
+
+.lg-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+  font-size: 0.9rem;
+}
+
+.lg-info-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.lg-cell-note {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.lg-actions-toggle {
+  justify-self: start;
+}
+
+.lg-row-issues {
+  display: grid;
+  gap: 4px;
+}
+
+.lg-info-details summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.lg-info-details .logistics-issues {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.lg-row-menu {
+  position: relative;
+}
+
+.lg-row-menu > summary {
+  list-style: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.lg-row-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lg-row-menu > summary:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.lg-row-menu[open] > button {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  background: var(--surface);
 }
 
 .lg-metrics {
@@ -5531,6 +5612,22 @@ button.lg-metric:hover {
   .lg-table .lg-status {
     white-space: normal;
     text-align: right;
+  }
+
+  .lg-table .lg-cell-note,
+  .lg-table .lg-row-issues {
+    text-align: right;
+  }
+
+  .lg-row-menu > summary {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lg-row-menu[open] > button {
+    position: static;
+    margin-top: 6px;
+    box-shadow: none;
   }
 
   .lg-stepper {

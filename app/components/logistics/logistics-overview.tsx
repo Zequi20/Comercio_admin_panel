@@ -11,6 +11,7 @@ import {
   ProgressSummary,
   relativeTime,
   ROUTE_STATUS,
+  routeDisplayStatus,
   StatusPill,
   Stepper,
   useNow,
@@ -18,13 +19,15 @@ import {
   type Step,
 } from "@/app/components/logistics/logistics-ui";
 import {
+  describeMoneyDifference,
+  formatDate,
   formatDateTime,
   formatGs,
   logisticsFetch,
   newIdempotencyKey,
   problemMessage,
 } from "@/app/lib/logistics/client";
-import type { Carrier, LogisticsRoute, RouteStatus, ShipmentImport } from "@/app/lib/logistics/types";
+import type { Carrier, LogisticsRoute, ShipmentImport } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
 
 type Tab = "routes" | "imports";
@@ -34,11 +37,17 @@ const STALE_AFTER_MS = 2 * 60_000;
 const ASSIGNED_WAIT_MS = 2 * 60 * 60_000;
 const RECENT_CLOSE_MS = 7 * 24 * 60 * 60_000;
 
-/** Guides with a result: delivered, not delivered, to return or missing. */
+/** Guides with a final result: delivered, to return or not received (a failed attempt can be retried). */
 const routeDone = (route: LogisticsRoute) => route.summary.shipments - route.summary.pending;
 
 const routeDifference = (route: LogisticsRoute) =>
   Number(route.summary.collectedAmount) - Number(route.summary.deliveredExpectedAmount);
+
+/** The merchant knows a route by its sheet and courier, not by the internal number. */
+const routeName = (route: LogisticsRoute, nameOf: (id: number) => string) =>
+  `planilla ${route.import.sheetNumber} de ${nameOf(route.courierId)}`;
+
+const VISIBLE_ACTIONS = 3;
 
 /** What needs attention now, most urgent first. */
 function buildActions(
@@ -63,8 +72,8 @@ function buildActions(
         : {
             id: `draft-${draft.id}`,
             tone: "warning",
-            title: `Tenés la planilla ${draft.sheetNumber} pendiente de revisión.`,
-            detail: `${draft.summary.includedRows} guías listas para asignar a un repartidor.`,
+            title: `La planilla ${draft.sheetNumber} está lista para asignar.`,
+            detail: `${draft.summary.includedRows} guías sin problemas bloqueantes. Revisalas y elegí el repartidor.`,
             actionLabel: "Revisar y asignar",
             href: `/dashboard/logistica/importaciones/${draft.id}`,
           }
@@ -75,10 +84,10 @@ function buildActions(
     if (route.status === "IN_PROGRESS" && route.summary.pending === 0) {
       items.push({
         id: `close-${route.id}`,
-        tone: "progress",
-        title: `El recorrido #${route.id} terminó sus entregas.`,
-        detail: `Falta cerrarlo para fijar la rendición de ${nameOf(route.courierId)}.`,
-        actionLabel: "Cerrar y rendir",
+        tone: "warning",
+        title: `La ${routeName(route, nameOf)} terminó sus entregas.`,
+        detail: "Cerrá el recorrido para guardar la rendición final.",
+        actionLabel: "Cerrar recorrido",
         href,
       });
     }
@@ -92,8 +101,8 @@ function buildActions(
       items.push({
         id: `diff-${route.id}`,
         tone: differenceTone(difference),
-        title: `La rendición del recorrido #${route.id} tiene una diferencia de ${formatGs(difference)}.`,
-        detail: "Revisá las guías entregadas con cobro distinto al esperado.",
+        title: `${describeMoneyDifference(difference)} en la rendición de la ${routeName(route, nameOf)}.`,
+        detail: "Revisá las guías entregadas que se cobraron por otro monto.",
         actionLabel: "Revisar diferencia",
         href,
       });
@@ -102,8 +111,8 @@ function buildActions(
       items.push({
         id: `receipt-${route.id}`,
         tone: "info",
-        title: `El recorrido #${route.id} sigue sin recepción confirmada.`,
-        detail: `${nameOf(route.courierId)} todavía no confirmó los paquetes recibidos.`,
+        title: `${nameOf(route.courierId)} no confirmó que tiene los paquetes de la planilla ${route.import.sheetNumber}.`,
+        detail: "Pasaron más de 2 horas desde que se asignó. Podés llamarlo o asignar otro repartidor.",
         actionLabel: "Ver recorrido",
         href,
       });
@@ -126,15 +135,13 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
   const isPdf = file?.name.toLowerCase().endsWith(".pdf") ?? false;
 
   const steps: Step[] = [
-    { label: "Cargar archivo", state: file ? "done" : "current", hint: file ? file.name : "PDF de Fixy o plantilla" },
+    { label: "Subir archivo", state: file ? "done" : "current", hint: file ? file.name : "PDF de Fixy o modelo de Excel" },
     {
-      label: "Validar datos",
+      label: "Revisar filas",
       state: file ? "current" : "pending",
-      hint: file ? "Tocá «Analizar archivo»" : "Primero elegí el archivo",
+      hint: file ? "Tocá «Analizar archivo»" : "Ves cada guía y los totales",
     },
-    { label: "Resolver problemas", state: "pending", hint: "Después del análisis" },
-    { label: "Asignar repartidor", state: "pending", hint: "Después del análisis" },
-    { label: "Crear recorrido", state: "pending", hint: "Al final" },
+    { label: "Asignar y crear", state: "pending", hint: "Elegís el repartidor" },
   ];
 
   /** Downloads the PDF converted to the Y4pido CSV template, to keep or check in a spreadsheet. */
@@ -208,8 +215,8 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
             Nueva planilla de recorrido
           </h2>
           <p className="muted">
-            Subí el PDF tal como lo entrega Fixy o la plantilla de Y4pido (.xlsx o .csv). Antes de
-            crear el recorrido vas a revisar cada fila y los totales.
+            Subí el PDF tal como lo entrega Fixy, o el modelo de Excel de Y4pido completo (.xlsx o
+            .csv). Nada se asigna hasta que revises las filas y elijas el repartidor.
           </p>
         </div>
         <button
@@ -217,7 +224,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
           type="button"
           onClick={() => window.location.assign("/api/logistics/template")}
         >
-          <Download size={16} aria-hidden="true" /> Descargar plantilla
+          <Download size={16} aria-hidden="true" /> Descargar modelo de Excel
         </button>
       </div>
       <Stepper steps={steps} label="Pasos para crear un recorrido" />
@@ -292,7 +299,7 @@ function RoutesTable({
   nameOf: (id: number) => string;
   couriers: { id: number; name: string }[];
 }) {
-  const [status, setStatus] = useState<RouteStatus | "">("");
+  const [status, setStatus] = useState("");
   const [businessDate, setBusinessDate] = useState("");
   const [courierId, setCourierId] = useState("");
   const [query, setQuery] = useState("");
@@ -301,7 +308,7 @@ function RoutesTable({
     const text = query.trim().toLowerCase();
     return (routes ?? []).filter(
       (route) =>
-        (!status || route.status === status) &&
+        (!status || routeDisplayStatus(route) === status) &&
         (!businessDate || route.businessDate === businessDate) &&
         (!courierId || String(route.courierId) === courierId) &&
         (!text ||
@@ -320,7 +327,7 @@ function RoutesTable({
             <input
               className="field-control"
               type="search"
-              placeholder="Recorrido, planilla o repartidor"
+              placeholder="Planilla, repartidor o n.º de recorrido"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -329,7 +336,7 @@ function RoutesTable({
         </label>
         <label className="field-group">
           <span className="field-label">Estado</span>
-          <select className="field-control" value={status} onChange={(event) => setStatus(event.target.value as RouteStatus | "")}>
+          <select className="field-control" value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">Todos</option>
             {Object.entries(ROUTE_STATUS).map(([value, spec]) => (
               <option key={value} value={value}>
@@ -366,36 +373,41 @@ function RoutesTable({
             <caption className="sr-only">Recorridos</caption>
             <thead>
               <tr>
-                <th scope="col">Recorrido</th>
+                <th scope="col">Planilla</th>
                 <th scope="col">Repartidor</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Avance</th>
                 <th scope="col" className="lg-col-optional">Fecha</th>
-                <th scope="col" className="lg-col-optional">Planilla</th>
-                <th scope="col" className="lg-col-optional">Cobrado / esperado</th>
+                <th scope="col" className="lg-col-optional">Empresa</th>
+                <th scope="col" className="lg-col-optional">Cobrado</th>
                 <th scope="col"><span className="sr-only">Acción</span></th>
               </tr>
             </thead>
             <tbody>
               {visible.map((route) => (
                 <tr key={route.id}>
-                  <td data-label="Recorrido">
-                    <strong>#{route.id}</strong>
+                  <td data-label="Planilla">
+                    <span>
+                      <strong>{route.import.sheetNumber}</strong>
+                      <span className="table-muted"> · recorrido #{route.id}</span>
+                    </span>
                   </td>
                   <td data-label="Repartidor">{nameOf(route.courierId)}</td>
                   <td data-label="Estado">
-                    <StatusPill kind="route" status={route.status} />
+                    <StatusPill kind="route" status={routeDisplayStatus(route)} />
                   </td>
                   <td data-label="Avance" style={{ minWidth: 170 }}>
                     <ProgressSummary done={routeDone(route)} total={route.summary.shipments} />
                   </td>
-                  <td data-label="Fecha" className="lg-col-optional">{route.businessDate}</td>
-                  <td data-label="Planilla" className="lg-col-optional">
-                    {route.carrier.name} · {route.import.sheetNumber}
-                  </td>
-                  <td data-label="Cobrado / esperado" className="lg-col-optional">
-                    {formatGs(route.summary.collectedAmount)} /{" "}
-                    <span className="table-muted">{formatGs(route.summary.deliveredExpectedAmount)}</span>
+                  <td data-label="Fecha" className="lg-col-optional">{formatDate(route.businessDate)}</td>
+                  <td data-label="Empresa" className="lg-col-optional">{route.carrier.name}</td>
+                  <td data-label="Cobrado" className="lg-col-optional">
+                    <span>
+                      {formatGs(route.summary.collectedAmount)}
+                      <span className="lg-cell-note">
+                        de {formatGs(route.summary.deliveredExpectedAmount)} a cobrar por lo entregado
+                      </span>
+                    </span>
                   </td>
                   <td data-label="">
                     <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${route.id}`}>
@@ -448,7 +460,7 @@ function ImportsTable({ imports }: { imports: ShipmentImport[] | null }) {
               <td data-label="">
                 {item.routeId ? (
                   <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${item.routeId}`}>
-                    Ver recorrido #{item.routeId}
+                    Ver recorrido
                   </Link>
                 ) : (
                   <Link
@@ -476,6 +488,7 @@ export function LogisticsOverview() {
   const [error, setError] = useState<string | null>(null);
   const { couriers, nameOf } = useCouriers();
   const now = useNow();
+  const [showAllActions, setShowAllActions] = useState(false);
 
   const load = useCallback(async () => {
     const [carrierResult, routeResult, importResult] = await Promise.all([
@@ -520,13 +533,18 @@ export function LogisticsOverview() {
     <div className="logistics-layout">
       {actions.length > 0 ? (
         <div className="lg-actions">
-          {actions.slice(0, 3).map((item) => (
+          {(showAllActions ? actions : actions.slice(0, VISIBLE_ACTIONS)).map((item) => (
             <ActionRequiredCard key={item.id} item={item} />
           ))}
-          {actions.length > 3 ? (
-            <p className="muted">
-              Y {actions.length - 3} {actions.length - 3 === 1 ? "tarea más" : "tareas más"} en las listas de abajo.
-            </p>
+          {actions.length > VISIBLE_ACTIONS ? (
+            <button
+              className="button-secondary lg-actions-toggle"
+              type="button"
+              aria-expanded={showAllActions}
+              onClick={() => setShowAllActions((value) => !value)}
+            >
+              {showAllActions ? "Ver menos" : `Ver las ${actions.length} tareas`}
+            </button>
           ) : null}
         </div>
       ) : null}

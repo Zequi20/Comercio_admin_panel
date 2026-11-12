@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, CircleSlash, Crosshair, Trash2, UserCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, Crosshair, MoreHorizontal, Trash2, UserCheck, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,7 +12,14 @@ import {
   Stepper,
   type Step,
 } from "@/app/components/logistics/logistics-ui";
-import { formatGs, logisticsFetch, newIdempotencyKey, problemMessage } from "@/app/lib/logistics/client";
+import {
+  describeCountDifference,
+  formatDate,
+  formatGs,
+  logisticsFetch,
+  newIdempotencyKey,
+  problemMessage,
+} from "@/app/lib/logistics/client";
 import type { ImportRow, LogisticsRoute, ShipmentImport } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
 
@@ -26,7 +33,16 @@ const LOCATION_LABEL = {
 
 const DUPLICATE_CODES = new Set(["TRACKING_DUPLICATED_IN_FILE", "TRACKING_ALREADY_IMPORTED"]);
 
+/**
+ * Observations that ask nothing of the merchant: the guide works as is. They are shown apart, as
+ * "para saber", so they do not look like problems.
+ */
+const INFO_CODES = new Set(["LOCATION_NOT_PRECISE", "SOURCE_ORDER_REPEATED", "FIELD_TOO_LONG"]);
+
 const isBlocking = (row: ImportRow) => row.errors.length > 0;
+const reviewWarnings = (row: ImportRow) => row.warnings.filter((issue) => !INFO_CODES.has(issue.code));
+const infoWarnings = (row: ImportRow) => row.warnings.filter((issue) => INFO_CODES.has(issue.code));
+const needsAttention = (row: ImportRow) => isBlocking(row) || reviewWarnings(row).length > 0;
 const hasCode = (row: ImportRow, codes: Set<string> | string) =>
   [...row.errors, ...row.warnings].some((issue) =>
     typeof codes === "string" ? issue.code === codes : codes.has(issue.code)
@@ -35,7 +51,7 @@ const hasCode = (row: ImportRow, codes: Set<string> | string) =>
 const FILTERS: Record<RowFilter, { label: string; test: (row: ImportRow) => boolean }> = {
   all: { label: "Todas", test: () => true },
   blocking: { label: "Bloqueantes", test: (row) => isBlocking(row) && !row.excluded },
-  warnings: { label: "Con observaciones", test: (row) => !isBlocking(row) && row.warnings.length > 0 },
+  warnings: { label: "Con observaciones", test: (row) => !isBlocking(row) && reviewWarnings(row).length > 0 },
   noLocation: { label: "Sin ubicación precisa", test: (row) => hasCode(row, "LOCATION_NOT_PRECISE") },
   duplicates: { label: "Posibles duplicados", test: (row) => hasCode(row, DUPLICATE_CODES) },
   excluded: { label: "Excluidas", test: (row) => row.excluded },
@@ -56,7 +72,7 @@ function RowStatus({ row }: { row: ImportRow }) {
       </span>
     );
   }
-  if (row.warnings.length > 0) {
+  if (reviewWarnings(row).length > 0) {
     return (
       <span className="lg-status lg-tone-warning">
         <AlertTriangle size={14} aria-hidden="true" /> Con observaciones
@@ -70,17 +86,63 @@ function RowStatus({ row }: { row: ImportRow }) {
   );
 }
 
+/** An amount the reader could not parse is shown formatted when it is a number, never as "180000". */
+const rawAmount = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(String(value).replace(/[^\d-]/g, ""));
+  return /\d/.test(String(value)) && Number.isFinite(numeric) ? formatGs(numeric) : String(value);
+};
+
+function RowIssues({ row }: { row: ImportRow }) {
+  const review = reviewWarnings(row);
+  const info = infoWarnings(row);
+  return (
+    <div className="lg-row-issues">
+      {row.errors.length === 0 && review.length === 0 ? (
+        <span className="table-muted">Nada para corregir</span>
+      ) : (
+        <ul className="logistics-issues">
+          {row.errors.map((issue, index) => (
+            <li className="logistics-issue-error" key={`e-${index}`}>
+              <strong>Para corregir:</strong> {issue.message}
+            </li>
+          ))}
+          {review.map((issue, index) => (
+            <li className="logistics-issue-warning" key={`w-${index}`}>
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      {info.length > 0 ? (
+        <details className="lg-info-details">
+          <summary>Para saber ({info.length})</summary>
+          <ul className="logistics-issues">
+            {info.map((issue, index) => (
+              <li key={`i-${index}`}>{issue.message}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function TotalsComparison({ detail }: { detail: ShipmentImport }) {
   const declared = detail.totals.declared;
   const included = detail.totals.included;
-  const rows: { key: "amount" | "shipments" | "packages" | "stops"; label: string; money?: boolean; info?: boolean }[] = [
-    { key: "amount", label: "Importe", money: true },
-    { key: "shipments", label: "Guías" },
-    { key: "packages", label: "Bultos" },
-    { key: "stops", label: "Paradas", info: true },
+  // Stops are not printed on the sheet the same way, so they are not compared.
+  const rows: { key: "amount" | "shipments" | "packages"; label: string; money?: boolean; units?: [string, string] }[] = [
+    { key: "amount", label: "Importe a cobrar", money: true },
+    { key: "shipments", label: "Guías", units: ["guía", "guías"] },
+    { key: "packages", label: "Bultos", units: ["bulto", "bultos"] },
   ];
   const show = (value: number | null | undefined, money?: boolean) =>
     value === null || value === undefined ? "—" : money ? formatGs(value) : String(value);
+  const describe = (difference: number, row: (typeof rows)[number]) =>
+    row.money
+      ? `${formatGs(Math.abs(difference))} ${difference < 0 ? "menos" : "más"} que la planilla`
+      : describeCountDifference(difference, row.units![0], row.units![1]);
 
   return (
     <div className="table-wrap">
@@ -89,8 +151,8 @@ function TotalsComparison({ detail }: { detail: ShipmentImport }) {
         <thead>
           <tr>
             <th scope="col">Concepto</th>
-            <th scope="col">Planilla</th>
-            <th scope="col">Leído (filas incluidas)</th>
+            <th scope="col">Impreso en la planilla</th>
+            <th scope="col">Filas incluidas</th>
             <th scope="col">Diferencia</th>
           </tr>
         </thead>
@@ -101,26 +163,19 @@ function TotalsComparison({ detail }: { detail: ShipmentImport }) {
               declaredValue === null || declaredValue === undefined ? null : included[row.key] - declaredValue;
             return (
               <tr key={row.key}>
-                <td data-label="Concepto">
-                  <span>
-                    {row.label}
-                    {row.info ? <span className="table-muted"> (informativo)</span> : null}
-                  </span>
-                </td>
-                <td data-label="Planilla">{show(declaredValue, row.money)}</td>
-                <td data-label="Leído">{show(included[row.key], row.money)}</td>
+                <td data-label="Concepto">{row.label}</td>
+                <td data-label="Impreso en la planilla">{show(declaredValue, row.money)}</td>
+                <td data-label="Filas incluidas">{show(included[row.key], row.money)}</td>
                 <td data-label="Diferencia">
                   {difference === null ? (
-                    "—"
+                    <span className="table-muted">La planilla no lo informa</span>
                   ) : difference === 0 ? (
                     <span className="lg-diff-positive">
-                      <CheckCircle2 size={14} aria-hidden="true" /> 0
+                      <CheckCircle2 size={14} aria-hidden="true" /> Coincide
                     </span>
                   ) : (
-                    <span className={row.info ? "table-muted" : "lg-diff-negative"}>
-                      {!row.info ? <AlertTriangle size={14} aria-hidden="true" /> : null}{" "}
-                      {difference > 0 ? "+" : "−"}
-                      {show(Math.abs(difference), row.money)}
+                    <span className="lg-diff-negative">
+                      <AlertTriangle size={14} aria-hidden="true" /> {describe(difference, row)}
                     </span>
                   )}
                 </td>
@@ -194,39 +249,36 @@ export function ImportReview({ importId }: { importId: number }) {
   if (!courierId) blockedReasons.push("Elegí el repartidor que va a hacer el recorrido.");
 
   const problemsResolved = blockingRows.length === 0 && (!hasMismatch || acceptMismatch);
+  // Three steps the merchant actually does; steps that are not reachable yet stay gray, not red.
   const steps: Step[] = isDraft
     ? [
-        { label: "Cargar archivo", state: "done", hint: `Formato ${detail.sourceFormat}` },
-        { label: "Validar datos", state: "done", hint: `${detail.summary.totalRows} filas leídas` },
         {
-          label: "Resolver problemas",
+          label: "Subir archivo",
+          state: "done",
+          hint: `${detail.sourceFormat.toUpperCase()} · ${detail.summary.totalRows} filas leídas`,
+        },
+        {
+          label: "Revisar filas",
           state: problemsResolved ? "done" : "current",
           hint: problemsResolved
             ? "Sin bloqueos"
             : blockingRows.length > 0
-              ? `${blockingRows.length} filas bloqueantes`
+              ? `${blockingRows.length} ${blockingRows.length === 1 ? "fila bloqueante" : "filas bloqueantes"}`
               : "Aceptá la diferencia de totales",
         },
         {
-          label: "Asignar repartidor",
-          state: !problemsResolved ? "blocked" : courierId ? "done" : "current",
-          hint: !problemsResolved ? "Primero resolvé los problemas" : courier ? courier.name : "Elegí un repartidor",
-        },
-        {
-          label: "Crear recorrido",
-          state: blockedReasons.length === 0 ? "current" : "blocked",
-          hint: blockedReasons.length === 0 ? "Listo para crear" : "Completá los pasos anteriores",
+          label: "Asignar y crear",
+          state: problemsResolved ? "current" : "pending",
+          hint: !problemsResolved ? "Después de revisar las filas" : courier ? courier.name : "Elegí el repartidor",
         },
       ]
     : [
-        { label: "Cargar archivo", state: "done" },
-        { label: "Validar datos", state: "done" },
-        { label: "Resolver problemas", state: "done" },
-        { label: "Asignar repartidor", state: detail.status === "CONFIRMED" ? "done" : "blocked" },
+        { label: "Subir archivo", state: "done" },
+        { label: "Revisar filas", state: "done" },
         {
-          label: "Crear recorrido",
-          state: detail.status === "CONFIRMED" ? "done" : "blocked",
-          hint: detail.status === "CONFIRMED" ? `Recorrido #${detail.routeId}` : "Importación descartada",
+          label: "Asignar y crear",
+          state: detail.status === "CONFIRMED" ? "done" : "pending",
+          hint: detail.status === "CONFIRMED" ? "Recorrido creado" : "Planilla descartada",
         },
       ];
 
@@ -337,7 +389,7 @@ export function ImportReview({ importId }: { importId: number }) {
               Planilla {detail.sheetNumber} · {detail.carrier.name}
             </h2>
             <p className="muted">
-              {detail.sheetDate ? `Fecha de la planilla: ${detail.sheetDate}. ` : ""}
+              {detail.sheetDate ? `Fecha de la planilla: ${formatDate(detail.sheetDate)}. ` : ""}
               {detail.summary.includedRows} guías incluidas por {formatGs(amount)}.
             </p>
           </div>
@@ -352,7 +404,7 @@ export function ImportReview({ importId }: { importId: number }) {
             <>
               Esta planilla ya creó el recorrido.{" "}
               {detail.routeId ? (
-                <Link href={`/dashboard/logistica/recorridos/${detail.routeId}`}>Ver recorrido #{detail.routeId}</Link>
+                <Link href={`/dashboard/logistica/recorridos/${detail.routeId}`}>Ver recorrido</Link>
               ) : null}
             </>
           ) : (
@@ -370,11 +422,12 @@ export function ImportReview({ importId }: { importId: number }) {
         {hasMismatch ? (
           <div className="lg-alert lg-tone-danger" role="alert">
             <strong>
-              <AlertTriangle size={16} aria-hidden="true" /> Lo leído no coincide con el encabezado de la planilla.
+              <AlertTriangle size={16} aria-hidden="true" /> Las filas incluidas no suman lo mismo que el total
+              impreso en la planilla.
             </strong>
             <p>
-              Si seguís, el recorrido se crea con las filas incluidas y la rendición se calcula sobre ellas, no sobre
-              el total impreso. La diferencia queda registrada en el historial de la importación.
+              Si seguís, el recorrido y la rendición se calculan solo con las filas incluidas, no con el total
+              impreso. La diferencia queda registrada en el historial de la importación.
             </p>
             {isDraft ? (
               <label className="logistics-checkbox">
@@ -540,25 +593,10 @@ export function ImportReview({ importId }: { importId: number }) {
                       </td>
                       <td data-label="Destinatario">{data?.recipientName ?? String(raw.recipientName ?? "—")}</td>
                       <td data-label="A cobrar">
-                        {data ? formatGs(data.amountToCollect) : String(raw.amountToCollect ?? "—")}
+                        {data ? formatGs(data.amountToCollect) : rawAmount(raw.amountToCollect)}
                       </td>
                       <td data-label="Qué revisar">
-                        {row.errors.length === 0 && row.warnings.length === 0 ? (
-                          <span className="table-muted">Nada</span>
-                        ) : (
-                          <ul className="logistics-issues">
-                            {row.errors.map((issue, index) => (
-                              <li className="logistics-issue-error" key={`e-${index}`}>
-                                <strong>Bloquea:</strong> {issue.message}
-                              </li>
-                            ))}
-                            {row.warnings.map((issue, index) => (
-                              <li className="logistics-issue-warning" key={`w-${index}`}>
-                                {issue.message}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                        <RowIssues row={row} />
                       </td>
                       <td data-label="Dirección" className="lg-col-optional logistics-address-cell">
                         {data?.addressText ?? String(raw.address ?? "—")}
@@ -572,9 +610,21 @@ export function ImportReview({ importId }: { importId: number }) {
                       </td>
                       {isDraft ? (
                         <td data-label="">
-                          <button className="button-secondary" type="button" disabled={busy} onClick={() => void toggleRow(row)}>
-                            {row.excluded ? "Incluir" : "Excluir"}
-                          </button>
+                          {row.excluded || needsAttention(row) ? (
+                            <button className="button-secondary" type="button" disabled={busy} onClick={() => void toggleRow(row)}>
+                              {row.excluded ? "Incluir" : "Excluir"}
+                            </button>
+                          ) : (
+                            // Rows without problems rarely need excluding: keep the action out of the way.
+                            <details className="lg-row-menu">
+                              <summary aria-label={`Más acciones para la fila ${row.rowNumber}`}>
+                                <MoreHorizontal size={18} aria-hidden="true" />
+                              </summary>
+                              <button className="button-secondary" type="button" disabled={busy} onClick={() => void toggleRow(row)}>
+                                Excluir fila
+                              </button>
+                            </details>
+                          )}
                         </td>
                       ) : null}
                     </tr>
@@ -598,7 +648,7 @@ export function ImportReview({ importId }: { importId: number }) {
             ? `${detail.summary.excludedRows} filas excluidas quedan fuera: no se van a entregar ni rendir.`
             : "Todas las filas de la planilla quedan incluidas.",
           hasMismatch ? "La diferencia con los totales impresos queda registrada." : "Los totales coinciden con la planilla.",
-          "El repartidor recibe un aviso para confirmar los paquetes.",
+          "El repartidor recibe un aviso y tiene que confirmar que tiene los paquetes.",
         ]}
         onConfirm={() => void confirm()}
         onCancel={() => setDialog(null)}

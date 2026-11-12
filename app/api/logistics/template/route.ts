@@ -9,7 +9,7 @@ export async function GET() {
   return new Response(new Uint8Array(file), {
     headers: {
       "Content-Type": XLSX_MIME,
-      "Content-Disposition": 'attachment; filename="plantilla-planilla-recorrido.xlsx"',
+      "Content-Disposition": 'attachment; filename="modelo-recorrido-y4pido.xlsx"',
       "Cache-Control": "no-store",
     },
   });
