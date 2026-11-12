@@ -5030,3 +5030,525 @@ a {
   padding-left: 18px;
   font-size: 0.85rem;
 }
+
+/* Logistics UI system: status tones, progress, action cards, stepper, metrics, dialogs */
+:root {
+  --lg-neutral-bg: #eef1f5;
+  --lg-neutral-fg: #3f4b5b;
+  --lg-info-bg: #e5efff;
+  --lg-info-fg: #0b4fb3;
+  --lg-progress-bg: #d9e6ff;
+  --lg-progress-fg: #06318a;
+  --lg-success-bg: #dcf5e8;
+  --lg-success-fg: #11643a;
+  --lg-danger-bg: #ffe2de;
+  --lg-danger-fg: #a1170f;
+  --lg-warning-bg: #ffead2;
+  --lg-warning-fg: #8a4300;
+  --lg-sync-bg: #fff3c4;
+  --lg-sync-fg: #6d5200;
+  --lg-closed-bg: #dde1e7;
+  --lg-closed-fg: #222b36;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lg-neutral-bg: #26303f;
+    --lg-neutral-fg: #cdd6e3;
+    --lg-info-bg: #13325f;
+    --lg-info-fg: #b7d3ff;
+    --lg-progress-bg: #1b3d7a;
+    --lg-progress-fg: #d6e4ff;
+    --lg-success-bg: #11402a;
+    --lg-success-fg: #a6eec6;
+    --lg-danger-bg: #5c1611;
+    --lg-danger-fg: #ffc7bf;
+    --lg-warning-bg: #5a3105;
+    --lg-warning-fg: #ffd2a6;
+    --lg-sync-bg: #4d3d00;
+    --lg-sync-fg: #ffe58a;
+    --lg-closed-bg: #333b47;
+    --lg-closed-fg: #e3e8ef;
+  }
+}
+
+:root[data-theme="dark"] {
+  --lg-neutral-bg: #26303f;
+  --lg-neutral-fg: #cdd6e3;
+  --lg-info-bg: #13325f;
+  --lg-info-fg: #b7d3ff;
+  --lg-progress-bg: #1b3d7a;
+  --lg-progress-fg: #d6e4ff;
+  --lg-success-bg: #11402a;
+  --lg-success-fg: #a6eec6;
+  --lg-danger-bg: #5c1611;
+  --lg-danger-fg: #ffc7bf;
+  --lg-warning-bg: #5a3105;
+  --lg-warning-fg: #ffd2a6;
+  --lg-sync-bg: #4d3d00;
+  --lg-sync-fg: #ffe58a;
+  --lg-closed-bg: #333b47;
+  --lg-closed-fg: #e3e8ef;
+}
+
+.lg-tone-neutral { --lg-bg: var(--lg-neutral-bg); --lg-fg: var(--lg-neutral-fg); }
+.lg-tone-info { --lg-bg: var(--lg-info-bg); --lg-fg: var(--lg-info-fg); }
+.lg-tone-progress { --lg-bg: var(--lg-progress-bg); --lg-fg: var(--lg-progress-fg); }
+.lg-tone-success { --lg-bg: var(--lg-success-bg); --lg-fg: var(--lg-success-fg); }
+.lg-tone-danger { --lg-bg: var(--lg-danger-bg); --lg-fg: var(--lg-danger-fg); }
+.lg-tone-warning { --lg-bg: var(--lg-warning-bg); --lg-fg: var(--lg-warning-fg); }
+.lg-tone-sync { --lg-bg: var(--lg-sync-bg); --lg-fg: var(--lg-sync-fg); }
+.lg-tone-closed { --lg-bg: var(--lg-closed-bg); --lg-fg: var(--lg-closed-fg); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lg-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+}
+
+.lg-status-suffix {
+  font-weight: 500;
+}
+
+.lg-progress {
+  display: grid;
+  gap: 6px;
+}
+
+.lg-progress-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.lg-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+
+.lg-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.lg-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+  border: 1px solid color-mix(in srgb, var(--lg-fg) 25%, transparent);
+}
+
+.lg-action-body {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.lg-action-body p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.lg-action-icon {
+  flex-shrink: 0;
+}
+
+.lg-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.lg-stepper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-step {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.lg-step > div {
+  display: grid;
+  gap: 2px;
+}
+
+.lg-step-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.lg-step-hint {
+  font-size: 0.8rem;
+}
+
+.lg-step-current {
+  border-color: var(--primary);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.lg-step-done {
+  color: var(--lg-success-fg);
+  background: var(--lg-success-bg);
+  border-color: transparent;
+}
+
+.lg-step-blocked {
+  color: var(--lg-danger-fg);
+}
+
+.lg-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.lg-metric {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--lg-fg) 22%, transparent);
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+  font: inherit;
+}
+
+button.lg-metric {
+  cursor: pointer;
+}
+
+button.lg-metric:hover {
+  border-color: var(--lg-fg);
+}
+
+.lg-metric-active {
+  box-shadow: 0 0 0 2px var(--lg-fg);
+}
+
+.lg-metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lg-metric-value {
+  font-size: 1.35rem;
+}
+
+.lg-metric-hint {
+  font-size: 0.78rem;
+}
+
+.lg-blocked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--lg-danger-fg);
+}
+
+.lg-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.lg-stale {
+  color: var(--lg-warning-fg);
+  font-weight: 600;
+}
+
+.lg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-medium);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lg-chip[aria-pressed="true"] {
+  background: var(--primary-container);
+  border-color: var(--primary);
+  color: var(--on-primary-container, var(--text));
+  font-weight: 600;
+}
+
+.lg-diff-positive { color: var(--lg-success-fg); }
+.lg-diff-negative { color: var(--lg-danger-fg); font-weight: 600; }
+
+.lg-alert {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+  border: 2px solid var(--lg-fg);
+}
+
+.lg-alert p {
+  margin: 0;
+}
+
+.lg-alert-soft {
+  border-width: 1px;
+  border-color: color-mix(in srgb, var(--lg-fg) 30%, transparent);
+  font-size: 0.9rem;
+}
+
+.lg-courier-card {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-secondary);
+}
+
+.lg-dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.lg-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 15, 28, 0.55);
+}
+
+.lg-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  display: grid;
+  gap: 12px;
+  border-top: 4px solid var(--lg-fg);
+}
+
+.lg-dialog .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lg-dialog-impacts {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+/* Logistics tables: sticky key column on wide screens, optional columns hidden on tablets,
+   cards on phones. */
+.lg-table {
+  min-width: 760px;
+}
+
+.lg-table th:first-child,
+.lg-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+/* Summary tables have no action column to pin. */
+.lg-table.lg-no-sticky th:last-child,
+.lg-table.lg-no-sticky td:last-child:not([colspan]) {
+  position: static;
+  box-shadow: none;
+}
+
+.lg-row-anchor {
+  scroll-margin-top: 96px;
+}
+
+.lg-row-focus td {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.lg-table :is(button, a):focus-visible,
+.lg-chip:focus-visible,
+.lg-metric:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+  .lg-table .lg-col-optional {
+    display: none;
+  }
+
+  .lg-table {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .lg-table thead {
+    display: none;
+  }
+
+  .lg-table,
+  .lg-table tbody,
+  .lg-table tr,
+  .lg-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .lg-table tr {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .lg-table td,
+  .lg-table td:first-child,
+  .lg-table td:last-child:not([colspan]) {
+    position: static;
+    box-shadow: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border: 0;
+    text-align: right;
+    background: transparent;
+  }
+
+  .lg-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+
+  .lg-table td[data-label=""]::before {
+    content: none;
+  }
+
+  .lg-table .logistics-address-cell {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .logistics-layout :is(button, .button-primary, .button-secondary, .button-tonal) {
+    min-height: 44px;
+  }
+
+  .lg-action {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  /* The text takes the whole line next to the icon; the button goes below. */
+  .lg-action-body {
+    flex: 1 1 calc(100% - 40px);
+  }
+
+  .lg-action > :is(a, button) {
+    flex: 1 1 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .logistics-tabs {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .logistics-tabs > button {
+    flex: 1 1 0;
+  }
+
+  .lg-table .lg-status {
+    white-space: normal;
+    text-align: right;
+  }
+
+  .lg-stepper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--lg-warning-bg);
+  color: var(--lg-warning-fg);
+  border: 1px solid currentColor;
+}
