@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileDown, FileSearch, RefreshCw, Search } from "lucide-react";
+import { Download, FileDown, FileSearch, RefreshCw, Search, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -122,7 +122,15 @@ function buildActions(
   return items.sort((a, b) => (order[a.tone] ?? 9) - (order[b.tone] ?? 9));
 }
 
-function UploadSheet({ carriers }: { carriers: Carrier[] }) {
+/** Carriers are platform configuration enabled by Y4pido, not something merchants create. */
+const CARRIER_HELP = "Las empresas de logística las habilita Y4pido. Si trabajás con otra, escribinos.";
+
+/**
+ * `carriers` is null while loading. With a single active carrier there is nothing to choose, so it
+ * is shown as a fact instead of a one-option dropdown; the selector only appears with two or more,
+ * and then without a preselection so the choice is deliberate.
+ */
+function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
   const router = useRouter();
   const [carrierId, setCarrierId] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -131,7 +139,8 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
   const [existingImportId, setExistingImportId] = useState<number | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const [converting, setConverting] = useState(false);
-  const selectedCarrierId = carrierId || (carriers[0] ? String(carriers[0].id) : "");
+  const onlyCarrier = carriers?.length === 1 ? carriers[0] : null;
+  const selectedCarrierId = onlyCarrier ? String(onlyCarrier.id) : carrierId;
   const isPdf = file?.name.toLowerCase().endsWith(".pdf") ?? false;
 
   const steps: Step[] = [
@@ -229,21 +238,50 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
       </div>
       <Stepper steps={steps} label="Pasos para crear un recorrido" />
       <form className="form-grid" onSubmit={submit}>
-        <label className="field-group">
-          <span className="field-label">Empresa de logística</span>
-          <select
-            className="field-control"
-            value={selectedCarrierId}
-            onChange={(event) => setCarrierId(event.target.value)}
-            required
-          >
-            {carriers.map((carrier) => (
-              <option key={carrier.id} value={carrier.id}>
-                {carrier.name}
+        {carriers === null ? (
+          <div className="field-group" aria-busy="true">
+            <span className="field-label">Empresa de logística</span>
+            <div className="skeleton lg-carrier-skeleton" />
+          </div>
+        ) : onlyCarrier ? (
+          <div className="field-group" role="group" aria-labelledby="carrier-label">
+            <span className="field-label" id="carrier-label">
+              Empresa de logística
+            </span>
+            <p className="lg-carrier-fixed">
+              <Truck size={16} aria-hidden="true" />
+              <strong>{onlyCarrier.name}</strong>
+            </p>
+            <span className="field-hint">{CARRIER_HELP}</span>
+          </div>
+        ) : carriers.length === 0 ? (
+          <div className="field-group">
+            <span className="field-label">Empresa de logística</span>
+            <p className="lg-carrier-fixed lg-carrier-empty" role="status">
+              Todavía no hay empresas de logística habilitadas. Escribinos para activar la tuya.
+            </p>
+          </div>
+        ) : (
+          <label className="field-group">
+            <span className="field-label">Empresa de logística</span>
+            <select
+              className="field-control"
+              value={carrierId}
+              onChange={(event) => setCarrierId(event.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Elegí la empresa que te entregó la planilla
               </option>
-            ))}
-          </select>
-        </label>
+              {carriers.map((carrier) => (
+                <option key={carrier.id} value={carrier.id}>
+                  {carrier.name}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">{CARRIER_HELP}</span>
+          </label>
+        )}
         <label className="field-group">
           <span className="field-label">Archivo</span>
           <input
@@ -481,7 +519,7 @@ function ImportsTable({ imports }: { imports: ShipmentImport[] | null }) {
 
 export function LogisticsOverview() {
   const [tab, setTab] = useState<Tab>("routes");
-  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [carriers, setCarriers] = useState<Carrier[] | null>(null);
   const [routes, setRoutes] = useState<LogisticsRoute[] | null>(null);
   const [imports, setImports] = useState<ShipmentImport[] | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);

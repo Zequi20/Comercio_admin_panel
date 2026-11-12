@@ -5258,6 +5258,29 @@ a {
   margin-top: 2px;
 }
 
+/* A single enabled carrier is a fact, not a choice: shown as text, not as a control. */
+.lg-carrier-fixed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+  color: var(--text);
+}
+
+.lg-carrier-empty {
+  padding: 10px 14px;
+  color: var(--text-secondary);
+}
+
+.lg-carrier-skeleton {
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+
 .lg-cell-note {
   display: block;
   font-size: 0.78rem;
