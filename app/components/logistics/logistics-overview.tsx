@@ -224,7 +224,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
             Nueva planilla de recorrido
           </h2>
           <p className="muted">
-            Subí el PDF tal como lo entrega Fixy, o el modelo de Excel de Y4pido completo (.xlsx o
+            Subí el PDF tal como lo entrega Fixy, o el modelo de Excel completo (.xlsx o
             .csv). Nada se asigna hasta que revises las filas y elijas el repartidor.
           </p>
         </div>

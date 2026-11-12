@@ -190,7 +190,7 @@ export const readLogisticsSheet = (matrix: SheetCellValue[][]): ParsedSheet => {
       declaredTotals: null,
       rows: [],
       problems: [
-        'No se encontró la fila de encabezados. Usá la plantilla de Y4pido: debe tener al menos las columnas "guia" y "cobrar".',
+        'No se encontró la fila de encabezados. Usá la plantilla: debe tener al menos las columnas "guia" y "cobrar".',
       ],
     };
   }

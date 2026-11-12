@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const kind = sheetFileKind(file);
   if (!kind) {
     return NextResponse.json(
-      { message: "Subí la planilla en PDF (Fixy) o en la plantilla de Y4pido (.xlsx o .csv)." },
+      { message: "Subí la planilla en PDF (Fixy) o en la plantilla del sistema (.xlsx o .csv)." },
       { status: 400 }
     );
   }
