@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Truck,
   Undo2,
+  UserRoundCog,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -154,6 +155,11 @@ export function RouteTracking({ routeId }: { routeId: number }) {
   const [openShipment, setOpenShipment] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
+  // Reassigning is two steps (choose, then confirm) so a stray click in the dropdown never moves a
+  // route, and the result is said out loud instead of only changing the title.
+  const [newCourierId, setNewCourierId] = useState("");
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignNotice, setReassignNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
 
@@ -199,17 +205,30 @@ export function RouteTracking({ routeId }: { routeId: number }) {
   );
   const visible = useMemo(() => shipments.filter(({ shipment }) => matches(shipment, filter)), [shipments, filter]);
 
-  const reassign = async (courierId: string) => {
-    if (!route || !courierId) return;
+  const reassign = async () => {
+    if (!route || !newCourierId) return;
+    const target = couriers.find((courier) => String(courier.id) === newCourierId);
     setBusy(true);
+    setError(null);
+    setReassignNotice(null);
     const result = await logisticsFetch<LogisticsRoute>(`routes/${routeId}`, {
       method: "PATCH",
-      body: { courierId: Number(courierId), expectedVersion: route.version },
+      body: { courierId: Number(newCourierId), expectedVersion: route.version },
       idempotencyKey: newIdempotencyKey(),
     });
     setBusy(false);
-    if (result.ok) setRoute(result.data);
-    else setError(problemMessage(result.problem, "No se pudo cambiar el repartidor."));
+    setReassigning(false);
+    if (result.ok) {
+      setRoute(result.data);
+      setNewCourierId("");
+      setReassignNotice(
+        `Listo: el recorrido ahora es de ${target?.name ?? nameOf(result.data.courierId)}. Le enviamos un aviso para que confirme que tiene los paquetes.`
+      );
+      return;
+    }
+    // Someone else changed the route meanwhile (or the courier already received): show what is true now.
+    if (result.problem.code === "VERSION_CONFLICT" || result.problem.code === "ROUTE_ALREADY_STARTED") void load();
+    setError(problemMessage(result.problem, "No se pudo cambiar el repartidor."));
   };
 
   const close = async () => {
@@ -280,6 +299,8 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         Rendición sin diferencias: se cobró {formatGs(collected)}, lo que correspondía por las guías entregadas.
       </InfoNote>
     );
+
+  const newCourier = couriers.find((courier) => String(courier.id) === newCourierId) ?? null;
 
   const closeBlocked =
     route.status === "ASSIGNED"
@@ -384,19 +405,52 @@ export function RouteTracking({ routeId }: { routeId: number }) {
           />
         </div>
         {route.status === "ASSIGNED" ? (
-          <label className="field-group">
-            <span className="field-label">Cambiar repartidor (solo antes de que reciba los paquetes)</span>
-            <select className="field-control" value="" disabled={busy} onChange={(event) => void reassign(event.target.value)}>
-              <option value="">Elegí otro repartidor</option>
-              {couriers
-                .filter((courier) => courier.id !== route.courierId)
-                .map((courier) => (
-                  <option key={courier.id} value={courier.id}>
-                    {courier.name}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <div className="lg-reassign">
+            <label className="field-group">
+              <span className="field-label">Cambiar repartidor</span>
+              <select
+                className="field-control"
+                value={newCourierId}
+                disabled={busy}
+                onChange={(event) => {
+                  setNewCourierId(event.target.value);
+                  setReassignNotice(null);
+                }}
+              >
+                <option value="">Elegí otro repartidor</option>
+                {couriers
+                  .filter((courier) => courier.id !== route.courierId)
+                  .map((courier) => (
+                    <option key={courier.id} value={courier.id}>
+                      {courier.name}
+                      {courier.available === false ? " (no disponible)" : ""}
+                    </option>
+                  ))}
+              </select>
+              <span className="field-hint">
+                Se puede cambiar hasta que {courierName} confirme que tiene los paquetes.
+              </span>
+            </label>
+            <button
+              className="button-secondary"
+              type="button"
+              disabled={busy || !newCourierId}
+              onClick={() => setReassigning(true)}
+            >
+              <UserRoundCog size={16} aria-hidden="true" />{" "}
+              {newCourier ? `Cambiar a ${newCourier.name}` : "Cambiar repartidor"}
+            </button>
+          </div>
+        ) : route.status === "IN_PROGRESS" ? (
+          <BlockedReason>
+            Ya no se puede cambiar el repartidor: {courierName} confirmó que tiene los paquetes
+            {route.receivedAt ? ` el ${formatDateTime(route.receivedAt)}` : ""}.
+          </BlockedReason>
+        ) : null}
+        {reassignNotice ? (
+          <InfoNote tone="success" icon={CheckCircle2}>
+            {reassignNotice}
+          </InfoNote>
         ) : null}
         {route.status !== "CLOSED" ? (
           <div>
@@ -542,6 +596,20 @@ export function RouteTracking({ routeId }: { routeId: number }) {
         )}
       </section>
 
+      <ConfirmImpactDialog
+        open={reassigning}
+        title="Cambiar el repartidor"
+        tone="warning"
+        busy={busy}
+        confirmLabel={newCourier ? `Cambiar a ${newCourier.name}` : "Cambiar"}
+        impacts={[
+          `${courierName} deja de ver este recorrido en su app.`,
+          `${newCourier?.name ?? "El nuevo repartidor"} recibe un aviso y tiene que confirmar que tiene los paquetes.`,
+          ...(newCourier?.available === false ? [`${newCourier.name} figura como no disponible.`] : []),
+        ]}
+        onConfirm={() => void reassign()}
+        onCancel={() => setReassigning(false)}
+      />
       <ConfirmImpactDialog
         open={closing}
         title="Cerrar el recorrido"

@@ -5281,6 +5281,29 @@ a {
   border-radius: var(--radius-sm);
 }
 
+.lg-reassign {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.lg-reassign > .field-group {
+  flex: 1 1 280px;
+}
+
+/* Keep the button level with the select, not with its hint. */
+.lg-reassign > button {
+  margin-bottom: 26px;
+}
+
+@media (max-width: 760px) {
+  .lg-reassign > button {
+    flex: 1 1 100%;
+    margin-bottom: 0;
+  }
+}
+
 .lg-cell-note {
   display: block;
   font-size: 0.78rem;
