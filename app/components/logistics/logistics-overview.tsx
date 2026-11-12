@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileUp, RefreshCw } from "lucide-react";
+import { Download, FileDown, FileUp, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
@@ -38,7 +38,39 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
   const [error, setError] = useState<string | null>(null);
   const [existingImportId, setExistingImportId] = useState<number | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+  const [converting, setConverting] = useState(false);
   const selectedCarrierId = carrierId || (carriers[0] ? String(carriers[0].id) : "");
+  const isPdf = file?.name.toLowerCase().endsWith(".pdf") ?? false;
+
+  /** Downloads the PDF converted to the Y4pido CSV template, to keep or check in a spreadsheet. */
+  const convertToCsv = async () => {
+    if (!file) return;
+    setConverting(true);
+    setError(null);
+    const form = new FormData();
+    form.set("file", file);
+    try {
+      const response = await fetch("/api/logistics/convert", { method: "POST", body: form });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        setError(problemMessage(body, "No se pudo convertir el PDF."));
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "planilla.csv";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("No hay conexión con el portal. Reintentá en unos segundos.");
+    } finally {
+      setConverting(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -79,8 +111,9 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
         <div>
           <h2 className="card-title">Importar planilla de recorrido</h2>
           <p className="muted">
-            Subí la planilla en la plantilla de Y4pido (.xlsx o .csv). Antes de crear el recorrido
-            vas a poder revisar cada fila y los totales.
+            Subí el PDF de la planilla de recorrido tal como lo entrega Fixy, o la plantilla de
+            Y4pido (.xlsx o .csv). Antes de crear el recorrido vas a poder revisar cada fila y
+            comparar los totales con los de la planilla.
           </p>
         </div>
         <button
@@ -112,7 +145,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
           <input
             className="field-control"
             type="file"
-            accept=".xlsx,.csv"
+            accept=".pdf,.xlsx,.csv"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
               setIdempotencyKey(newIdempotencyKey());
@@ -121,7 +154,21 @@ function UploadSheet({ carriers }: { carriers: Carrier[] }) {
           />
         </label>
         <div className="form-actions">
-          <button className="button-primary" type="submit" disabled={sending || !file || !selectedCarrierId}>
+          {isPdf ? (
+            <button
+              className="button-secondary"
+              type="button"
+              disabled={converting || sending}
+              onClick={() => void convertToCsv()}
+            >
+              <FileDown size={16} /> {converting ? "Convirtiendo…" : "Descargar como CSV"}
+            </button>
+          ) : null}
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={sending || converting || !file || !selectedCarrierId}
+          >
             <FileUp size={16} /> {sending ? "Leyendo planilla…" : "Revisar planilla"}
           </button>
         </div>

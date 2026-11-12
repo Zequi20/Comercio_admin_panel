@@ -4,21 +4,16 @@ import { NextResponse } from "next/server";
 
 import { requireLogisticsAdmin } from "@/app/lib/logistics/admin-context";
 import { logisticsRequest } from "@/app/lib/logistics/logistics-api";
-import { readLogisticsSheet } from "@/app/lib/logistics/sheet-reader";
-import { loadSheetMatrix } from "@/app/lib/logistics/workbook";
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-
-function fileKind(file: File): "xlsx" | "csv" | null {
-  const name = file.name.toLowerCase();
-  if (name.endsWith(".xlsx")) return "xlsx";
-  if (name.endsWith(".csv")) return "csv";
-  return null;
-}
+import {
+  MAX_SHEET_FILE_BYTES,
+  readSheetFile,
+  sheetFileKind,
+  SOURCE_FORMAT,
+} from "@/app/lib/logistics/read-upload";
 
 /**
- * Reads the uploaded sheet here and sends rows to orders-svc, which validates and stores a draft.
- * Only the file hash is kept, never the file.
+ * Reads the uploaded sheet here (Y4pido template or the carrier's PDF) and sends rows to
+ * orders-svc, which validates and stores a draft. Only the file hash is kept, never the file.
  */
 export async function POST(request: Request) {
   const admin = await requireLogisticsAdmin();
@@ -30,16 +25,16 @@ export async function POST(request: Request) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ message: "Seleccioná la planilla a importar." }, { status: 400 });
   }
-  if (file.size > MAX_FILE_BYTES) {
+  if (file.size > MAX_SHEET_FILE_BYTES) {
     return NextResponse.json({ message: "La planilla supera 5 MB." }, { status: 400 });
   }
   if (!Number.isInteger(carrierId) || carrierId <= 0) {
     return NextResponse.json({ message: "Elegí la empresa de logística." }, { status: 400 });
   }
-  const kind = fileKind(file);
+  const kind = sheetFileKind(file);
   if (!kind) {
     return NextResponse.json(
-      { message: "Subí la planilla en formato .xlsx o .csv (plantilla de Y4pido)." },
+      { message: "Subí la planilla en PDF (Fixy) o en la plantilla de Y4pido (.xlsx o .csv)." },
       { status: 400 }
     );
   }
@@ -47,7 +42,7 @@ export async function POST(request: Request) {
   const buffer = await file.arrayBuffer();
   let parsed;
   try {
-    parsed = readLogisticsSheet(await loadSheetMatrix(buffer, kind));
+    parsed = await readSheetFile(buffer, kind);
   } catch {
     return NextResponse.json({ message: "No se pudo leer el archivo." }, { status: 400 });
   }
@@ -70,7 +65,7 @@ export async function POST(request: Request) {
       carrierId,
       sheetNumber: parsed.sheetNumber,
       sheetDate: parsed.sheetDate,
-      sourceFormat: kind === "xlsx" ? "XLSX" : "CSV",
+      sourceFormat: SOURCE_FORMAT[kind],
       fileSha256: createHash("sha256").update(Buffer.from(buffer)).digest("hex"),
       declaredTotals: parsed.declaredTotals,
       rows: parsed.rows,

@@ -14,6 +14,7 @@
     "exceljs": "^4.4.0",
     "lucide-react": "^0.468.0",
     "next": "^16.2.4",
+    "pdfjs-dist": "4.10.38",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "socket.io-client": "^4.8.3"

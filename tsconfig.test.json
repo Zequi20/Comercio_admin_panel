@@ -10,5 +10,9 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["app/lib/logistics/sheet-reader.ts", "tests/**/*.test.ts"]
+  "include": [
+    "app/lib/logistics/sheet-reader.ts",
+    "app/lib/logistics/pdf-sheet-reader.ts",
+    "tests/**/*.test.ts"
+  ]
 }

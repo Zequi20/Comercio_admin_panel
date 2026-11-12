@@ -246,6 +246,31 @@ export const readLogisticsSheet = (matrix: SheetCellValue[][]): ParsedSheet => {
   };
 };
 
+const csvCell = (value: string | number | null | undefined): string => {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",;\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/**
+ * Writes a parsed sheet as CSV in the Y4pido template (header block plus columns), so it reads back
+ * with readLogisticsSheet exactly as it was.
+ */
+export const buildTemplateCsv = (sheet: ParsedSheet): string => {
+  const totals = sheet.declaredTotals ?? {};
+  const lines: (string | number | null | undefined)[][] = [
+    [TEMPLATE_HEADER_LABELS.sheetNumber, sheet.sheetNumber],
+    [TEMPLATE_HEADER_LABELS.sheetDate, sheet.sheetDate],
+    [TEMPLATE_HEADER_LABELS.amount, totals.amount],
+    [TEMPLATE_HEADER_LABELS.shipments, totals.shipments],
+    [TEMPLATE_HEADER_LABELS.packages, totals.packages],
+    [TEMPLATE_HEADER_LABELS.stops, totals.stops],
+    [],
+    TEMPLATE_COLUMNS.map((column) => column.header),
+    ...sheet.rows.map((row) => TEMPLATE_COLUMNS.map((column) => row[column.field])),
+  ];
+  return `﻿${lines.map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`;
+};
+
 /** Minimal CSV reader: quotes, escaped quotes, CRLF, and "," or ";" detected from the first line. */
 export const parseCsv = (text: string): string[][] => {
   const content = text.replace(/^﻿/, "");
