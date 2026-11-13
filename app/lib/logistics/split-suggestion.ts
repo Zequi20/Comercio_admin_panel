@@ -30,7 +30,9 @@ const NO_LOCALITY = "Sin localidad";
 /** Guides are what takes time on the street, so they are what gets balanced. */
 const weightOf = (stop: SplitStop) => Math.max(1, stop.shipments);
 
-export const localityOf = (stop: Pick<SplitStop, "locality">): string => stop.locality?.trim() || NO_LOCALITY;
+/** "CORONEL OVIEDO" and "Coronel Oviedo" are the same locality: compared and shown in capitals. */
+export const localityOf = (stop: Pick<SplitStop, "locality">): string =>
+  stop.locality?.trim().replace(/\s+/g, " ").toLocaleUpperCase("es") || NO_LOCALITY;
 
 /**
  * Consecutive chunks of the sheet with a similar number of guides each. The sheet order usually

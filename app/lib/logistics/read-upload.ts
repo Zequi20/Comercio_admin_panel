@@ -7,10 +7,11 @@ import { loadSheetMatrix } from "./workbook";
 
 export const MAX_SHEET_FILE_BYTES = 5 * 1024 * 1024;
 
-export type SheetFileKind = "xlsx" | "csv" | "pdf";
+export type SheetFileKind = "xlsx" | "xls" | "csv" | "pdf";
 
-export const SOURCE_FORMAT: Record<SheetFileKind, "XLSX" | "CSV" | "PDF"> = {
+export const SOURCE_FORMAT: Record<SheetFileKind, "XLSX" | "XLS" | "CSV" | "PDF"> = {
   xlsx: "XLSX",
+  xls: "XLS",
   csv: "CSV",
   pdf: "PDF",
 };
@@ -18,12 +19,16 @@ export const SOURCE_FORMAT: Record<SheetFileKind, "XLSX" | "CSV" | "PDF"> = {
 export function sheetFileKind(file: File): SheetFileKind | null {
   const name = file.name.toLowerCase();
   if (name.endsWith(".xlsx")) return "xlsx";
+  if (name.endsWith(".xls")) return "xls";
   if (name.endsWith(".csv")) return "csv";
   if (name.endsWith(".pdf")) return "pdf";
   return null;
 }
 
-/** Reads the Y4pido template (.xlsx/.csv) or the carrier's route sheet PDF into rows. */
+/**
+ * Reads the Y4pido template (.xlsx/.csv), a carrier's spreadsheet export (.xls/.xlsx with columns
+ * like GUIA, DESTINATARIO, DIRECCION, COBRAR) or the carrier's route sheet PDF into rows.
+ */
 export async function readSheetFile(
   buffer: ArrayBuffer,
   kind: SheetFileKind

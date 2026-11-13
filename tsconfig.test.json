@@ -14,6 +14,7 @@
     "app/lib/logistics/sheet-reader.ts",
     "app/lib/logistics/pdf-sheet-reader.ts",
     "app/lib/logistics/split-suggestion.ts",
+    "app/lib/logistics/xls-reader.ts",
     "tests/**/*.test.ts"
   ]
 }

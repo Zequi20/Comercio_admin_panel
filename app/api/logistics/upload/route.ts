@@ -10,6 +10,7 @@ import {
   sheetFileKind,
   SOURCE_FORMAT,
 } from "@/app/lib/logistics/read-upload";
+import { XlsReadError } from "@/app/lib/logistics/xls-reader";
 
 /**
  * Reads the uploaded sheet here (Y4pido template or the carrier's PDF) and sends rows to
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   const carrierId = Number(form?.get("carrierId"));
+  // Exports like the carrier's .xls do not print the sheet number: the merchant types it.
+  const typedSheetNumber = String(form?.get("sheetNumber") ?? "").trim().slice(0, 60);
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ message: "Seleccioná la planilla a importar." }, { status: 400 });
   }
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
   const kind = sheetFileKind(file);
   if (!kind) {
     return NextResponse.json(
-      { message: "Subí la planilla en PDF (Fixy) o en la plantilla del sistema (.xlsx o .csv)." },
+      { message: "Subí la planilla en PDF, en Excel (.xls o .xlsx) o en CSV." },
       { status: 400 }
     );
   }
@@ -43,8 +46,28 @@ export async function POST(request: Request) {
   let parsed;
   try {
     parsed = await readSheetFile(buffer, kind);
-  } catch {
-    return NextResponse.json({ message: "No se pudo leer el archivo." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof XlsReadError ? error.message : "No se pudo leer el archivo." },
+      { status: 400 }
+    );
+  }
+  if (!parsed.sheetNumber && typedSheetNumber) {
+    parsed = {
+      ...parsed,
+      sheetNumber: typedSheetNumber,
+      problems: parsed.problems.filter((problem) => !problem.startsWith("Falta el número de planilla")),
+    };
+  }
+  if (!parsed.sheetNumber && parsed.rows.length > 0) {
+    return NextResponse.json(
+      {
+        code: "SHEET_NUMBER_REQUIRED",
+        message: "El archivo no trae el número de planilla. Escribilo en el campo «N.º de planilla» y volvé a analizar.",
+        problems: parsed.problems,
+      },
+      { status: 400 }
+    );
   }
   if (!parsed.sheetNumber || parsed.rows.length === 0) {
     return NextResponse.json(

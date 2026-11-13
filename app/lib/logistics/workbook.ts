@@ -9,6 +9,7 @@ import {
   type SheetCellValue,
 } from "./sheet-reader";
 import { describeMoneyDifference, formatDate, formatDateTime } from "./client";
+import { readXlsMatrix } from "./xls-reader";
 import type { ImportSettlement, LogisticsRoute, RouteSettlement, SettlementSnapshot } from "./types";
 
 export const XLSX_MIME =
@@ -35,13 +36,16 @@ const cellValue = (value: ExcelJS.CellValue): SheetCellValue => {
   return String(value);
 };
 
-/** First worksheet of an .xlsx, or the whole .csv, as a matrix of cells. */
+/** First worksheet of an .xlsx or a legacy .xls, or the whole .csv, as a matrix of cells. */
 export async function loadSheetMatrix(
   file: ArrayBuffer,
-  kind: "xlsx" | "csv"
+  kind: "xlsx" | "xls" | "csv"
 ): Promise<SheetCellValue[][]> {
   if (kind === "csv") {
     return parseCsv(new TextDecoder("utf-8").decode(file));
+  }
+  if (kind === "xls") {
+    return readXlsMatrix(file);
   }
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file);

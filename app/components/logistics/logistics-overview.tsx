@@ -141,12 +141,15 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
   const [existingImportId, setExistingImportId] = useState<number | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const [converting, setConverting] = useState(false);
+  // Spreadsheet exports may not print the sheet number; the PDF always does.
+  const [sheetNumber, setSheetNumber] = useState("");
+  const [sheetNumberRequired, setSheetNumberRequired] = useState(false);
   const onlyCarrier = carriers?.length === 1 ? carriers[0] : null;
   const selectedCarrierId = onlyCarrier ? String(onlyCarrier.id) : carrierId;
   const isPdf = file?.name.toLowerCase().endsWith(".pdf") ?? false;
 
   const steps: Step[] = [
-    { label: "Subir archivo", state: file ? "done" : "current", hint: file ? file.name : "PDF de Fixy o modelo de Excel" },
+    { label: "Subir archivo", state: file ? "done" : "current", hint: file ? file.name : "PDF o Excel de Fixy, o el modelo" },
     {
       label: "Revisar filas",
       state: file ? "current" : "pending",
@@ -194,6 +197,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
     const form = new FormData();
     form.set("file", file);
     form.set("carrierId", selectedCarrierId);
+    if (!isPdf && sheetNumber.trim()) form.set("sheetNumber", sheetNumber.trim());
     try {
       const response = await fetch("/api/logistics/upload", {
         method: "POST",
@@ -204,6 +208,10 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
       if (response.ok && typeof body.id === "number") {
         router.push(`/dashboard/logistica/importaciones/${body.id}`);
         return;
+      }
+      if (body.code === "SHEET_NUMBER_REQUIRED") {
+        setSheetNumberRequired(true);
+        window.setTimeout(() => document.getElementById("sheet-number")?.focus(), 0);
       }
       if (body.code === "IMPORT_SHEET_ALREADY_EXISTS" && typeof body.importId === "number") {
         setExistingImportId(body.importId);
@@ -226,8 +234,9 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
             Nueva planilla de recorrido
           </h2>
           <p className="muted">
-            Subí el PDF tal como lo entrega Fixy, o el modelo de Excel completo (.xlsx o
-            .csv). Nada se asigna hasta que revises las filas y elijas el repartidor.
+            Subí el PDF tal como lo entrega Fixy, el Excel que exporta (.xls o .xlsx), o el modelo de
+            Excel completo (.xlsx o .csv). Nada se asigna hasta que revises las filas y elijas el
+            repartidor.
           </p>
         </div>
         <button
@@ -289,7 +298,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
           <input
             className="field-control"
             type="file"
-            accept=".pdf,.xlsx,.csv"
+            accept=".pdf,.xls,.xlsx,.csv"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
               setIdempotencyKey(newIdempotencyKey());
@@ -298,6 +307,27 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
             required
           />
         </label>
+        {file && !isPdf ? (
+          <label className="field-group">
+            <span className="field-label">
+              N.º de planilla{sheetNumberRequired ? "" : " (si el archivo no lo trae)"}
+            </span>
+            <input
+              id="sheet-number"
+              className="field-control"
+              inputMode="numeric"
+              maxLength={60}
+              placeholder="Por ejemplo, 16523"
+              value={sheetNumber}
+              aria-invalid={sheetNumberRequired && !sheetNumber.trim()}
+              onChange={(event) => setSheetNumber(event.target.value)}
+              required={sheetNumberRequired}
+            />
+            <span className="field-hint">
+              El Excel que exporta Fixy no incluye el número: copialo de la planilla impresa o del sistema de Fixy.
+            </span>
+          </label>
+        ) : null}
         <div className="form-actions">
           {isPdf ? (
             <button

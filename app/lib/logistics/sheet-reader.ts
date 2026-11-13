@@ -152,10 +152,14 @@ export const parseDeclaredNumber = (value: SheetCellValue): number | null => {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
 };
 
-/** Accepts a spreadsheet date, "29/10/2026" or "2026-10-29". */
+/** Accepts a spreadsheet date (or its serial number, as a .xls keeps it), "29/10/2026" or "2026-10-29". */
 export const parseSheetDate = (value: SheetCellValue): string | null => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);
+  }
+  // Excel counts days from 1899-12-30; this range covers 1954 to 2119.
+  if (typeof value === "number" && Number.isInteger(value) && value > 20_000 && value < 80_000) {
+    return new Date(Date.UTC(1899, 11, 30) + value * 86_400_000).toISOString().slice(0, 10);
   }
   const text = cellText(value);
   let match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
@@ -172,6 +176,16 @@ const cellPayload = (value: SheetCellValue): string | number | null => {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   const text = cellText(value);
   return text ? text : null;
+};
+
+/**
+ * A phone typed in a numeric cell loses its leading zero: Paraguayan mobiles (09xx xxx xxx) come
+ * back as 9 digits starting with 9. Put the zero back so the courier can call it.
+ */
+export const restorePhone = (value: string | number): string | number => {
+  if (typeof value !== "number" || !Number.isInteger(value)) return value;
+  const digits = String(value);
+  return /^9\d{8}$/.test(digits) ? `0${digits}` : digits;
 };
 
 const findHeaderRow = (matrix: SheetCellValue[][]): number =>
@@ -229,12 +243,12 @@ export const readLogisticsSheet = (matrix: SheetCellValue[][]): ParsedSheet => {
       if (!field || assigned.has(field)) return;
       assigned.add(field);
       const value = cellPayload(cells[index]);
-      if (value !== null) row[field] = value;
+      if (value !== null) row[field] = field === "recipientPhone" ? restorePhone(value) : value;
     });
     rows.push(row);
   });
 
-  if (!sheetNumber) problems.push('Falta el número de planilla (fila "Planilla").');
+  if (!sheetNumber) problems.push('Falta el número de planilla: el archivo no lo trae. Escribilo en el formulario.');
   const hasTotals = Object.values(totals).some((value) => value !== null && value !== undefined);
 
   return {
