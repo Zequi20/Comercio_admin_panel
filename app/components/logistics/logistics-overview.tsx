@@ -3,7 +3,7 @@
 import { Download, FileDown, FileSearch, RefreshCw, Search, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ActionRequiredCard,
@@ -124,6 +124,23 @@ function buildActions(
   return items.sort((a, b) => (order[a.tone] ?? 9) - (order[b.tone] ?? 9));
 }
 
+const FILE_CHANGED =
+  "No se pudo leer el archivo: se movió o se modificó después de elegirlo. Volvé a seleccionarlo.";
+
+/**
+ * Reads the chosen file into memory before sending it. If the file was moved or edited after it
+ * was picked, the browser cannot read it and aborts the upload with a bare network error (Chrome's
+ * ERR_UPLOAD_FILE_CHANGED); reading it first turns that into a clear message, and the upload then
+ * sends this copy, which no longer depends on the file on disk.
+ */
+async function readChosenFile(file: File): Promise<File | null> {
+  try {
+    return new File([await file.arrayBuffer()], file.name, { type: file.type, lastModified: file.lastModified });
+  } catch {
+    return null;
+  }
+}
+
 /** Carriers are platform configuration enabled by Y4pido, not something merchants create. */
 const CARRIER_HELP = "Las empresas de logística las habilita Y4pido. Si trabajás con otra, escribinos.";
 
@@ -144,6 +161,14 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
   // Spreadsheet exports may not print the sheet number; the PDF always does.
   const [sheetNumber, setSheetNumber] = useState("");
   const [sheetNumberRequired, setSheetNumberRequired] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** The file on disk changed: drop the stale selection so the merchant picks it again. */
+  const forgetFile = () => {
+    setFile(null);
+    if (fileInput.current) fileInput.current.value = "";
+    setError(FILE_CHANGED);
+  };
   const onlyCarrier = carriers?.length === 1 ? carriers[0] : null;
   const selectedCarrierId = onlyCarrier ? String(onlyCarrier.id) : carrierId;
   const isPdf = file?.name.toLowerCase().endsWith(".pdf") ?? false;
@@ -163,8 +188,14 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
     if (!file) return;
     setConverting(true);
     setError(null);
+    const copy = await readChosenFile(file);
+    if (!copy) {
+      forgetFile();
+      setConverting(false);
+      return;
+    }
     const form = new FormData();
-    form.set("file", file);
+    form.set("file", copy);
     try {
       const response = await fetch("/api/logistics/convert", { method: "POST", body: form });
       if (!response.ok) {
@@ -194,8 +225,14 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
     setSending(true);
     setError(null);
     setExistingImportId(null);
+    const copy = await readChosenFile(file);
+    if (!copy) {
+      forgetFile();
+      setSending(false);
+      return;
+    }
     const form = new FormData();
-    form.set("file", file);
+    form.set("file", copy);
     form.set("carrierId", selectedCarrierId);
     if (!isPdf && sheetNumber.trim()) form.set("sheetNumber", sheetNumber.trim());
     try {
@@ -297,6 +334,7 @@ function UploadSheet({ carriers }: { carriers: Carrier[] | null }) {
           <span className="field-label">Archivo</span>
           <input
             className="field-control"
+            ref={fileInput}
             type="file"
             accept=".pdf,.xls,.xlsx,.csv"
             onChange={(event) => {
