@@ -98,6 +98,7 @@ const COLUMN_ALIASES: Record<string, RowField> = {
   domicilio: "address",
   localidad: "locality",
   bultos: "packages",
+  "bultos reales": "packages",
   peso: "weight",
   cobrar: "amountToCollect",
   importe: "amountToCollect",
@@ -221,7 +222,13 @@ export const readLogisticsSheet = (matrix: SheetCellValue[][]): ParsedSheet => {
     else totals[key] = parseDeclaredNumber(value);
   }
 
-  const columns = (matrix[headerIndex] ?? []).map((cell) => COLUMN_ALIASES[fold(cellText(cell))]);
+  const headers = (matrix[headerIndex] ?? []).map((cell) => fold(cellText(cell)));
+  // The carrier's export has BULTOS (declared) and BULTOS REALES (what the courier actually gets
+  // and confirms): the real count wins when both are there.
+  const hasRealPackages = headers.includes("bultos reales");
+  const columns = headers.map((header) =>
+    hasRealPackages && header === "bultos" ? undefined : COLUMN_ALIASES[header]
+  );
   const seen = new Set<RowField>();
   columns.forEach((field) => {
     if (!field) return;

@@ -145,4 +145,20 @@ describe("lector de .xls", () => {
     assert.throws(() => readXlsMatrix(compoundFile(workbookStream({ version: 0x0500 }))), /Excel 95/);
     assert.throws(() => readXlsMatrix(compoundFile(workbookStream(), "Book")), /Excel 95/);
   });
+
+  it("takes BULTOS REALES over BULTOS when the export has both", () => {
+    const sheet = readLogisticsSheet([
+      ["Planilla", "16523"],
+      ["GUIA", "BULTOS", "BULTOS REALES", "COBRAR", "DIRECCION"],
+      [224331, 2, 1, "$ 149000", "Calle A"],
+    ]);
+    assert.equal(sheet.rows[0].packages, 1);
+    assert.deepEqual(sheet.problems, []);
+    const plain = readLogisticsSheet([
+      ["Planilla", "16523"],
+      ["GUIA", "BULTOS", "COBRAR", "DIRECCION"],
+      [224331, 2, "$ 149000", "Calle A"],
+    ]);
+    assert.equal(plain.rows[0].packages, 2);
+  });
 });
