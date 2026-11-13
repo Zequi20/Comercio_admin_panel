@@ -14,6 +14,7 @@ import {
   Undo2,
   UserRoundCog,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -327,7 +328,8 @@ export function RouteTracking({ routeId }: { routeId: number }) {
             <div className="lg-header-meta">
               <StatusPill kind="route" status={displayStatus} />
               <span>
-                {carrierName} · {formatDate(route.businessDate)} · recorrido #{route.id}
+                {carrierName} · {formatDate(route.businessDate)} · recorrido #{route.id} ·{" "}
+                <Link href={`/dashboard/logistica/importaciones/${route.import.id}`}>Ver planilla completa</Link>
               </span>
               <span>
                 Total de la planilla: {formatGs(route.summary.expectedAmount)} en {route.summary.shipments} guías

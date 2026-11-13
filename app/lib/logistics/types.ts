@@ -76,7 +76,10 @@ export type ShipmentImport = {
   version: number;
   createdAt: string;
   confirmedAt: string | null;
+  /** First route of the sheet. */
   routeId: number | null;
+  /** Every route created from the sheet: one per courier when it was split. */
+  routeIds?: number[];
   piiErased: boolean;
   summary: {
     totalRows: number;
@@ -93,7 +96,22 @@ export type ShipmentImport = {
   };
   importWarnings: RowIssue[];
   canConfirm: boolean;
+  /** Stops of the included rows without errors, in sheet order (detail only). */
+  stops?: DraftStop[];
   rows?: ImportRow[];
+};
+
+/** Rows sharing an address: the unit a sheet is split by among couriers. */
+export type DraftStop = {
+  key: string;
+  sequence: number;
+  addressText: string | null;
+  locality: string | null;
+  hasCoordinates: boolean;
+  rowNumbers: number[];
+  shipments: number;
+  packages: number;
+  amountToCollect: number;
 };
 
 export type DeliveryAttempt = {
@@ -222,6 +240,31 @@ export type RouteSettlement = {
   expectedAmount: string;
   collectedAmount: string;
   differenceAmount: string;
+  snapshot: SettlementSnapshot;
+};
+
+/** One courier's part of a split sheet. `final` once the route is closed. */
+export type ImportSettlementPart = {
+  routeId: number;
+  courierId: number;
+  status: RouteStatus;
+  closedAt: string | null;
+  final: boolean;
+  expectedAmount: number;
+  collectedAmount: number;
+  differenceAmount: number;
+  counts: SettlementSnapshot["counts"];
+};
+
+/** The whole sheet as the carrier settles it: every route added up. */
+export type ImportSettlement = {
+  importId: number;
+  sheetNumber: string;
+  sheetDate: string | null;
+  carrierName: string;
+  currency: string;
+  closed: boolean;
+  routes: ImportSettlementPart[];
   snapshot: SettlementSnapshot;
 };
 

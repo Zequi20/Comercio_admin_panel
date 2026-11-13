@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, CircleSlash, Crosshair, MoreHorizontal, Trash2, UserCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, Crosshair, MoreHorizontal, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -22,6 +22,9 @@ import {
 } from "@/app/lib/logistics/client";
 import type { ImportRow, LogisticsRoute, ShipmentImport } from "@/app/lib/logistics/types";
 import { useCouriers } from "@/app/lib/logistics/use-couriers";
+import { loadsOf, toAssignments, type Assignment } from "@/app/lib/logistics/split-suggestion";
+import { SheetSettlement } from "@/app/components/logistics/sheet-settlement";
+import { StopDistribution } from "@/app/components/logistics/stop-distribution";
 import { paginateRows, TablePagination, type TablePaginationState } from "@/app/components/table-pagination";
 
 type RowFilter = "all" | "blocking" | "warnings" | "noLocation" | "duplicates" | "excluded";
@@ -193,9 +196,11 @@ function TotalsComparison({ detail }: { detail: ShipmentImport }) {
 
 export function ImportReview({ importId }: { importId: number }) {
   const router = useRouter();
-  const { couriers } = useCouriers();
+  const { couriers, nameOf } = useCouriers();
   const [detail, setDetail] = useState<ShipmentImport | null>(null);
-  const [courierId, setCourierId] = useState("");
+  // One courier takes the whole sheet; two or more split its stops (stop key → courier).
+  const [courierIds, setCourierIds] = useState<number[]>([]);
+  const [assignment, setAssignment] = useState<Assignment>({});
   const [businessDate, setBusinessDate] = useState("");
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [filter, setFilter] = useState<RowFilter>("all");
@@ -240,7 +245,7 @@ export function ImportReview({ importId }: { importId: number }) {
     setRowsPagination((current) => ({ ...current, page: 1 }));
   };
   const blockingRows = useMemo(() => allRows.filter(FILTERS.blocking.test), [allRows]);
-  const courier = couriers.find((candidate) => String(candidate.id) === courierId) ?? null;
+  const split = courierIds.length >= 2;
 
   if (!detail) {
     return error ? <div className="error-box">{error}</div> : <div className="skeleton table-skeleton" />;
@@ -256,7 +261,22 @@ export function ImportReview({ importId }: { importId: number }) {
   }
   if (detail.summary.includedRows === 0) blockedReasons.push("No quedó ninguna fila incluida.");
   if (hasMismatch && !acceptMismatch) blockedReasons.push("Confirmá que aceptás la diferencia de totales.");
-  if (!courierId) blockedReasons.push("Elegí el repartidor que va a hacer el recorrido.");
+  const stops = detail.stops ?? [];
+  const loads = loadsOf(stops, assignment, courierIds);
+  const unassignedStops = split ? stops.filter((stop) => !courierIds.includes(assignment[stop.key])).length : 0;
+  if (courierIds.length === 0) blockedReasons.push("Elegí al menos un repartidor.");
+  if (unassignedStops > 0) {
+    blockedReasons.push(
+      unassignedStops === 1
+        ? "Queda 1 parada sin repartidor."
+        : `Quedan ${unassignedStops} paradas sin repartidor.`
+    );
+  }
+  if (split) {
+    for (const load of loads) {
+      if (load.stops === 0) blockedReasons.push(`${nameOf(load.courierId)} no tiene paradas: asignale alguna o quitalo.`);
+    }
+  }
 
   const problemsResolved = blockingRows.length === 0 && (!hasMismatch || acceptMismatch);
   // Three steps the merchant actually does; steps that are not reachable yet stay gray, not red.
@@ -279,7 +299,13 @@ export function ImportReview({ importId }: { importId: number }) {
         {
           label: "Asignar y crear",
           state: problemsResolved ? "current" : "pending",
-          hint: !problemsResolved ? "Después de revisar las filas" : courier ? courier.name : "Elegí el repartidor",
+          hint: !problemsResolved
+            ? "Después de revisar las filas"
+            : courierIds.length === 0
+              ? "Elegí el repartidor"
+              : split
+                ? `${courierIds.length} repartidores`
+                : nameOf(courierIds[0]),
         },
       ]
     : [
@@ -288,7 +314,12 @@ export function ImportReview({ importId }: { importId: number }) {
         {
           label: "Asignar y crear",
           state: detail.status === "CONFIRMED" ? "done" : "pending",
-          hint: detail.status === "CONFIRMED" ? "Recorrido creado" : "Planilla descartada",
+          hint:
+            detail.status === "CONFIRMED"
+              ? (detail.routeIds?.length ?? 1) > 1
+                ? `${detail.routeIds?.length} recorridos creados`
+                : "Recorrido creado"
+              : "Planilla descartada",
         },
       ];
 
@@ -360,14 +391,16 @@ export function ImportReview({ importId }: { importId: number }) {
   };
 
   const confirm = async () => {
-    if (!courierId) return;
+    if (courierIds.length === 0) return;
     setBusy(true);
     setError(null);
-    const result = await logisticsFetch<LogisticsRoute>(`imports/${importId}/confirm`, {
+    const result = await logisticsFetch<LogisticsRoute & { routeIds?: number[] }>(`imports/${importId}/confirm`, {
       method: "POST",
       idempotencyKey: confirmKey,
       body: {
-        courierId: Number(courierId),
+        ...(split
+          ? { assignments: toAssignments(stops, assignment, courierIds) }
+          : { courierId: courierIds[0] }),
         ...(businessDate ? { businessDate } : {}),
         acceptTotalsMismatch: acceptMismatch,
         expectedVersion: detail.version,
@@ -376,16 +409,31 @@ export function ImportReview({ importId }: { importId: number }) {
     setBusy(false);
     setDialog(null);
     if (result.ok) {
-      router.push(`/dashboard/logistica/recorridos/${result.data.id}`);
+      // One route opens its tracking; a split sheet stays here, where its routes are listed.
+      if ((result.data.routeIds?.length ?? 1) > 1) {
+        await load();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        router.push(`/dashboard/logistica/recorridos/${result.data.id}`);
+      }
       return;
     }
     const { code } = result.problem;
-    if (code === "VERSION_CONFLICT" || code === "IMPORT_HAS_ERRORS" || code === "TRACKING_ALREADY_IMPORTED") {
+    if (
+      code === "VERSION_CONFLICT" ||
+      code === "IMPORT_HAS_ERRORS" ||
+      code === "TRACKING_ALREADY_IMPORTED" ||
+      code === "ASSIGNMENT_INVALID"
+    ) {
       void load();
     }
-    if (code === "IMPORT_ALREADY_CONFIRMED" && typeof result.problem.routeId === "number") {
-      router.push(`/dashboard/logistica/recorridos/${result.problem.routeId}`);
-      return;
+    if (code === "IMPORT_ALREADY_CONFIRMED") {
+      const routeIds = Array.isArray(result.problem.routeIds) ? (result.problem.routeIds as number[]) : [];
+      if (routeIds.length === 1) {
+        router.push(`/dashboard/logistica/recorridos/${routeIds[0]}`);
+        return;
+      }
+      void load();
     }
     setConfirmKey(newIdempotencyKey());
     setError(problemMessage(result.problem, "No se pudo crear el recorrido."));
@@ -414,12 +462,16 @@ export function ImportReview({ importId }: { importId: number }) {
       {!isDraft ? (
         <div className={detail.status === "CONFIRMED" ? "success-box" : "notification-info-box"}>
           {detail.status === "CONFIRMED" ? (
-            <>
-              Esta planilla ya creó el recorrido.{" "}
-              {detail.routeId ? (
-                <Link href={`/dashboard/logistica/recorridos/${detail.routeId}`}>Ver recorrido</Link>
-              ) : null}
-            </>
+            (detail.routeIds?.length ?? 0) > 1 ? (
+              <>Esta planilla se repartió en {detail.routeIds?.length} recorridos: los ves abajo.</>
+            ) : (
+              <>
+                Esta planilla ya creó el recorrido.{" "}
+                {detail.routeId ? (
+                  <Link href={`/dashboard/logistica/recorridos/${detail.routeId}`}>Ver recorrido</Link>
+                ) : null}
+              </>
+            )
           ) : (
             "Esta importación fue descartada; podés volver a subir la planilla."
           )}
@@ -463,24 +515,20 @@ export function ImportReview({ importId }: { importId: number }) {
         ) : null}
       </section>
 
+      {detail.status === "CONFIRMED" && (detail.routeIds?.length ?? 0) > 0 ? <SheetSettlement importId={importId} /> : null}
+
       {isDraft ? (
         <section className="card card-lg logistics-layout" aria-labelledby="assign-title">
-          <h2 className="card-title" id="assign-title">
-            Asignar repartidor y crear recorrido
-          </h2>
+          <div>
+            <h2 className="card-title" id="assign-title">
+              Asignar y crear
+            </h2>
+            <p className="muted">
+              Un repartidor lleva toda la planilla. Con dos o más, las paradas se reparten: cada uno recibe su
+              propio recorrido y rinde lo suyo.
+            </p>
+          </div>
           <div className="form-grid">
-            <label className="field-group">
-              <span className="field-label">Repartidor</span>
-              <select className="field-control" value={courierId} onChange={(event) => setCourierId(event.target.value)}>
-                <option value="">Elegí un repartidor</option>
-                {couriers.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                    {option.available === false ? " (no disponible)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="field-group">
               <span className="field-label">Fecha del recorrido</span>
               <input
@@ -491,21 +539,15 @@ export function ImportReview({ importId }: { importId: number }) {
               />
             </label>
           </div>
-          {courier ? (
-            <div className="lg-courier-card">
-              <strong>
-                <UserCheck size={16} aria-hidden="true" /> {courier.name}
-              </strong>
-              {courier.email ? <span className="table-muted">{courier.email}</span> : null}
-              <span>
-                {courier.available === false
-                  ? "Marcado como no disponible: va a recibir el recorrido igual."
-                  : courier.available
-                    ? "Disponible"
-                    : "Disponibilidad desconocida"}
-              </span>
-            </div>
-          ) : null}
+          <StopDistribution
+            stops={stops}
+            couriers={couriers}
+            courierIds={courierIds}
+            assignment={assignment}
+            disabled={busy}
+            onCourierIdsChange={setCourierIds}
+            onAssignmentChange={setAssignment}
+          />
           {error ? <div className="error-box">{error}</div> : null}
           <div className="form-actions">
             <button className="button-secondary danger-button" type="button" onClick={() => setDialog("discard")} disabled={busy}>
@@ -517,7 +559,11 @@ export function ImportReview({ importId }: { importId: number }) {
               onClick={() => setDialog("confirm")}
               disabled={busy || blockedReasons.length > 0}
             >
-              {courier ? `Asignar a ${courier.name} y crear recorrido` : "Asignar y crear recorrido"}
+              {split
+                ? `Crear ${courierIds.length} recorridos`
+                : courierIds.length === 1
+                  ? `Asignar a ${nameOf(courierIds[0])} y crear recorrido`
+                  : "Asignar y crear recorrido"}
             </button>
           </div>
           {blockedReasons.length > 0 ? (
@@ -663,17 +709,32 @@ export function ImportReview({ importId }: { importId: number }) {
 
       <ConfirmImpactDialog
         open={dialog === "confirm"}
-        title="Crear el recorrido"
+        title={split ? "Crear los recorridos" : "Crear el recorrido"}
         tone="progress"
         busy={busy}
-        confirmLabel={courier ? `Asignar a ${courier.name}` : "Crear recorrido"}
+        confirmLabel={
+          split
+            ? `Crear ${courierIds.length} recorridos`
+            : courierIds.length === 1
+              ? `Asignar a ${nameOf(courierIds[0])}`
+              : "Crear recorrido"
+        }
         impacts={[
-          `Se crea un recorrido con ${detail.summary.includedRows} guías por ${formatGs(amount)}${courier ? ` para ${courier.name}` : ""}.`,
+          ...(split
+            ? loads.map(
+                (load) =>
+                  `${nameOf(load.courierId)}: ${load.stops} ${load.stops === 1 ? "parada" : "paradas"}, ${load.shipments} guías, ${formatGs(load.amountToCollect)} a cobrar.`
+              )
+            : [
+                `Se crea un recorrido con ${detail.summary.includedRows} guías por ${formatGs(amount)}${courierIds.length === 1 ? ` para ${nameOf(courierIds[0])}` : ""}.`,
+              ]),
           detail.summary.excludedRows > 0
             ? `${detail.summary.excludedRows} filas excluidas quedan fuera: no se van a entregar ni rendir.`
             : "Todas las filas de la planilla quedan incluidas.",
           hasMismatch ? "La diferencia con los totales impresos queda registrada." : "Los totales coinciden con la planilla.",
-          "El repartidor recibe un aviso y tiene que confirmar que tiene los paquetes.",
+          split
+            ? "Cada repartidor recibe un aviso y confirma que tiene sus paquetes; cada uno rinde lo suyo."
+            : "El repartidor recibe un aviso y tiene que confirmar que tiene los paquetes.",
         ]}
         onConfirm={() => void confirm()}
         onCancel={() => setDialog(null)}

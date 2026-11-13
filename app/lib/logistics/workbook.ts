@@ -9,7 +9,7 @@ import {
   type SheetCellValue,
 } from "./sheet-reader";
 import { describeMoneyDifference, formatDate, formatDateTime } from "./client";
-import type { LogisticsRoute, RouteSettlement } from "./types";
+import type { ImportSettlement, LogisticsRoute, RouteSettlement, SettlementSnapshot } from "./types";
 
 export const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -128,19 +128,22 @@ export async function buildSettlementWorkbook(
     ["Bultos para devolver", snapshot.packages.returnPending],
     ["Bultos no recibidos", snapshot.packages.missing],
     [],
-    ["Remitente", "Entregadas", "Para devolver", "No recibidas", "A cobrar por lo entregado", "Cobrado"],
-    ...snapshot.bySender.map((sender) => [
-      sender.senderName,
-      sender.delivered,
-      sender.returnPending,
-      sender.missing,
-      sender.expectedAmount,
-      sender.collectedAmount,
-    ]),
+    ...senderRows(snapshot),
   ]);
   summary.getColumn(1).width = 36;
   summary.getColumn(2).width = 18;
 
+  addLineSheets(workbook, snapshot, reasonLabel);
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+/** The delivered guides, and what goes back to the carrier, one sheet each. */
+function addLineSheets(
+  workbook: ExcelJS.Workbook,
+  snapshot: SettlementSnapshot,
+  reasonLabel: (code: string | null) => string
+): void {
   const delivered = workbook.addWorksheet("Entregadas");
   delivered.addRow(["Guía", "Remitente", "Remito", "Bultos", "A cobrar", "Cobrado", "Diferencia"]).font = { bold: true };
   for (const line of snapshot.delivered) {
@@ -184,7 +187,71 @@ export async function buildSettlementWorkbook(
       column.width = 18;
     });
   }
+}
 
+/** Sender breakdown rows, shared by the route and the sheet settlement. */
+const senderRows = (snapshot: SettlementSnapshot) => [
+  ["Remitente", "Entregadas", "Para devolver", "No recibidas", "A cobrar por lo entregado", "Cobrado"],
+  ...snapshot.bySender.map((sender) => [
+    sender.senderName,
+    sender.delivered,
+    sender.returnPending,
+    sender.missing,
+    sender.expectedAmount,
+    sender.collectedAmount,
+  ]),
+];
+
+/**
+ * Settlement of a whole sheet split among couriers: one line per courier and the total the carrier
+ * settles, plus every delivered and returned guide. Open routes count with their live figures.
+ */
+export async function buildSheetSettlementWorkbook(
+  sheet: ImportSettlement,
+  courierName: (courierId: number) => string,
+  reasonLabel: (code: string | null) => string
+): Promise<Buffer> {
+  const { snapshot } = sheet;
+  const workbook = new ExcelJS.Workbook();
+  const summary = workbook.addWorksheet("Resumen");
+  summary.addRows([
+    ["Planilla", sheet.sheetNumber],
+    ["Empresa de logística", sheet.carrierName],
+    ["Fecha de la planilla", formatDate(sheet.sheetDate)],
+    ["Estado", sheet.closed ? "Rendición final: todos los recorridos cerrados" : "Provisoria: hay recorridos abiertos"],
+    [],
+    ["Repartidor", "Recorrido", "Estado", "Guías", "Entregadas", "A cobrar por lo entregado", "Cobrado", "Situación"],
+    ...sheet.routes.map((part) => [
+      courierName(part.courierId),
+      part.routeId,
+      part.final ? "Cerrado" : "Abierto",
+      part.counts.shipments,
+      part.counts.delivered,
+      part.expectedAmount,
+      part.collectedAmount,
+      describeMoneyDifference(part.differenceAmount),
+    ]),
+    [],
+    ["A cobrar por lo entregado", money(snapshot.expectedAmount)],
+    ["Cobrado", money(snapshot.collectedAmount)],
+    ["Diferencia (cobrado − a cobrar)", money(snapshot.differenceAmount)],
+    ["Situación", describeMoneyDifference(money(snapshot.differenceAmount))],
+    ["Moneda", sheet.currency],
+    [],
+    ["Guías", snapshot.counts.shipments],
+    ["Entregadas", snapshot.counts.delivered],
+    ["Para devolver", snapshot.counts.returnPending],
+    ["No recibidas", snapshot.counts.missing],
+    ["Entregadas y cobradas por otro monto", snapshot.counts.deliveredWithCollectionDifference],
+    ["Bultos entregados", snapshot.packages.delivered],
+    ["Bultos para devolver", snapshot.packages.returnPending],
+    ["Bultos no recibidos", snapshot.packages.missing],
+    [],
+    ...senderRows(snapshot),
+  ]);
+  summary.getColumn(1).width = 36;
+  for (const index of [2, 3, 4, 5, 6, 7, 8]) summary.getColumn(index).width = 18;
+  addLineSheets(workbook, snapshot, reasonLabel);
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
@@ -194,7 +261,7 @@ const csvCell = (value: string | number | null | undefined) => {
 };
 
 export function buildSettlementCsv(
-  settlement: RouteSettlement,
+  settlement: { snapshot: SettlementSnapshot },
   reasonLabel: (code: string | null) => string
 ): string {
   const { snapshot } = settlement;

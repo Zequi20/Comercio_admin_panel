@@ -5310,6 +5310,89 @@ a {
   transition: opacity 0.15s ease;
 }
 
+/* Splitting a sheet among couriers. */
+.lg-split-couriers {
+  display: grid;
+  gap: 8px;
+}
+
+.lg-split-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-split-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-secondary);
+}
+
+.lg-split-add,
+.lg-split-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lg-split-add > select,
+.lg-split-bulk > select {
+  flex: 0 1 280px;
+}
+
+.lg-split-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.lg-split-methods {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 360px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lg-split-method {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.lg-split-method > span {
+  display: grid;
+  gap: 2px;
+}
+
+.lg-split-method-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+.lg-split-method input {
+  margin-top: 4px;
+}
+
+.lg-split-unassigned td {
+  background: color-mix(in srgb, var(--lg-danger-bg) 55%, transparent);
+}
+
 .lg-cell-note {
   display: block;
   font-size: 0.78rem;

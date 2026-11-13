@@ -563,7 +563,11 @@ function ImportsTable({ refreshKey }: { refreshKey: number }) {
                 <td data-label="Empresa" className="lg-col-optional">{item.carrier.name}</td>
                 <td data-label="Cargada" className="lg-col-optional">{formatDateTime(item.createdAt)}</td>
                 <td data-label="">
-                  {item.routeId ? (
+                  {(item.routeIds?.length ?? 0) > 1 ? (
+                    <Link className="button-secondary" href={`/dashboard/logistica/importaciones/${item.id}`}>
+                      Ver {item.routeIds?.length} recorridos
+                    </Link>
+                  ) : item.routeId ? (
                     <Link className="button-secondary" href={`/dashboard/logistica/recorridos/${item.routeId}`}>
                       Ver recorrido
                     </Link>
