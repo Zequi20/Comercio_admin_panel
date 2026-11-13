@@ -142,7 +142,7 @@ async function readChosenFile(file: File): Promise<File | null> {
 }
 
 /** Carriers are platform configuration enabled by Y4pido, not something merchants create. */
-const CARRIER_HELP = "Las empresas de logística las habilita Y4pido. Si trabajás con otra, escribinos.";
+const CARRIER_HELP = "Las empresas de logística se activan a pedido. Si trabajás con otra, escribinos.";
 
 /**
  * `carriers` is null while loading. With a single active carrier there is nothing to choose, so it
