@@ -52,6 +52,9 @@ import { useCouriers } from "@/app/lib/logistics/use-couriers";
 import { paginateRows, TablePagination, type TablePaginationState } from "@/app/components/table-pagination";
 
 const REFRESH_MS = 30_000;
+
+/** "Faltan Gs. 30.000" inside a sentence: only the first letter goes lower case, not "Gs.". */
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 const GUIDES_PAGE_SIZE = 25;
 const STALE_AFTER_MS = 90_000;
 
@@ -643,7 +646,7 @@ export function RouteTracking({ routeId }: { routeId: number }) {
           route.summary.pending > 0
             ? `${route.summary.pending} ${route.summary.pending === 1 ? "guía sin entregar pasa" : "guías sin entregar pasan"} a devolver.`
             : "Todas las guías tienen resultado.",
-          `Se cobró ${formatGs(collected)} de ${formatGs(expected)} a cobrar por lo entregado${difference !== 0 ? ` (${describeMoneyDifference(difference).toLowerCase()})` : ""}.`,
+          `Se cobró ${formatGs(collected)} de ${formatGs(expected)} a cobrar por lo entregado${difference !== 0 ? ` (${lowerFirst(describeMoneyDifference(difference))})` : ""}.`,
           `${returnsAtClose} ${returnsAtClose === 1 ? "guía vuelve" : "guías vuelven"} a ${carrierName}${byStatus.MISSING > 0 ? ` y ${byStatus.MISSING} no se ${byStatus.MISSING === 1 ? "recibió" : "recibieron"}` : ""}.`,
           "La rendición final queda guardada: después no se pueden registrar entregas ni cobros.",
         ]}
